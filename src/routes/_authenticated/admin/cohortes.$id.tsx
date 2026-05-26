@@ -399,8 +399,109 @@ function SettingsTab({ cohort, onSaved }: { cohort: any; onSaved: () => void }) 
         <div><Label>Tranche 1 (jours)</Label><Input type="number" value={form.inst1Days} onChange={(e) => setForm({ ...form, inst1Days: e.target.value as any })} /></div>
         <div><Label>Tranche 2 (jours)</Label><Input type="number" value={form.inst2Days} onChange={(e) => setForm({ ...form, inst2Days: e.target.value as any })} /></div>
       </div>
-      <div><Label>Relances (jours avant échéance)</Label><Input value={form.reminders} onChange={(e) => setForm({ ...form, reminders: e.target.value })} placeholder="7,3,1" /></div>
+      <div><Label>Relances (jours avant échéance — legacy)</Label><Input value={form.reminders} onChange={(e) => setForm({ ...form, reminders: e.target.value })} placeholder="7,3,1" /></div>
       <Button onClick={save} className="bg-gold text-primary hover:bg-gold/90"><Save className="mr-1 h-4 w-4" /> Enregistrer</Button>
+
+      <div className="pt-6 border-t">
+        <PaymentScheduleEditor cohortId={cohort.id} />
+      </div>
+      <div className="pt-6 border-t">
+        <ReminderRulesEditor cohortId={cohort.id} />
+      </div>
     </Card>
+  );
+}
+
+function PaymentScheduleEditor({ cohortId }: { cohortId: string }) {
+  const { data: rows = [], refetch } = useQuery({
+    queryKey: ["cohort-payment-schedule", cohortId],
+    queryFn: async () => (await (supabase as any).from("cohort_payment_schedule").select("*").eq("cohort_id", cohortId).order("position")).data ?? [],
+  });
+
+  const add = async () => {
+    await (supabase as any).from("cohort_payment_schedule").insert({
+      cohort_id: cohortId, position: rows.length + 1, label: `Tranche ${rows.length + 1}`,
+      percent: null, amount: null, due_offset_days: 30,
+    });
+    refetch();
+  };
+  const update = async (id: string, patch: any) => { await (supabase as any).from("cohort_payment_schedule").update(patch).eq("id", id); refetch(); };
+  const del = async (id: string) => { await (supabase as any).from("cohort_payment_schedule").delete().eq("id", id); refetch(); };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="font-semibold">Plan de paiement</h3>
+          <p className="text-xs text-muted-foreground">Définissez les tranches (en % ou montant fixe) et leurs échéances en jours après inscription.</p>
+        </div>
+        <Button size="sm" variant="outline" onClick={add}><Plus className="mr-1 h-3 w-3" /> Tranche</Button>
+      </div>
+      {rows.length === 0 ? <p className="text-sm text-muted-foreground">Aucune tranche personnalisée — les tranches legacy seront utilisées.</p> :
+        rows.map((r: any) => (
+          <div key={r.id} className="grid grid-cols-12 gap-2 items-center">
+            <Input className="col-span-1" type="number" defaultValue={r.position} onBlur={(e) => update(r.id, { position: Number(e.target.value) })} />
+            <Input className="col-span-3" defaultValue={r.label ?? ""} placeholder="Libellé" onBlur={(e) => update(r.id, { label: e.target.value })} />
+            <Input className="col-span-2" type="number" step="0.01" defaultValue={r.percent ?? ""} placeholder="% (ou vide)" onBlur={(e) => update(r.id, { percent: e.target.value ? Number(e.target.value) : null })} />
+            <Input className="col-span-2" type="number" defaultValue={r.amount ?? ""} placeholder="Montant" onBlur={(e) => update(r.id, { amount: e.target.value ? Number(e.target.value) : null })} />
+            <Input className="col-span-3" type="number" defaultValue={r.due_offset_days} placeholder="Jours" onBlur={(e) => update(r.id, { due_offset_days: Number(e.target.value) })} />
+            <Button size="icon" variant="ghost" className="col-span-1" onClick={() => del(r.id)}><Trash2 className="h-3 w-3 text-destructive" /></Button>
+          </div>
+        ))}
+    </div>
+  );
+}
+
+function ReminderRulesEditor({ cohortId }: { cohortId: string }) {
+  const { data: rows = [], refetch } = useQuery({
+    queryKey: ["cohort-reminder-rules", cohortId],
+    queryFn: async () => (await (supabase as any).from("cohort_reminder_rules").select("*").eq("cohort_id", cohortId).order("offset_days")).data ?? [],
+  });
+
+  const add = async () => {
+    await (supabase as any).from("cohort_reminder_rules").insert({
+      cohort_id: cohortId, offset_days: -7, channel: "email", template_key: "reminder_before", enabled: true,
+    });
+    refetch();
+  };
+  const update = async (id: string, patch: any) => { await (supabase as any).from("cohort_reminder_rules").update(patch).eq("id", id); refetch(); };
+  const del = async (id: string) => { await (supabase as any).from("cohort_reminder_rules").delete().eq("id", id); refetch(); };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="font-semibold">Relances automatiques</h3>
+          <p className="text-xs text-muted-foreground">J négatif = avant échéance, J positif = après. Canal et modèle au choix.</p>
+        </div>
+        <Button size="sm" variant="outline" onClick={add}><Plus className="mr-1 h-3 w-3" /> Règle</Button>
+      </div>
+      {rows.length === 0 ? <p className="text-sm text-muted-foreground">Aucune règle. Ajoutez J-7 / J-3 / J+1 pour relancer automatiquement.</p> :
+        rows.map((r: any) => (
+          <div key={r.id} className="grid grid-cols-12 gap-2 items-center">
+            <div className="col-span-2 flex items-center gap-2">
+              <Switch checked={r.enabled} onCheckedChange={(v) => update(r.id, { enabled: v })} />
+              <span className="text-xs">{r.enabled ? "Actif" : "Off"}</span>
+            </div>
+            <Input className="col-span-2" type="number" defaultValue={r.offset_days} onBlur={(e) => update(r.id, { offset_days: Number(e.target.value) })} placeholder="ex -7" />
+            <Select value={r.channel} onValueChange={(v) => update(r.id, { channel: v })}>
+              <SelectTrigger className="col-span-3"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="email">Email</SelectItem>
+                <SelectItem value="whatsapp">WhatsApp</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={r.template_key} onValueChange={(v) => update(r.id, { template_key: v })}>
+              <SelectTrigger className="col-span-4"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="reminder_before">Avant échéance</SelectItem>
+                <SelectItem value="reminder_due">Le jour J</SelectItem>
+                <SelectItem value="reminder_overdue">Après échéance (retard)</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button size="icon" variant="ghost" className="col-span-1" onClick={() => del(r.id)}><Trash2 className="h-3 w-3 text-destructive" /></Button>
+          </div>
+        ))}
+    </div>
   );
 }
