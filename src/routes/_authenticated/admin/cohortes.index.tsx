@@ -238,7 +238,7 @@ function CohortesAdmin() {
                   <div><strong>Cohorte :</strong> {form.name}</div>
                   <div><strong>Dates :</strong> {form.startDate || "?"} → {form.endDate || "?"}</div>
                   <div><strong>Prix 1x :</strong> {form.priceFull || "—"} / <strong>2x :</strong> {form.priceInstall || "—"}</div>
-                  <div><strong>Échéances :</strong> J+{form.inst1Days} / J+{form.inst2Days}</div>
+                  <div><strong>Tranches :</strong> {installments.map((it) => `${it.label} (J+${it.days}, ${it.percent}%)`).join(" · ")}</div>
                   <div><strong>Relances :</strong> {form.reminders} jours avant</div>
                   <div><strong>Champs formulaire :</strong> {4 + fields.length} (4 imposés + {fields.length} personnalisés)</div>
                 </Card>
