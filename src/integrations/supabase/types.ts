@@ -282,6 +282,33 @@ export type Database = {
         }
         Relationships: []
       }
+      formation_modules: {
+        Row: {
+          created_at: string
+          description: string | null
+          formation_id: string
+          id: string
+          position: number
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          formation_id: string
+          id?: string
+          position?: number
+          title: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          formation_id?: string
+          id?: string
+          position?: number
+          title?: string
+        }
+        Relationships: []
+      }
       formation_resources: {
         Row: {
           created_at: string
@@ -289,6 +316,7 @@ export type Database = {
           file_path: string | null
           formation_id: string
           id: string
+          module_id: string | null
           position: number
           title: string
           type: Database["public"]["Enums"]["resource_type"]
@@ -300,6 +328,7 @@ export type Database = {
           file_path?: string | null
           formation_id: string
           id?: string
+          module_id?: string | null
           position?: number
           title: string
           type: Database["public"]["Enums"]["resource_type"]
@@ -311,6 +340,7 @@ export type Database = {
           file_path?: string | null
           formation_id?: string
           id?: string
+          module_id?: string | null
           position?: number
           title?: string
           type?: Database["public"]["Enums"]["resource_type"]

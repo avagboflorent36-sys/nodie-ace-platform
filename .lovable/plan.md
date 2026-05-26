@@ -1,82 +1,51 @@
-# Plan : 3 améliorations admin
+## Objectif
 
-## 1. Fiche étudiant complète
+Étendre la page **Formation** (admin) pour gérer un contenu pédagogique structuré identique à celui des cohortes : **Modules → Leçons** (document, vidéo, lien, exercice), en plus des ressources "globales" déjà existantes.
 
-**Nouvelle route** `src/routes/_authenticated/admin/etudiants.$id.tsx`
-- Rendre les lignes du tableau `etudiants.tsx` cliquables (Link vers `/admin/etudiants/$id`).
-- Page de détail avec onglets ou sections :
-  - **Profil** : nom, email, WhatsApp, pays, date d'inscription, avatar.
-  - **Cohortes** : liste des `cohort_enrollments` (cohorte, formation, statut, date), avec bouton activer/restreindre.
-  - **Paiements** : tous les `payments` + `payment_installments` (mode, montants, échéances, statut, preuve, dates de validation).
-  - **Progression** : ressources complétées (`progress_tracking`) regroupées par module/cohorte.
-  - **Réponses au formulaire** : `form_responses` (cohorte + réponses JSON formatées).
-  - **Activité** : annonces lues, sessions live à venir de ses cohortes.
+## Modèle de données
 
-## 2. Statistiques par formation
+Ajout d'une hiérarchie réutilisable sur la formation :
 
-**Nouvel onglet/page** sur `admin/formations.tsx` (section « Statistiques » dans `FormationDetail`).
-- Pour la formation sélectionnée, agréger sur toutes ses cohortes :
-  - Nombre total d'inscrits, actifs, restreints.
-  - Répartition par cohorte (tableau : cohorte, inscrits, actifs, % paiement, % progression moyenne).
-  - Taux de complétion moyen (ressources complétées / total).
-  - Revenus encaissés vs. attendus (sum `amount_paid` / `amount_total`).
-  - Graphique simple inscriptions par mois (recharts déjà dispo).
-
-## 3. Tranches de paiement & relances configurables
-
-**Sur la cohorte** (`admin/cohortes.$id.tsx`, onglet « Paramètres ») :
-- Ajouter une section **Plan de paiement** :
-  - Liste éditable des tranches (position, label, % ou montant, jours avant échéance) — stockée dans une nouvelle table `cohort_payment_schedule` (cohort_id, position, amount_or_percent, due_offset_days, label) **OU** étendre les colonnes `installment_*_deadline_days` existantes vers un JSON `payment_schedule jsonb` sur `cohortes`. → Choix : **nouvelle table** pour permettre N tranches au lieu de 2.
-  - Champs : prix 1x, prix nx (déjà existants).
-- Ajouter une section **Relances automatiques** :
-  - Nouvelle table `cohort_reminder_rules` (cohort_id, days_before|days_after, channel email/whatsapp, template_key, enabled).
-  - UI : liste de règles (ex : J-7 email, J-3 email, J+1 whatsapp), toggle on/off, choix du canal et du modèle.
-  - Cron déjà existant via `sendPaymentReminders` → adapter pour lire ces règles et déclencher chaque jour via un endpoint `api/public/hooks/payment-reminders` planifié avec pg_cron.
-
-## Migrations DB
-
-```sql
--- Tranches paramétrables
-CREATE TABLE public.cohort_payment_schedule (
-  id uuid PK default gen_random_uuid(),
-  cohort_id uuid NOT NULL,
-  position int NOT NULL,
-  label text,
-  percent numeric,            -- % du total (si null → amount fixe)
-  amount numeric,
-  due_offset_days int NOT NULL, -- jours après inscription
-  created_at timestamptz default now()
-);
-GRANT SELECT ON public.cohort_payment_schedule TO anon, authenticated;
-GRANT ALL ON public.cohort_payment_schedule TO service_role, authenticated;
-ALTER TABLE ... ENABLE RLS;
--- Anyone reads / Admins manage
-
--- Règles de relance
-CREATE TABLE public.cohort_reminder_rules (
-  id uuid PK,
-  cohort_id uuid NOT NULL,
-  offset_days int NOT NULL,   -- négatif = avant, positif = après
-  channel text NOT NULL,      -- 'email' | 'whatsapp'
-  template_key text NOT NULL, -- ex 'reminder_before', 'reminder_overdue'
-  enabled bool default true,
-  created_at timestamptz default now()
-);
--- GRANTs + RLS admin manage / authenticated read
+```text
+formation
+ └── formation_modules (titre, description, position)
+       └── formation_resources (type, titre, url/fichier, description, position)
 ```
 
-À la création d'un `payment` en mode `installments_N`, les `payment_installments` sont générés à partir de `cohort_payment_schedule` (inscription_date + due_offset_days).
+### Migration SQL
+
+1. **Nouvelle table `formation_modules`**
+   - `formation_id`, `title`, `description`, `position`
+   - RLS : lecture publique (formations actives) + admins gèrent
+   - GRANTs anon/authenticated/service_role
+
+2. **Modifier `formation_resources`**
+   - Ajouter colonne `module_id uuid NULL` (référence logique vers `formation_modules`)
+   - Les ressources sans `module_id` restent les "ressources globales" actuelles (rétrocompatible)
+   - Mettre à jour la policy "Enrolled students read formation_resources" pour couvrir aussi les ressources rattachées à un module de la formation
+
+## UI – `admin/formations.tsx`
+
+Remplacer le bloc "Contenu pédagogique global" par un éditeur en deux niveaux, calqué sur `ContentTab` de `cohortes.$id.tsx` :
+
+- **Liste des modules** de la formation, avec :
+  - Bouton **+ Nouveau module** (titre, description)
+  - Édition / suppression / réordonnancement de chaque module
+- **À l'intérieur de chaque module** (accordéon ou panneau dépliable) :
+  - Liste des leçons avec icône par type (document, vidéo, lien, exercice)
+  - Bouton **+ Ajouter une leçon** ouvrant un dialog (titre, type, URL ou upload fichier, description)
+  - Suppression d'une leçon
+- Conserver une section **"Ressources globales"** (ressources sans module) pour ne pas casser l'existant — repliable, optionnelle.
+
+Aucun changement nécessaire côté étudiant pour cette étape (les leçons rattachées à un module seront accessibles via la même RLS mise à jour ; l'affichage côté étudiant pourra être enrichi dans un second temps si tu le souhaites).
 
 ## Fichiers impactés
 
-- **Nouveau** : `src/routes/_authenticated/admin/etudiants.$id.tsx`
-- **Édit** : `src/routes/_authenticated/admin/etudiants.tsx` (lignes cliquables)
-- **Édit** : `src/routes/_authenticated/admin/formations.tsx` (bloc statistiques)
-- **Édit** : `src/routes/_authenticated/admin/cohortes.$id.tsx` (onglet Paramètres : tranches + relances)
-- **Édit** : `src/lib/reminders.functions.ts` (lecture des règles)
-- **Migrations** : 2 nouvelles tables + RLS + GRANTs
-- **Cron** : route `api/public/hooks/daily-reminders` + pg_cron quotidien
+- **Migration** : nouvelle table `formation_modules` + colonne `module_id` sur `formation_resources` + RLS/GRANTs
+- **Édité** : `src/routes/_authenticated/admin/formations.tsx` (refonte du composant `FormationDetail` → modules + leçons)
+- **Auto-régénéré** : `src/integrations/supabase/types.ts`
 
-## Confirmation demandée
-1. OK pour 2 nouvelles tables (`cohort_payment_schedule`, `cohort_reminder_rules`) ?
-2. OK pour cron quotidien automatique des relances ?
+## Questions
+
+1. OK pour la structure **Modules → Leçons** dans la formation (en plus des ressources globales existantes) ?
+2. Veux-tu aussi que **l'espace étudiant** (`/etudiant/formation`) affiche ces modules/leçons dès maintenant, ou on garde ça pour une 2ᵉ étape ?
