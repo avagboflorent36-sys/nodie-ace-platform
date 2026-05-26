@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
-import { CreditCard, BookOpen, Video, CheckCircle2 } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { BookOpen, Video, Megaphone } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +14,7 @@ export const Route = createFileRoute("/_authenticated/etudiant/")({
 
 function StudentHome() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
 
   const { data: enrollments = [] } = useQuery({
     queryKey: ["student-enrollments", user?.id],
@@ -20,31 +22,56 @@ function StudentHome() {
     queryFn: async () => {
       const { data } = await supabase
         .from("cohort_enrollments")
-        .select("id, status, enrolled_at, cohortes(id, name, start_date, end_date, status, formations(title))")
+        .select("id, status, cohort_id, cohortes(id, name, start_date, end_date, formations(title))")
         .eq("student_id", user!.id);
       return data ?? [];
     },
   });
 
-  const { data: payments = [] } = useQuery({
-    queryKey: ["student-payments", user?.id],
-    enabled: !!user,
+  const cohortIds = enrollments.map((e: any) => e.cohort_id);
+
+  const { data: liveSessions = [] } = useQuery({
+    queryKey: ["student-live-upcoming", cohortIds.join(",")],
+    enabled: cohortIds.length > 0,
     queryFn: async () => {
       const { data } = await supabase
-        .from("payments")
-        .select("id, amount_total, amount_paid, status, final_deadline, currency, cohortes(name)")
-        .eq("student_id", user!.id);
+        .from("live_sessions")
+        .select("id, title, scheduled_at, cohort_id, cohortes(name)")
+        .in("cohort_id", cohortIds)
+        .gte("scheduled_at", new Date().toISOString())
+        .order("scheduled_at")
+        .limit(5);
       return data ?? [];
     },
   });
 
-  const statusColors: Record<string, string> = {
-    paid: "bg-emerald-500/15 text-emerald-700",
-    partial: "bg-amber-500/15 text-amber-700",
-    pending: "bg-blue-500/15 text-blue-700",
-    overdue: "bg-red-500/15 text-red-700",
-    suspended: "bg-red-600/15 text-red-800",
-  };
+  const { data: annonces = [] } = useQuery({
+    queryKey: ["student-annonces-recent", cohortIds.join(",")],
+    enabled: cohortIds.length > 0,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("annonces")
+        .select("id, title, content, created_at, cohort_id, cohortes(name)")
+        .in("cohort_id", cohortIds)
+        .order("created_at", { ascending: false })
+        .limit(5);
+      return data ?? [];
+    },
+  });
+
+  useEffect(() => {
+    if (cohortIds.length === 0) return;
+    const channel = supabase
+      .channel("home-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "annonces" }, () => {
+        queryClient.invalidateQueries({ queryKey: ["student-annonces-recent"] });
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "live_sessions" }, () => {
+        queryClient.invalidateQueries({ queryKey: ["student-live-upcoming"] });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [cohortIds.join(","), queryClient]);
 
   return (
     <div className="mx-auto max-w-7xl space-y-8 animate-fade-up">
@@ -53,21 +80,28 @@ function StudentHome() {
         <p className="mt-1 text-muted-foreground">Voici votre espace d'apprentissage.</p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {[
-          { icon: BookOpen, label: "Cohortes", value: enrollments.length },
-          { icon: CreditCard, label: "Paiements", value: payments.length },
-          { icon: Video, label: "Séances à venir", value: "—" },
-          { icon: CheckCircle2, label: "Progression", value: "—" },
-        ].map((s) => (
-          <Card key={s.label} className="p-5 shadow-premium">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">{s.label}</span>
-              <s.icon className="h-4 w-4 text-gold" />
-            </div>
-            <div className="mt-3 text-3xl font-bold">{s.value}</div>
-          </Card>
-        ))}
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Card className="p-5 shadow-premium">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">Cohortes</span>
+            <BookOpen className="h-4 w-4 text-gold" />
+          </div>
+          <div className="mt-3 text-3xl font-bold">{enrollments.length}</div>
+        </Card>
+        <Card className="p-5 shadow-premium">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">Séances à venir</span>
+            <Video className="h-4 w-4 text-gold" />
+          </div>
+          <div className="mt-3 text-3xl font-bold">{liveSessions.length}</div>
+        </Card>
+        <Card className="p-5 shadow-premium">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">Annonces récentes</span>
+            <Megaphone className="h-4 w-4 text-gold" />
+          </div>
+          <div className="mt-3 text-3xl font-bold">{annonces.length}</div>
+        </Card>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -91,20 +125,18 @@ function StudentHome() {
         </Card>
 
         <Card className="p-6">
-          <h2 className="text-lg font-semibold">Mes paiements</h2>
+          <h2 className="text-lg font-semibold">Dernières annonces</h2>
           <div className="mt-4 space-y-3">
-            {payments.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Aucun paiement enregistré.</p>
+            {annonces.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Aucune annonce pour le moment.</p>
             ) : (
-              payments.map((p: any) => (
-                <div key={p.id} className="flex items-center justify-between rounded-lg border p-3">
-                  <div>
-                    <div className="font-medium">{p.cohortes?.name ?? "—"}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {Number(p.amount_paid).toLocaleString()} / {Number(p.amount_total).toLocaleString()} {p.currency}
-                    </div>
+              annonces.map((a: any) => (
+                <div key={a.id} className="rounded-lg border p-3">
+                  <div className="flex items-center justify-between">
+                    <div className="font-medium text-sm">{a.title}</div>
+                    <span className="text-xs text-muted-foreground">{new Date(a.created_at).toLocaleDateString()}</span>
                   </div>
-                  <Badge className={statusColors[p.status] ?? ""}>{p.status}</Badge>
+                  <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{a.content}</p>
                 </div>
               ))
             )}
