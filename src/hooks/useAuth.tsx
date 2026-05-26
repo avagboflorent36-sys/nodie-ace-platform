@@ -8,6 +8,7 @@ interface AuthState {
   user: User | null;
   session: Session | null;
   loading: boolean;
+  rolesLoaded: boolean;
   roles: AppRole[];
   isAdmin: boolean;
   isStudent: boolean;
@@ -21,15 +22,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [roles, setRoles] = useState<AppRole[]>([]);
+  const [rolesLoaded, setRolesLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const loadRoles = async (uid: string | null) => {
     if (!uid) {
       setRoles([]);
+      setRolesLoaded(true);
       return;
     }
     const { data } = await supabase.from("user_roles").select("role").eq("user_id", uid);
     setRoles((data ?? []).map((r) => r.role as AppRole));
+    setRolesLoaded(true);
   };
 
   useEffect(() => {
@@ -37,23 +41,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
       setSession(newSession);
       setUser(newSession?.user ?? null);
-      // Defer DB call to avoid auth-listener deadlock
       if (newSession?.user) {
+        setRolesLoaded(false);
+        // Defer DB call to avoid auth-listener deadlock
         setTimeout(() => { void loadRoles(newSession.user.id); }, 0);
       } else {
         setRoles([]);
+        setRolesLoaded(true);
       }
     });
 
     // Then hydrate
-    supabase.auth.getSession().then(({ data }) => {
+    (async () => {
+      const { data } = await supabase.auth.getSession();
       setSession(data.session);
       setUser(data.session?.user ?? null);
       if (data.session?.user) {
-        void loadRoles(data.session.user.id);
+        await loadRoles(data.session.user.id);
+      } else {
+        setRolesLoaded(true);
       }
       setLoading(false);
-    });
+    })();
 
     return () => subscription.unsubscribe();
   }, []);
@@ -61,6 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     await supabase.auth.signOut();
     setRoles([]);
+    setRolesLoaded(true);
   };
 
   const refreshRoles = async () => {
@@ -73,6 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         session,
         loading,
+        rolesLoaded,
         roles,
         isAdmin: roles.includes("admin") || roles.includes("super_admin"),
         isStudent: roles.includes("student"),
