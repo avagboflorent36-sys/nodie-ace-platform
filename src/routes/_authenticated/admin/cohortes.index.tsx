@@ -16,7 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
 
-export const Route = createFileRoute("/_authenticated/admin/cohortes")({
+export const Route = createFileRoute("/_authenticated/admin/cohortes/")({
   component: CohortesAdmin,
 });
 
