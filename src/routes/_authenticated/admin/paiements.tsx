@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Check, X, Send, Lock, Unlock } from "lucide-react";
+import { Check, X, Send, Lock, Unlock, Download } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -92,11 +92,26 @@ function PaymentsAdmin() {
 
   const toggleSel = (id: string) => { const s = new Set(selected); s.has(id) ? s.delete(id) : s.add(id); setSelected(s); };
 
+  const exportCsv = () => {
+    const head = ["Étudiant", "Email", "Cohorte", "Mode", "Tranche", "Montant", "Devise", "Échéance", "Statut"];
+    const lines = filtered.map((r: any) => [
+      r._student ? `${r._student.first_name} ${r._student.last_name}` : "",
+      r._student?.email ?? "", r.payments?.cohortes?.name ?? "",
+      r.payments?.mode === "full" ? "1x" : "2x", `#${r.position}`,
+      r.amount, r.payments?.currency ?? "", r.due_date ?? "", r.status,
+    ].map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`).join(","));
+    const csv = [head.join(","), ...lines].join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a"); a.href = url; a.download = `paiements-${new Date().toISOString().slice(0,10)}.csv`; a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="mx-auto max-w-7xl space-y-6 animate-fade-up">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight">Paiements</h1>
         <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={exportCsv}><Download className="mr-1 h-3 w-3" /> CSV</Button>
           <Button variant="outline" size="sm" onClick={sendSelected} disabled={selected.size === 0}><Send className="mr-1 h-3 w-3" /> Relancer sélection ({selected.size})</Button>
           <Button size="sm" className="bg-gold text-primary hover:bg-gold/90" onClick={sendAllLate}><Send className="mr-1 h-3 w-3" /> Relancer tous les retards</Button>
         </div>
