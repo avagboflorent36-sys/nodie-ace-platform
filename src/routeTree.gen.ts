@@ -25,6 +25,7 @@ import { Route as AuthenticatedEtudiantRessourcesRouteImport } from './routes/_a
 import { Route as AuthenticatedEtudiantProgressionRouteImport } from './routes/_authenticated/etudiant/progression'
 import { Route as AuthenticatedEtudiantPaiementsRouteImport } from './routes/_authenticated/etudiant/paiements'
 import { Route as AuthenticatedEtudiantLiveRouteImport } from './routes/_authenticated/etudiant/live'
+import { Route as AuthenticatedEtudiantFormationRouteImport } from './routes/_authenticated/etudiant/formation'
 import { Route as AuthenticatedEtudiantCertificatRouteImport } from './routes/_authenticated/etudiant/certificat'
 import { Route as AuthenticatedAdminPaiementsRouteImport } from './routes/_authenticated/admin/paiements'
 import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_authenticated/admin/notifications'
@@ -118,6 +119,12 @@ const AuthenticatedEtudiantLiveRoute =
     path: '/live',
     getParentRoute: () => AuthenticatedEtudiantRoute,
   } as any)
+const AuthenticatedEtudiantFormationRoute =
+  AuthenticatedEtudiantFormationRouteImport.update({
+    id: '/formation',
+    path: '/formation',
+    getParentRoute: () => AuthenticatedEtudiantRoute,
+  } as any)
 const AuthenticatedEtudiantCertificatRoute =
   AuthenticatedEtudiantCertificatRouteImport.update({
     id: '/certificat',
@@ -175,6 +182,7 @@ export interface FileRoutesByFullPath {
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/paiements': typeof AuthenticatedAdminPaiementsRoute
   '/etudiant/certificat': typeof AuthenticatedEtudiantCertificatRoute
+  '/etudiant/formation': typeof AuthenticatedEtudiantFormationRoute
   '/etudiant/live': typeof AuthenticatedEtudiantLiveRoute
   '/etudiant/paiements': typeof AuthenticatedEtudiantPaiementsRoute
   '/etudiant/progression': typeof AuthenticatedEtudiantProgressionRoute
@@ -197,6 +205,7 @@ export interface FileRoutesByTo {
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/paiements': typeof AuthenticatedAdminPaiementsRoute
   '/etudiant/certificat': typeof AuthenticatedEtudiantCertificatRoute
+  '/etudiant/formation': typeof AuthenticatedEtudiantFormationRoute
   '/etudiant/live': typeof AuthenticatedEtudiantLiveRoute
   '/etudiant/paiements': typeof AuthenticatedEtudiantPaiementsRoute
   '/etudiant/progression': typeof AuthenticatedEtudiantProgressionRoute
@@ -223,6 +232,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/_authenticated/admin/paiements': typeof AuthenticatedAdminPaiementsRoute
   '/_authenticated/etudiant/certificat': typeof AuthenticatedEtudiantCertificatRoute
+  '/_authenticated/etudiant/formation': typeof AuthenticatedEtudiantFormationRoute
   '/_authenticated/etudiant/live': typeof AuthenticatedEtudiantLiveRoute
   '/_authenticated/etudiant/paiements': typeof AuthenticatedEtudiantPaiementsRoute
   '/_authenticated/etudiant/progression': typeof AuthenticatedEtudiantProgressionRoute
@@ -249,6 +259,7 @@ export interface FileRouteTypes {
     | '/admin/notifications'
     | '/admin/paiements'
     | '/etudiant/certificat'
+    | '/etudiant/formation'
     | '/etudiant/live'
     | '/etudiant/paiements'
     | '/etudiant/progression'
@@ -271,6 +282,7 @@ export interface FileRouteTypes {
     | '/admin/notifications'
     | '/admin/paiements'
     | '/etudiant/certificat'
+    | '/etudiant/formation'
     | '/etudiant/live'
     | '/etudiant/paiements'
     | '/etudiant/progression'
@@ -296,6 +308,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/notifications'
     | '/_authenticated/admin/paiements'
     | '/_authenticated/etudiant/certificat'
+    | '/_authenticated/etudiant/formation'
     | '/_authenticated/etudiant/live'
     | '/_authenticated/etudiant/paiements'
     | '/_authenticated/etudiant/progression'
@@ -431,6 +444,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedEtudiantLiveRouteImport
       parentRoute: typeof AuthenticatedEtudiantRoute
     }
+    '/_authenticated/etudiant/formation': {
+      id: '/_authenticated/etudiant/formation'
+      path: '/formation'
+      fullPath: '/etudiant/formation'
+      preLoaderRoute: typeof AuthenticatedEtudiantFormationRouteImport
+      parentRoute: typeof AuthenticatedEtudiantRoute
+    }
     '/_authenticated/etudiant/certificat': {
       id: '/_authenticated/etudiant/certificat'
       path: '/certificat'
@@ -508,6 +528,7 @@ const AuthenticatedAdminRouteWithChildren =
 
 interface AuthenticatedEtudiantRouteChildren {
   AuthenticatedEtudiantCertificatRoute: typeof AuthenticatedEtudiantCertificatRoute
+  AuthenticatedEtudiantFormationRoute: typeof AuthenticatedEtudiantFormationRoute
   AuthenticatedEtudiantLiveRoute: typeof AuthenticatedEtudiantLiveRoute
   AuthenticatedEtudiantPaiementsRoute: typeof AuthenticatedEtudiantPaiementsRoute
   AuthenticatedEtudiantProgressionRoute: typeof AuthenticatedEtudiantProgressionRoute
@@ -518,6 +539,7 @@ interface AuthenticatedEtudiantRouteChildren {
 
 const AuthenticatedEtudiantRouteChildren: AuthenticatedEtudiantRouteChildren = {
   AuthenticatedEtudiantCertificatRoute: AuthenticatedEtudiantCertificatRoute,
+  AuthenticatedEtudiantFormationRoute: AuthenticatedEtudiantFormationRoute,
   AuthenticatedEtudiantLiveRoute: AuthenticatedEtudiantLiveRoute,
   AuthenticatedEtudiantPaiementsRoute: AuthenticatedEtudiantPaiementsRoute,
   AuthenticatedEtudiantProgressionRoute: AuthenticatedEtudiantProgressionRoute,
