@@ -1,9 +1,11 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { Download } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -32,16 +34,24 @@ function StudentsPage() {
     s.last_name?.toLowerCase().includes(search.toLowerCase())
   );
 
+  const exportCsv = () => {
+    const head = ["Prénom", "Nom", "Email", "WhatsApp", "Pays", "Inscrit le"];
+    const lines = filtered.map((s: any) => [s.first_name, s.last_name, s.email, s.whatsapp ?? "", s.country ?? "", new Date(s.created_at).toISOString().slice(0, 10)]
+      .map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`).join(","));
+    const csv = [head.join(","), ...lines].join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a"); a.href = url; a.download = `etudiants-${new Date().toISOString().slice(0,10)}.csv`; a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="mx-auto max-w-7xl space-y-6 animate-fade-up">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-3xl font-bold tracking-tight">Étudiants</h1>
-        <Input
-          placeholder="Rechercher..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="max-w-xs"
-        />
+        <div className="flex gap-2">
+          <Input placeholder="Rechercher..." value={search} onChange={(e) => setSearch(e.target.value)} className="max-w-xs" />
+          <Button variant="outline" size="sm" onClick={exportCsv}><Download className="mr-1 h-3 w-3" /> Exporter CSV</Button>
+        </div>
       </div>
       <Card>
         <Table>
