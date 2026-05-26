@@ -21,6 +21,8 @@ import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedEtudiantIndexRouteImport } from './routes/_authenticated/etudiant/index'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedEtudiantSupportRouteImport } from './routes/_authenticated/etudiant/support'
+import { Route as AuthenticatedEtudiantProfilRouteImport } from './routes/_authenticated/etudiant/profil'
+import { Route as AuthenticatedEtudiantPaiementsRouteImport } from './routes/_authenticated/etudiant/paiements'
 import { Route as AuthenticatedEtudiantLiveRouteImport } from './routes/_authenticated/etudiant/live'
 import { Route as AuthenticatedEtudiantFormationRouteImport } from './routes/_authenticated/etudiant/formation'
 import { Route as AuthenticatedEtudiantCertificatRouteImport } from './routes/_authenticated/etudiant/certificat'
@@ -29,6 +31,7 @@ import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_a
 import { Route as AuthenticatedAdminFormationsRouteImport } from './routes/_authenticated/admin/formations'
 import { Route as AuthenticatedAdminEtudiantsIndexRouteImport } from './routes/_authenticated/admin/etudiants.index'
 import { Route as AuthenticatedAdminCohortesIndexRouteImport } from './routes/_authenticated/admin/cohortes.index'
+import { Route as ApiPublicHooksPaymentRemindersRouteImport } from './routes/api/public/hooks/payment-reminders'
 import { Route as AuthenticatedAdminEtudiantsIdRouteImport } from './routes/_authenticated/admin/etudiants.$id'
 import { Route as AuthenticatedAdminCohortesIdRouteImport } from './routes/_authenticated/admin/cohortes.$id'
 
@@ -93,6 +96,18 @@ const AuthenticatedEtudiantSupportRoute =
     path: '/support',
     getParentRoute: () => AuthenticatedEtudiantRoute,
   } as any)
+const AuthenticatedEtudiantProfilRoute =
+  AuthenticatedEtudiantProfilRouteImport.update({
+    id: '/profil',
+    path: '/profil',
+    getParentRoute: () => AuthenticatedEtudiantRoute,
+  } as any)
+const AuthenticatedEtudiantPaiementsRoute =
+  AuthenticatedEtudiantPaiementsRouteImport.update({
+    id: '/paiements',
+    path: '/paiements',
+    getParentRoute: () => AuthenticatedEtudiantRoute,
+  } as any)
 const AuthenticatedEtudiantLiveRoute =
   AuthenticatedEtudiantLiveRouteImport.update({
     id: '/live',
@@ -141,6 +156,12 @@ const AuthenticatedAdminCohortesIndexRoute =
     path: '/cohortes/',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const ApiPublicHooksPaymentRemindersRoute =
+  ApiPublicHooksPaymentRemindersRouteImport.update({
+    id: '/api/public/hooks/payment-reminders',
+    path: '/api/public/hooks/payment-reminders',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AuthenticatedAdminEtudiantsIdRoute =
   AuthenticatedAdminEtudiantsIdRouteImport.update({
     id: '/etudiants/$id',
@@ -169,11 +190,14 @@ export interface FileRoutesByFullPath {
   '/etudiant/certificat': typeof AuthenticatedEtudiantCertificatRoute
   '/etudiant/formation': typeof AuthenticatedEtudiantFormationRoute
   '/etudiant/live': typeof AuthenticatedEtudiantLiveRoute
+  '/etudiant/paiements': typeof AuthenticatedEtudiantPaiementsRoute
+  '/etudiant/profil': typeof AuthenticatedEtudiantProfilRoute
   '/etudiant/support': typeof AuthenticatedEtudiantSupportRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/etudiant/': typeof AuthenticatedEtudiantIndexRoute
   '/admin/cohortes/$id': typeof AuthenticatedAdminCohortesIdRoute
   '/admin/etudiants/$id': typeof AuthenticatedAdminEtudiantsIdRoute
+  '/api/public/hooks/payment-reminders': typeof ApiPublicHooksPaymentRemindersRoute
   '/admin/cohortes/': typeof AuthenticatedAdminCohortesIndexRoute
   '/admin/etudiants/': typeof AuthenticatedAdminEtudiantsIndexRoute
 }
@@ -190,11 +214,14 @@ export interface FileRoutesByTo {
   '/etudiant/certificat': typeof AuthenticatedEtudiantCertificatRoute
   '/etudiant/formation': typeof AuthenticatedEtudiantFormationRoute
   '/etudiant/live': typeof AuthenticatedEtudiantLiveRoute
+  '/etudiant/paiements': typeof AuthenticatedEtudiantPaiementsRoute
+  '/etudiant/profil': typeof AuthenticatedEtudiantProfilRoute
   '/etudiant/support': typeof AuthenticatedEtudiantSupportRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/etudiant': typeof AuthenticatedEtudiantIndexRoute
   '/admin/cohortes/$id': typeof AuthenticatedAdminCohortesIdRoute
   '/admin/etudiants/$id': typeof AuthenticatedAdminEtudiantsIdRoute
+  '/api/public/hooks/payment-reminders': typeof ApiPublicHooksPaymentRemindersRoute
   '/admin/cohortes': typeof AuthenticatedAdminCohortesIndexRoute
   '/admin/etudiants': typeof AuthenticatedAdminEtudiantsIndexRoute
 }
@@ -215,11 +242,14 @@ export interface FileRoutesById {
   '/_authenticated/etudiant/certificat': typeof AuthenticatedEtudiantCertificatRoute
   '/_authenticated/etudiant/formation': typeof AuthenticatedEtudiantFormationRoute
   '/_authenticated/etudiant/live': typeof AuthenticatedEtudiantLiveRoute
+  '/_authenticated/etudiant/paiements': typeof AuthenticatedEtudiantPaiementsRoute
+  '/_authenticated/etudiant/profil': typeof AuthenticatedEtudiantProfilRoute
   '/_authenticated/etudiant/support': typeof AuthenticatedEtudiantSupportRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/etudiant/': typeof AuthenticatedEtudiantIndexRoute
   '/_authenticated/admin/cohortes/$id': typeof AuthenticatedAdminCohortesIdRoute
   '/_authenticated/admin/etudiants/$id': typeof AuthenticatedAdminEtudiantsIdRoute
+  '/api/public/hooks/payment-reminders': typeof ApiPublicHooksPaymentRemindersRoute
   '/_authenticated/admin/cohortes/': typeof AuthenticatedAdminCohortesIndexRoute
   '/_authenticated/admin/etudiants/': typeof AuthenticatedAdminEtudiantsIndexRoute
 }
@@ -240,11 +270,14 @@ export interface FileRouteTypes {
     | '/etudiant/certificat'
     | '/etudiant/formation'
     | '/etudiant/live'
+    | '/etudiant/paiements'
+    | '/etudiant/profil'
     | '/etudiant/support'
     | '/admin/'
     | '/etudiant/'
     | '/admin/cohortes/$id'
     | '/admin/etudiants/$id'
+    | '/api/public/hooks/payment-reminders'
     | '/admin/cohortes/'
     | '/admin/etudiants/'
   fileRoutesByTo: FileRoutesByTo
@@ -261,11 +294,14 @@ export interface FileRouteTypes {
     | '/etudiant/certificat'
     | '/etudiant/formation'
     | '/etudiant/live'
+    | '/etudiant/paiements'
+    | '/etudiant/profil'
     | '/etudiant/support'
     | '/admin'
     | '/etudiant'
     | '/admin/cohortes/$id'
     | '/admin/etudiants/$id'
+    | '/api/public/hooks/payment-reminders'
     | '/admin/cohortes'
     | '/admin/etudiants'
   id:
@@ -285,11 +321,14 @@ export interface FileRouteTypes {
     | '/_authenticated/etudiant/certificat'
     | '/_authenticated/etudiant/formation'
     | '/_authenticated/etudiant/live'
+    | '/_authenticated/etudiant/paiements'
+    | '/_authenticated/etudiant/profil'
     | '/_authenticated/etudiant/support'
     | '/_authenticated/admin/'
     | '/_authenticated/etudiant/'
     | '/_authenticated/admin/cohortes/$id'
     | '/_authenticated/admin/etudiants/$id'
+    | '/api/public/hooks/payment-reminders'
     | '/_authenticated/admin/cohortes/'
     | '/_authenticated/admin/etudiants/'
   fileRoutesById: FileRoutesById
@@ -302,6 +341,7 @@ export interface RootRouteChildren {
   ResetPasswordRoute: typeof ResetPasswordRoute
   SignupRoute: typeof SignupRoute
   InscriptionSlugRoute: typeof InscriptionSlugRoute
+  ApiPublicHooksPaymentRemindersRoute: typeof ApiPublicHooksPaymentRemindersRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -390,6 +430,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedEtudiantSupportRouteImport
       parentRoute: typeof AuthenticatedEtudiantRoute
     }
+    '/_authenticated/etudiant/profil': {
+      id: '/_authenticated/etudiant/profil'
+      path: '/profil'
+      fullPath: '/etudiant/profil'
+      preLoaderRoute: typeof AuthenticatedEtudiantProfilRouteImport
+      parentRoute: typeof AuthenticatedEtudiantRoute
+    }
+    '/_authenticated/etudiant/paiements': {
+      id: '/_authenticated/etudiant/paiements'
+      path: '/paiements'
+      fullPath: '/etudiant/paiements'
+      preLoaderRoute: typeof AuthenticatedEtudiantPaiementsRouteImport
+      parentRoute: typeof AuthenticatedEtudiantRoute
+    }
     '/_authenticated/etudiant/live': {
       id: '/_authenticated/etudiant/live'
       path: '/live'
@@ -446,6 +500,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminCohortesIndexRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/api/public/hooks/payment-reminders': {
+      id: '/api/public/hooks/payment-reminders'
+      path: '/api/public/hooks/payment-reminders'
+      fullPath: '/api/public/hooks/payment-reminders'
+      preLoaderRoute: typeof ApiPublicHooksPaymentRemindersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/admin/etudiants/$id': {
       id: '/_authenticated/admin/etudiants/$id'
       path: '/etudiants/$id'
@@ -492,6 +553,8 @@ interface AuthenticatedEtudiantRouteChildren {
   AuthenticatedEtudiantCertificatRoute: typeof AuthenticatedEtudiantCertificatRoute
   AuthenticatedEtudiantFormationRoute: typeof AuthenticatedEtudiantFormationRoute
   AuthenticatedEtudiantLiveRoute: typeof AuthenticatedEtudiantLiveRoute
+  AuthenticatedEtudiantPaiementsRoute: typeof AuthenticatedEtudiantPaiementsRoute
+  AuthenticatedEtudiantProfilRoute: typeof AuthenticatedEtudiantProfilRoute
   AuthenticatedEtudiantSupportRoute: typeof AuthenticatedEtudiantSupportRoute
   AuthenticatedEtudiantIndexRoute: typeof AuthenticatedEtudiantIndexRoute
 }
@@ -500,6 +563,8 @@ const AuthenticatedEtudiantRouteChildren: AuthenticatedEtudiantRouteChildren = {
   AuthenticatedEtudiantCertificatRoute: AuthenticatedEtudiantCertificatRoute,
   AuthenticatedEtudiantFormationRoute: AuthenticatedEtudiantFormationRoute,
   AuthenticatedEtudiantLiveRoute: AuthenticatedEtudiantLiveRoute,
+  AuthenticatedEtudiantPaiementsRoute: AuthenticatedEtudiantPaiementsRoute,
+  AuthenticatedEtudiantProfilRoute: AuthenticatedEtudiantProfilRoute,
   AuthenticatedEtudiantSupportRoute: AuthenticatedEtudiantSupportRoute,
   AuthenticatedEtudiantIndexRoute: AuthenticatedEtudiantIndexRoute,
 }
@@ -531,6 +596,7 @@ const rootRouteChildren: RootRouteChildren = {
   ResetPasswordRoute: ResetPasswordRoute,
   SignupRoute: SignupRoute,
   InscriptionSlugRoute: InscriptionSlugRoute,
+  ApiPublicHooksPaymentRemindersRoute: ApiPublicHooksPaymentRemindersRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
