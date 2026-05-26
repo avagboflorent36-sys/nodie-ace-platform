@@ -224,72 +224,182 @@ function FormationStats({ formationId }: { formationId: string }) {
 }
 
 function FormationDetail({ formationId }: { formationId: string }) {
-  const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ title: "", type: "video", url: "", description: "" });
+  const [modOpen, setModOpen] = useState(false);
+  const [modForm, setModForm] = useState({ title: "", description: "" });
+  const [lessonOpenForModule, setLessonOpenForModule] = useState<string | null>(null);
+  const [globalOpen, setGlobalOpen] = useState(false);
+  const [lessonForm, setLessonForm] = useState({ title: "", type: "video", url: "", description: "" });
 
-  const { data: resources = [], refetch } = useQuery({
+  const { data: modules = [], refetch: refetchModules } = useQuery({
+    queryKey: ["formation-modules", formationId],
+    queryFn: async () => (await supabase.from("formation_modules").select("*").eq("formation_id", formationId).order("position")).data ?? [],
+  });
+  const { data: resources = [], refetch: refetchRes } = useQuery({
     queryKey: ["formation-resources", formationId],
     queryFn: async () => (await supabase.from("formation_resources").select("*").eq("formation_id", formationId).order("position")).data ?? [],
   });
 
-  const add = async () => {
-    if (!form.title.trim()) return;
-    const { error } = await supabase.from("formation_resources").insert({
-      formation_id: formationId,
-      title: form.title.trim(), type: form.type as any, url: form.url.trim() || null,
-      description: form.description.trim() || null, position: resources.length,
+  const addModule = async () => {
+    if (!modForm.title.trim()) return;
+    const { error } = await supabase.from("formation_modules").insert({
+      formation_id: formationId, title: modForm.title.trim(),
+      description: modForm.description.trim() || null, position: modules.length,
     });
     if (error) { toast.error(error.message); return; }
-    toast.success("Ressource ajoutée"); setOpen(false); setForm({ title: "", type: "video", url: "", description: "" }); refetch();
+    toast.success("Module créé"); setModOpen(false); setModForm({ title: "", description: "" }); refetchModules();
   };
-  const del = async (id: string) => { await supabase.from("formation_resources").delete().eq("id", id); refetch(); };
+  const delModule = async (id: string) => {
+    if (!confirm("Supprimer ce module et ses leçons ?")) return;
+    await supabase.from("formation_resources").delete().eq("module_id", id);
+    await supabase.from("formation_modules").delete().eq("id", id);
+    refetchModules(); refetchRes();
+  };
+
+  const addLesson = async (moduleId: string | null) => {
+    if (!lessonForm.title.trim()) return;
+    const sameScope = resources.filter((r: any) => r.module_id === moduleId);
+    const { error } = await supabase.from("formation_resources").insert({
+      formation_id: formationId, module_id: moduleId,
+      title: lessonForm.title.trim(), type: lessonForm.type as any,
+      url: lessonForm.url.trim() || null, description: lessonForm.description.trim() || null,
+      position: sameScope.length,
+    });
+    if (error) { toast.error(error.message); return; }
+    toast.success("Leçon ajoutée");
+    setLessonOpenForModule(null); setGlobalOpen(false);
+    setLessonForm({ title: "", type: "video", url: "", description: "" });
+    refetchRes();
+  };
+  const delLesson = async (id: string) => { await supabase.from("formation_resources").delete().eq("id", id); refetchRes(); };
+
+  const globalResources = resources.filter((r: any) => !r.module_id);
+
+  const LessonDialog = ({ open, onOpenChange, onSubmit, title }: any) => (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <div><Label>Titre</Label><Input value={lessonForm.title} onChange={(e) => setLessonForm({ ...lessonForm, title: e.target.value })} /></div>
+          <div><Label>Type</Label>
+            <Select value={lessonForm.type} onValueChange={(v) => setLessonForm({ ...lessonForm, type: v })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="video">Vidéo / Replay</SelectItem>
+                <SelectItem value="link">Playlist / Lien</SelectItem>
+                <SelectItem value="document">Document PDF</SelectItem>
+                <SelectItem value="exercise">Exercice</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div><Label>URL</Label><Input value={lessonForm.url} onChange={(e) => setLessonForm({ ...lessonForm, url: e.target.value })} placeholder="https://..." /></div>
+          <div><Label>Description</Label><Textarea value={lessonForm.description} onChange={(e) => setLessonForm({ ...lessonForm, description: e.target.value })} /></div>
+          <Button className="w-full" onClick={onSubmit}>Ajouter</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
 
   return (
     <Card className="p-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Contenu pédagogique global</h2>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild><Button size="sm" className="bg-gold text-primary hover:bg-gold/90"><Plus className="mr-1 h-3 w-3" /> Ajouter</Button></DialogTrigger>
+        <div>
+          <h2 className="text-lg font-semibold">Contenu pédagogique</h2>
+          <p className="mt-1 text-xs text-muted-foreground">Organisez la formation en modules et leçons (document, vidéo, lien, exercice).</p>
+        </div>
+        <Dialog open={modOpen} onOpenChange={setModOpen}>
+          <DialogTrigger asChild><Button size="sm" className="bg-gold text-primary hover:bg-gold/90"><Plus className="mr-1 h-3 w-3" /> Module</Button></DialogTrigger>
           <DialogContent>
-            <DialogHeader><DialogTitle>Nouvelle ressource de formation</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle>Nouveau module</DialogTitle></DialogHeader>
             <div className="space-y-3">
-              <div><Label>Titre</Label><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
-              <div><Label>Type</Label>
-                <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="video">Vidéo / Replay</SelectItem>
-                    <SelectItem value="link">Playlist / Lien</SelectItem>
-                    <SelectItem value="document">Document PDF</SelectItem>
-                    <SelectItem value="exercise">Exercice</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div><Label>URL</Label><Input value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} placeholder="https://youtube.com/..." /></div>
-              <div><Label>Description</Label><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
-              <Button className="w-full" onClick={add}>Ajouter</Button>
+              <div><Label>Titre</Label><Input value={modForm.title} onChange={(e) => setModForm({ ...modForm, title: e.target.value })} /></div>
+              <div><Label>Description</Label><Textarea value={modForm.description} onChange={(e) => setModForm({ ...modForm, description: e.target.value })} rows={3} /></div>
+              <Button className="w-full" onClick={addModule}>Créer le module</Button>
             </div>
           </DialogContent>
         </Dialog>
       </div>
-      <p className="mt-1 text-xs text-muted-foreground">Visible par tous les étudiants inscrits à une cohorte de cette formation.</p>
-      <div className="mt-4 space-y-2">
-        {resources.length === 0 ? <p className="text-sm text-muted-foreground">Aucune ressource globale.</p> :
-          resources.map((r: any) => {
-            const Icon = ICONS[r.type] ?? BookOpen;
-            return (
-              <div key={r.id} className="flex items-center gap-3 rounded-lg border p-3">
-                <Icon className="h-4 w-4 text-gold" />
+
+      <div className="mt-4 space-y-3">
+        {modules.length === 0 && <p className="text-sm text-muted-foreground">Aucun module. Créez-en un pour structurer le contenu.</p>}
+        {modules.map((m: any, idx: number) => {
+          const lessons = resources.filter((r: any) => r.module_id === m.id);
+          return (
+            <div key={m.id} className="rounded-lg border">
+              <div className="flex items-start justify-between gap-2 border-b bg-accent/30 px-3 py-2">
                 <div className="flex-1">
-                  <div className="text-sm font-medium">{r.title}</div>
-                  {r.description && <div className="text-xs text-muted-foreground">{r.description}</div>}
+                  <div className="text-sm font-semibold">Module {idx + 1} · {m.title}</div>
+                  {m.description && <div className="text-xs text-muted-foreground">{m.description}</div>}
                 </div>
-                {r.url && <a href={r.url} target="_blank" rel="noreferrer" className="text-xs text-gold hover:underline">Ouvrir</a>}
-                <Button size="sm" variant="ghost" onClick={() => del(r.id)}><Trash2 className="h-3 w-3 text-destructive" /></Button>
+                <div className="flex items-center gap-1">
+                  <Button size="sm" variant="ghost" onClick={() => { setLessonForm({ title: "", type: "video", url: "", description: "" }); setLessonOpenForModule(m.id); }}>
+                    <Plus className="mr-1 h-3 w-3" /> Leçon
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => delModule(m.id)}><Trash2 className="h-3 w-3 text-destructive" /></Button>
+                </div>
               </div>
-            );
-          })}
+              <div className="space-y-1 p-2">
+                {lessons.length === 0 ? <p className="px-2 py-1 text-xs text-muted-foreground">Aucune leçon.</p> :
+                  lessons.map((r: any) => {
+                    const Icon = ICONS[r.type] ?? BookOpen;
+                    return (
+                      <div key={r.id} className="flex items-center gap-3 rounded px-2 py-1.5 hover:bg-accent/30">
+                        <Icon className="h-4 w-4 text-gold" />
+                        <div className="flex-1">
+                          <div className="text-sm font-medium">{r.title}</div>
+                          {r.description && <div className="text-xs text-muted-foreground">{r.description}</div>}
+                        </div>
+                        {r.url && <a href={r.url} target="_blank" rel="noreferrer" className="text-xs text-gold hover:underline">Ouvrir</a>}
+                        <Button size="sm" variant="ghost" onClick={() => delLesson(r.id)}><Trash2 className="h-3 w-3 text-destructive" /></Button>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          );
+        })}
       </div>
+
+      <div className="mt-6 border-t pt-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-semibold">Ressources globales</h3>
+            <p className="text-xs text-muted-foreground">Indépendantes des modules.</p>
+          </div>
+          <Button size="sm" variant="outline" onClick={() => { setLessonForm({ title: "", type: "video", url: "", description: "" }); setGlobalOpen(true); }}>
+            <Plus className="mr-1 h-3 w-3" /> Ajouter
+          </Button>
+        </div>
+        <div className="mt-2 space-y-1">
+          {globalResources.length === 0 ? <p className="text-xs text-muted-foreground">Aucune ressource globale.</p> :
+            globalResources.map((r: any) => {
+              const Icon = ICONS[r.type] ?? BookOpen;
+              return (
+                <div key={r.id} className="flex items-center gap-3 rounded border px-3 py-2">
+                  <Icon className="h-4 w-4 text-gold" />
+                  <div className="flex-1">
+                    <div className="text-sm font-medium">{r.title}</div>
+                    {r.description && <div className="text-xs text-muted-foreground">{r.description}</div>}
+                  </div>
+                  {r.url && <a href={r.url} target="_blank" rel="noreferrer" className="text-xs text-gold hover:underline">Ouvrir</a>}
+                  <Button size="sm" variant="ghost" onClick={() => delLesson(r.id)}><Trash2 className="h-3 w-3 text-destructive" /></Button>
+                </div>
+              );
+            })}
+        </div>
+      </div>
+
+      <LessonDialog
+        open={!!lessonOpenForModule}
+        onOpenChange={(o: boolean) => !o && setLessonOpenForModule(null)}
+        onSubmit={() => addLesson(lessonOpenForModule)}
+        title="Nouvelle leçon"
+      />
+      <LessonDialog
+        open={globalOpen}
+        onOpenChange={setGlobalOpen}
+        onSubmit={() => addLesson(null)}
+        title="Nouvelle ressource globale"
+      />
     </Card>
   );
 }
