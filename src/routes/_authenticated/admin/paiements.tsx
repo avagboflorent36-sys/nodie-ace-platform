@@ -1,13 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Check, X } from "lucide-react";
+import { Check, X, Send, Lock, Unlock } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
+import { sendPaymentReminders } from "@/lib/reminders.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/paiements")({
   component: PaymentsAdmin,
@@ -15,31 +20,43 @@ export const Route = createFileRoute("/_authenticated/admin/paiements")({
 
 function PaymentsAdmin() {
   const qc = useQueryClient();
+  const sendRem = useServerFn(sendPaymentReminders);
+  const [tab, setTab] = useState("all");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  const { data: installments = [] } = useQuery({
-    queryKey: ["admin-installments"],
+  const { data: rows = [] } = useQuery({
+    queryKey: ["admin-installments-all"],
     queryFn: async () => {
       const { data } = await supabase
         .from("payment_installments")
-        .select("id, amount, position, status, proof_path, submitted_at, payments(currency, student_id, cohortes(name), payments_student:student_id)")
-        .order("submitted_at", { ascending: false, nullsFirst: false });
-      // load student names
-      const result = data ?? [];
-      const studentIds = [...new Set(result.map((r: any) => r.payments?.student_id).filter(Boolean))];
+        .select("id, amount, position, status, proof_path, submitted_at, due_date, payment_id, payments(student_id, currency, mode, status, amount_total, amount_paid, cohort_id, cohortes(name))")
+        .order("due_date", { ascending: true, nullsFirst: false });
+      const studentIds = [...new Set((data ?? []).map((r: any) => r.payments?.student_id).filter(Boolean))];
       const { data: profiles } = await supabase.from("profiles").select("id, first_name, last_name, email").in("id", studentIds);
-      const profMap = new Map((profiles ?? []).map((p) => [p.id, p]));
-      return result.map((r: any) => ({ ...r, _student: profMap.get(r.payments?.student_id) }));
+      const pmap = new Map((profiles ?? []).map((p) => [p.id, p]));
+      return (data ?? []).map((r: any) => ({ ...r, _student: pmap.get(r.payments?.student_id) }));
     },
   });
 
+  const today = new Date().toISOString().slice(0, 10);
+
+  const filtered = useMemo(() => {
+    switch (tab) {
+      case "full": return rows.filter((r: any) => r.payments?.mode === "full");
+      case "install_ontime": return rows.filter((r: any) => r.payments?.mode === "installments_2" && r.status !== "validated" && (!r.due_date || r.due_date >= today));
+      case "install_late": return rows.filter((r: any) => r.payments?.mode === "installments_2" && r.status !== "validated" && r.due_date && r.due_date < today);
+      case "to_validate": return rows.filter((r: any) => r.status === "submitted");
+      default: return rows;
+    }
+  }, [rows, tab, today]);
+
+  const lateIds = useMemo(() => rows.filter((r: any) => r.status !== "validated" && r.due_date && r.due_date < today).map((r: any) => r.id), [rows, today]);
+
   const validate = async (id: string, action: "validated" | "rejected") => {
-    const { error } = await supabase
-      .from("payment_installments")
-      .update({ status: action, validated_at: new Date().toISOString() })
-      .eq("id", id);
+    const { error } = await supabase.from("payment_installments").update({ status: action, validated_at: new Date().toISOString() }).eq("id", id);
     if (error) { toast.error(error.message); return; }
-    toast.success(action === "validated" ? "Paiement validé" : "Paiement rejeté");
-    qc.invalidateQueries({ queryKey: ["admin-installments"] });
+    toast.success(action === "validated" ? "Validé" : "Rejeté");
+    qc.invalidateQueries({ queryKey: ["admin-installments-all"] });
   };
 
   const viewProof = async (path: string) => {
@@ -47,53 +64,106 @@ function PaymentsAdmin() {
     if (data?.signedUrl) window.open(data.signedUrl, "_blank");
   };
 
+  const toggleAccess = async (studentId: string, cohortId: string, restrict: boolean) => {
+    const { error } = await supabase.from("cohort_enrollments").update({ status: restrict ? "restricted" : "active" }).eq("student_id", studentId).eq("cohort_id", cohortId);
+    if (error) { toast.error(error.message); return; }
+    toast.success(restrict ? "Accès restreint" : "Accès rétabli");
+    qc.invalidateQueries({ queryKey: ["admin-installments-all"] });
+  };
+
+  const sendSelected = async () => {
+    const ids = Array.from(selected);
+    if (ids.length === 0) { toast.error("Sélectionnez au moins une ligne"); return; }
+    try {
+      const r = await sendRem({ data: { installmentIds: ids } });
+      toast.success(`Relances envoyées : ${r.sent} ok, ${r.failed} échec`);
+      setSelected(new Set());
+    } catch (e: any) { toast.error(e.message); }
+  };
+
+  const sendAllLate = async () => {
+    if (lateIds.length === 0) { toast.error("Aucun retard"); return; }
+    if (!confirm(`Envoyer une relance à ${lateIds.length} étudiant(s) en retard ?`)) return;
+    try {
+      const r = await sendRem({ data: { installmentIds: lateIds } });
+      toast.success(`Relances envoyées : ${r.sent} ok, ${r.failed} échec`);
+    } catch (e: any) { toast.error(e.message); }
+  };
+
+  const toggleSel = (id: string) => { const s = new Set(selected); s.has(id) ? s.delete(id) : s.add(id); setSelected(s); };
+
   return (
     <div className="mx-auto max-w-7xl space-y-6 animate-fade-up">
-      <h1 className="text-3xl font-bold tracking-tight">Paiements</h1>
-      <Card>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Étudiant</TableHead>
-              <TableHead>Cohorte</TableHead>
-              <TableHead>Tranche</TableHead>
-              <TableHead>Montant</TableHead>
-              <TableHead>Statut</TableHead>
-              <TableHead>Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {installments.length === 0 ? (
-              <TableRow><TableCell colSpan={6} className="py-12 text-center text-muted-foreground">Aucune tranche.</TableCell></TableRow>
-            ) : (
-              installments.map((i: any) => (
-                <TableRow key={i.id}>
-                  <TableCell>{i._student ? `${i._student.first_name} ${i._student.last_name}` : "—"}</TableCell>
-                  <TableCell>{i.payments?.cohortes?.name ?? "—"}</TableCell>
-                  <TableCell>#{i.position}</TableCell>
-                  <TableCell>{Number(i.amount).toLocaleString()} {i.payments?.currency}</TableCell>
-                  <TableCell><Badge variant="outline">{i.status}</Badge></TableCell>
-                  <TableCell className="flex gap-1">
-                    {i.proof_path && (
-                      <Button size="sm" variant="outline" onClick={() => viewProof(i.proof_path)}>Preuve</Button>
-                    )}
-                    {i.status === "submitted" && (
-                      <>
-                        <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={() => validate(i.id, "validated")}>
-                          <Check className="h-4 w-4" />
-                        </Button>
-                        <Button size="sm" variant="destructive" onClick={() => validate(i.id, "rejected")}>
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </>
-                    )}
-                  </TableCell>
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold tracking-tight">Paiements</h1>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={sendSelected} disabled={selected.size === 0}><Send className="mr-1 h-3 w-3" /> Relancer sélection ({selected.size})</Button>
+          <Button size="sm" className="bg-gold text-primary hover:bg-gold/90" onClick={sendAllLate}><Send className="mr-1 h-3 w-3" /> Relancer tous les retards</Button>
+        </div>
+      </div>
+
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList className="grid w-full grid-cols-5">
+          <TabsTrigger value="all">Tous</TabsTrigger>
+          <TabsTrigger value="full">Payé 1x</TabsTrigger>
+          <TabsTrigger value="install_ontime">2x — à jour</TabsTrigger>
+          <TabsTrigger value="install_late">2x — en retard</TabsTrigger>
+          <TabsTrigger value="to_validate">À valider</TabsTrigger>
+        </TabsList>
+        <TabsContent value={tab} className="pt-4">
+          <Card>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-8"></TableHead>
+                  <TableHead>Étudiant</TableHead>
+                  <TableHead>Cohorte</TableHead>
+                  <TableHead>Mode</TableHead>
+                  <TableHead>Tranche</TableHead>
+                  <TableHead>Montant</TableHead>
+                  <TableHead>Échéance</TableHead>
+                  <TableHead>Statut</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </Card>
+              </TableHeader>
+              <TableBody>
+                {filtered.length === 0 ? (
+                  <TableRow><TableCell colSpan={9} className="py-12 text-center text-muted-foreground">Aucune ligne.</TableCell></TableRow>
+                ) : filtered.map((i: any) => {
+                  const isLate = i.due_date && i.due_date < today && i.status !== "validated";
+                  return (
+                    <TableRow key={i.id} className={isLate ? "bg-destructive/5" : ""}>
+                      <TableCell><Checkbox checked={selected.has(i.id)} onCheckedChange={() => toggleSel(i.id)} /></TableCell>
+                      <TableCell>{i._student ? `${i._student.first_name} ${i._student.last_name}` : "—"}</TableCell>
+                      <TableCell>{i.payments?.cohortes?.name ?? "—"}</TableCell>
+                      <TableCell><Badge variant="outline">{i.payments?.mode === "full" ? "1x" : "2x"}</Badge></TableCell>
+                      <TableCell>#{i.position}</TableCell>
+                      <TableCell>{Number(i.amount).toLocaleString()} {i.payments?.currency}</TableCell>
+                      <TableCell className={isLate ? "text-destructive font-medium" : ""}>{i.due_date ?? "—"}</TableCell>
+                      <TableCell><Badge variant={i.status === "validated" ? "default" : "outline"}>{i.status}</Badge></TableCell>
+                      <TableCell className="flex gap-1 flex-wrap">
+                        {i.proof_path && <Button size="sm" variant="outline" onClick={() => viewProof(i.proof_path)}>Preuve</Button>}
+                        {i.status === "submitted" && (
+                          <>
+                            <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={() => validate(i.id, "validated")}><Check className="h-4 w-4" /></Button>
+                            <Button size="sm" variant="destructive" onClick={() => validate(i.id, "rejected")}><X className="h-4 w-4" /></Button>
+                          </>
+                        )}
+                        {i.payments?.student_id && i.payments?.cohort_id && (
+                          <Button size="sm" variant="ghost" onClick={() => toggleAccess(i.payments.student_id, i.payments.cohort_id, true)} title="Restreindre"><Lock className="h-3 w-3" /></Button>
+                        )}
+                        {i.payments?.student_id && i.payments?.cohort_id && (
+                          <Button size="sm" variant="ghost" onClick={() => toggleAccess(i.payments.student_id, i.payments.cohort_id, false)} title="Rétablir"><Unlock className="h-3 w-3" /></Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
