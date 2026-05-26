@@ -36,12 +36,16 @@ function CohortesAdmin() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(1);
+  const defaultInstallments = () => [
+    { label: "Tranche 1", days: "15", percent: "50" },
+    { label: "Tranche 2", days: "45", percent: "50" },
+  ];
   const [form, setForm] = useState({
     formationId: "", name: "", startDate: "", endDate: "", zoomLink: "",
     priceFull: "", priceInstall: "",
-    inst1Days: "15", inst2Days: "45",
     reminders: "7,3,1",
   });
+  const [installments, setInstallments] = useState<{ label: string; days: string; percent: string }[]>(defaultInstallments());
   const [fields, setFields] = useState<DraftField[]>([
     { label: "Quelle est votre motivation ?", field_type: "long_text", required: true, options: [] },
   ]);
@@ -64,12 +68,19 @@ function CohortesAdmin() {
 
   const reset = () => {
     setStep(1);
-    setForm({ formationId: "", name: "", startDate: "", endDate: "", zoomLink: "", priceFull: "", priceInstall: "", inst1Days: "15", inst2Days: "45", reminders: "7,3,1" });
+    setForm({ formationId: "", name: "", startDate: "", endDate: "", zoomLink: "", priceFull: "", priceInstall: "", reminders: "7,3,1" });
+    setInstallments(defaultInstallments());
     setFields([{ label: "Quelle est votre motivation ?", field_type: "long_text", required: true, options: [] }]);
   };
 
+  const addInstallment = () => setInstallments([...installments, { label: `Tranche ${installments.length + 1}`, days: "60", percent: "0" }]);
+  const removeInstallment = (i: number) => setInstallments(installments.filter((_, idx) => idx !== i));
+  const updateInstallment = (i: number, patch: Partial<{ label: string; days: string; percent: string }>) =>
+    setInstallments(installments.map((it, idx) => idx === i ? { ...it, ...patch } : it));
+
   const create = async () => {
     if (!form.formationId || !form.name.trim()) return;
+    if (installments.length < 1) { toast.error("Au moins une tranche est requise"); return; }
     const reminderDays = form.reminders.split(",").map((s) => parseInt(s.trim(), 10)).filter((n) => !isNaN(n));
     const slug = slugify(form.name) + "-" + Date.now().toString(36);
     const { data: cohort, error } = await supabase.from("cohortes").insert({
@@ -81,11 +92,20 @@ function CohortesAdmin() {
       zoom_link: form.zoomLink || null,
       price_full: form.priceFull ? Number(form.priceFull) : null,
       price_installment: form.priceInstall ? Number(form.priceInstall) : null,
-      installment_1_deadline_days: Number(form.inst1Days) || 15,
-      installment_2_deadline_days: Number(form.inst2Days) || 45,
+      installment_1_deadline_days: Number(installments[0]?.days) || 15,
+      installment_2_deadline_days: Number(installments[1]?.days) || 45,
       reminder_days_before: reminderDays.length ? reminderDays : [7, 3, 1],
     }).select().single();
     if (error || !cohort) { toast.error(error?.message ?? "Erreur"); return; }
+
+    const schedule = installments.map((it, i) => ({
+      cohort_id: cohort.id,
+      position: i + 1,
+      label: it.label || `Tranche ${i + 1}`,
+      percent: it.percent ? Number(it.percent) : null,
+      due_offset_days: Number(it.days) || 0,
+    }));
+    await supabase.from("cohort_payment_schedule").insert(schedule);
 
     if (fields.length > 0) {
       const toInsert = fields.map((f, i) => ({
