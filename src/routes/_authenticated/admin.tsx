@@ -18,8 +18,14 @@ const items = [
 ];
 
 function AdminLayout() {
-  const { isAdmin, loading } = useAuth();
-  if (loading) return null;
+  const { isAdmin, loading, rolesLoaded } = useAuth();
+  if (loading || !rolesLoaded) {
+    return (
+      <div className="flex min-h-screen items-center justify-center text-muted-foreground">
+        Chargement...
+      </div>
+    );
+  }
   if (!isAdmin) return <Navigate to="/etudiant" />;
   return <AppShell items={items}><Outlet /></AppShell>;
 }
