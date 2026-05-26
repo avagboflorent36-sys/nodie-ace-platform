@@ -9,38 +9,338 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SignupRouteImport } from './routes/signup'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
+import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as InscriptionSlugRouteImport } from './routes/inscription.$slug'
+import { Route as AuthenticatedEtudiantRouteImport } from './routes/_authenticated/etudiant'
+import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
+import { Route as AuthenticatedEtudiantIndexRouteImport } from './routes/_authenticated/etudiant/index'
+import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
+import { Route as AuthenticatedEtudiantSupportRouteImport } from './routes/_authenticated/etudiant/support'
+import { Route as AuthenticatedEtudiantRessourcesRouteImport } from './routes/_authenticated/etudiant/ressources'
+import { Route as AuthenticatedEtudiantProgressionRouteImport } from './routes/_authenticated/etudiant/progression'
+import { Route as AuthenticatedEtudiantPaiementsRouteImport } from './routes/_authenticated/etudiant/paiements'
+import { Route as AuthenticatedEtudiantLiveRouteImport } from './routes/_authenticated/etudiant/live'
+import { Route as AuthenticatedEtudiantCertificatRouteImport } from './routes/_authenticated/etudiant/certificat'
+import { Route as AuthenticatedAdminPaiementsRouteImport } from './routes/_authenticated/admin/paiements'
+import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_authenticated/admin/notifications'
+import { Route as AuthenticatedAdminFormationsRouteImport } from './routes/_authenticated/admin/formations'
+import { Route as AuthenticatedAdminEtudiantsRouteImport } from './routes/_authenticated/admin/etudiants'
+import { Route as AuthenticatedAdminCohortesRouteImport } from './routes/_authenticated/admin/cohortes'
 
+const SignupRoute = SignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedRoute = AuthenticatedRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const InscriptionSlugRoute = InscriptionSlugRouteImport.update({
+  id: '/inscription/$slug',
+  path: '/inscription/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedEtudiantRoute = AuthenticatedEtudiantRouteImport.update({
+  id: '/etudiant',
+  path: '/etudiant',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedEtudiantIndexRoute =
+  AuthenticatedEtudiantIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedEtudiantRoute,
+  } as any)
+const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthenticatedAdminRoute,
+} as any)
+const AuthenticatedEtudiantSupportRoute =
+  AuthenticatedEtudiantSupportRouteImport.update({
+    id: '/support',
+    path: '/support',
+    getParentRoute: () => AuthenticatedEtudiantRoute,
+  } as any)
+const AuthenticatedEtudiantRessourcesRoute =
+  AuthenticatedEtudiantRessourcesRouteImport.update({
+    id: '/ressources',
+    path: '/ressources',
+    getParentRoute: () => AuthenticatedEtudiantRoute,
+  } as any)
+const AuthenticatedEtudiantProgressionRoute =
+  AuthenticatedEtudiantProgressionRouteImport.update({
+    id: '/progression',
+    path: '/progression',
+    getParentRoute: () => AuthenticatedEtudiantRoute,
+  } as any)
+const AuthenticatedEtudiantPaiementsRoute =
+  AuthenticatedEtudiantPaiementsRouteImport.update({
+    id: '/paiements',
+    path: '/paiements',
+    getParentRoute: () => AuthenticatedEtudiantRoute,
+  } as any)
+const AuthenticatedEtudiantLiveRoute =
+  AuthenticatedEtudiantLiveRouteImport.update({
+    id: '/live',
+    path: '/live',
+    getParentRoute: () => AuthenticatedEtudiantRoute,
+  } as any)
+const AuthenticatedEtudiantCertificatRoute =
+  AuthenticatedEtudiantCertificatRouteImport.update({
+    id: '/certificat',
+    path: '/certificat',
+    getParentRoute: () => AuthenticatedEtudiantRoute,
+  } as any)
+const AuthenticatedAdminPaiementsRoute =
+  AuthenticatedAdminPaiementsRouteImport.update({
+    id: '/paiements',
+    path: '/paiements',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminNotificationsRoute =
+  AuthenticatedAdminNotificationsRouteImport.update({
+    id: '/notifications',
+    path: '/notifications',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminFormationsRoute =
+  AuthenticatedAdminFormationsRouteImport.update({
+    id: '/formations',
+    path: '/formations',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminEtudiantsRoute =
+  AuthenticatedAdminEtudiantsRouteImport.update({
+    id: '/etudiants',
+    path: '/etudiants',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminCohortesRoute =
+  AuthenticatedAdminCohortesRouteImport.update({
+    id: '/cohortes',
+    path: '/cohortes',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/forgot-password': typeof ForgotPasswordRoute
+  '/login': typeof LoginRoute
+  '/reset-password': typeof ResetPasswordRoute
+  '/signup': typeof SignupRoute
+  '/admin': typeof AuthenticatedAdminRouteWithChildren
+  '/etudiant': typeof AuthenticatedEtudiantRouteWithChildren
+  '/inscription/$slug': typeof InscriptionSlugRoute
+  '/admin/cohortes': typeof AuthenticatedAdminCohortesRoute
+  '/admin/etudiants': typeof AuthenticatedAdminEtudiantsRoute
+  '/admin/formations': typeof AuthenticatedAdminFormationsRoute
+  '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
+  '/admin/paiements': typeof AuthenticatedAdminPaiementsRoute
+  '/etudiant/certificat': typeof AuthenticatedEtudiantCertificatRoute
+  '/etudiant/live': typeof AuthenticatedEtudiantLiveRoute
+  '/etudiant/paiements': typeof AuthenticatedEtudiantPaiementsRoute
+  '/etudiant/progression': typeof AuthenticatedEtudiantProgressionRoute
+  '/etudiant/ressources': typeof AuthenticatedEtudiantRessourcesRoute
+  '/etudiant/support': typeof AuthenticatedEtudiantSupportRoute
+  '/admin/': typeof AuthenticatedAdminIndexRoute
+  '/etudiant/': typeof AuthenticatedEtudiantIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/forgot-password': typeof ForgotPasswordRoute
+  '/login': typeof LoginRoute
+  '/reset-password': typeof ResetPasswordRoute
+  '/signup': typeof SignupRoute
+  '/inscription/$slug': typeof InscriptionSlugRoute
+  '/admin/cohortes': typeof AuthenticatedAdminCohortesRoute
+  '/admin/etudiants': typeof AuthenticatedAdminEtudiantsRoute
+  '/admin/formations': typeof AuthenticatedAdminFormationsRoute
+  '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
+  '/admin/paiements': typeof AuthenticatedAdminPaiementsRoute
+  '/etudiant/certificat': typeof AuthenticatedEtudiantCertificatRoute
+  '/etudiant/live': typeof AuthenticatedEtudiantLiveRoute
+  '/etudiant/paiements': typeof AuthenticatedEtudiantPaiementsRoute
+  '/etudiant/progression': typeof AuthenticatedEtudiantProgressionRoute
+  '/etudiant/ressources': typeof AuthenticatedEtudiantRessourcesRoute
+  '/etudiant/support': typeof AuthenticatedEtudiantSupportRoute
+  '/admin': typeof AuthenticatedAdminIndexRoute
+  '/etudiant': typeof AuthenticatedEtudiantIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_authenticated': typeof AuthenticatedRouteWithChildren
+  '/forgot-password': typeof ForgotPasswordRoute
+  '/login': typeof LoginRoute
+  '/reset-password': typeof ResetPasswordRoute
+  '/signup': typeof SignupRoute
+  '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
+  '/_authenticated/etudiant': typeof AuthenticatedEtudiantRouteWithChildren
+  '/inscription/$slug': typeof InscriptionSlugRoute
+  '/_authenticated/admin/cohortes': typeof AuthenticatedAdminCohortesRoute
+  '/_authenticated/admin/etudiants': typeof AuthenticatedAdminEtudiantsRoute
+  '/_authenticated/admin/formations': typeof AuthenticatedAdminFormationsRoute
+  '/_authenticated/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
+  '/_authenticated/admin/paiements': typeof AuthenticatedAdminPaiementsRoute
+  '/_authenticated/etudiant/certificat': typeof AuthenticatedEtudiantCertificatRoute
+  '/_authenticated/etudiant/live': typeof AuthenticatedEtudiantLiveRoute
+  '/_authenticated/etudiant/paiements': typeof AuthenticatedEtudiantPaiementsRoute
+  '/_authenticated/etudiant/progression': typeof AuthenticatedEtudiantProgressionRoute
+  '/_authenticated/etudiant/ressources': typeof AuthenticatedEtudiantRessourcesRoute
+  '/_authenticated/etudiant/support': typeof AuthenticatedEtudiantSupportRoute
+  '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
+  '/_authenticated/etudiant/': typeof AuthenticatedEtudiantIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/forgot-password'
+    | '/login'
+    | '/reset-password'
+    | '/signup'
+    | '/admin'
+    | '/etudiant'
+    | '/inscription/$slug'
+    | '/admin/cohortes'
+    | '/admin/etudiants'
+    | '/admin/formations'
+    | '/admin/notifications'
+    | '/admin/paiements'
+    | '/etudiant/certificat'
+    | '/etudiant/live'
+    | '/etudiant/paiements'
+    | '/etudiant/progression'
+    | '/etudiant/ressources'
+    | '/etudiant/support'
+    | '/admin/'
+    | '/etudiant/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/forgot-password'
+    | '/login'
+    | '/reset-password'
+    | '/signup'
+    | '/inscription/$slug'
+    | '/admin/cohortes'
+    | '/admin/etudiants'
+    | '/admin/formations'
+    | '/admin/notifications'
+    | '/admin/paiements'
+    | '/etudiant/certificat'
+    | '/etudiant/live'
+    | '/etudiant/paiements'
+    | '/etudiant/progression'
+    | '/etudiant/ressources'
+    | '/etudiant/support'
+    | '/admin'
+    | '/etudiant'
+  id:
+    | '__root__'
+    | '/'
+    | '/_authenticated'
+    | '/forgot-password'
+    | '/login'
+    | '/reset-password'
+    | '/signup'
+    | '/_authenticated/admin'
+    | '/_authenticated/etudiant'
+    | '/inscription/$slug'
+    | '/_authenticated/admin/cohortes'
+    | '/_authenticated/admin/etudiants'
+    | '/_authenticated/admin/formations'
+    | '/_authenticated/admin/notifications'
+    | '/_authenticated/admin/paiements'
+    | '/_authenticated/etudiant/certificat'
+    | '/_authenticated/etudiant/live'
+    | '/_authenticated/etudiant/paiements'
+    | '/_authenticated/etudiant/progression'
+    | '/_authenticated/etudiant/ressources'
+    | '/_authenticated/etudiant/support'
+    | '/_authenticated/admin/'
+    | '/_authenticated/etudiant/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
+  ForgotPasswordRoute: typeof ForgotPasswordRoute
+  LoginRoute: typeof LoginRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
+  SignupRoute: typeof SignupRoute
+  InscriptionSlugRoute: typeof InscriptionSlugRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/signup': {
+      id: '/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof SignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,11 +348,189 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/inscription/$slug': {
+      id: '/inscription/$slug'
+      path: '/inscription/$slug'
+      fullPath: '/inscription/$slug'
+      preLoaderRoute: typeof InscriptionSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/etudiant': {
+      id: '/_authenticated/etudiant'
+      path: '/etudiant'
+      fullPath: '/etudiant'
+      preLoaderRoute: typeof AuthenticatedEtudiantRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/admin': {
+      id: '/_authenticated/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AuthenticatedAdminRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/etudiant/': {
+      id: '/_authenticated/etudiant/'
+      path: '/'
+      fullPath: '/etudiant/'
+      preLoaderRoute: typeof AuthenticatedEtudiantIndexRouteImport
+      parentRoute: typeof AuthenticatedEtudiantRoute
+    }
+    '/_authenticated/admin/': {
+      id: '/_authenticated/admin/'
+      path: '/'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/etudiant/support': {
+      id: '/_authenticated/etudiant/support'
+      path: '/support'
+      fullPath: '/etudiant/support'
+      preLoaderRoute: typeof AuthenticatedEtudiantSupportRouteImport
+      parentRoute: typeof AuthenticatedEtudiantRoute
+    }
+    '/_authenticated/etudiant/ressources': {
+      id: '/_authenticated/etudiant/ressources'
+      path: '/ressources'
+      fullPath: '/etudiant/ressources'
+      preLoaderRoute: typeof AuthenticatedEtudiantRessourcesRouteImport
+      parentRoute: typeof AuthenticatedEtudiantRoute
+    }
+    '/_authenticated/etudiant/progression': {
+      id: '/_authenticated/etudiant/progression'
+      path: '/progression'
+      fullPath: '/etudiant/progression'
+      preLoaderRoute: typeof AuthenticatedEtudiantProgressionRouteImport
+      parentRoute: typeof AuthenticatedEtudiantRoute
+    }
+    '/_authenticated/etudiant/paiements': {
+      id: '/_authenticated/etudiant/paiements'
+      path: '/paiements'
+      fullPath: '/etudiant/paiements'
+      preLoaderRoute: typeof AuthenticatedEtudiantPaiementsRouteImport
+      parentRoute: typeof AuthenticatedEtudiantRoute
+    }
+    '/_authenticated/etudiant/live': {
+      id: '/_authenticated/etudiant/live'
+      path: '/live'
+      fullPath: '/etudiant/live'
+      preLoaderRoute: typeof AuthenticatedEtudiantLiveRouteImport
+      parentRoute: typeof AuthenticatedEtudiantRoute
+    }
+    '/_authenticated/etudiant/certificat': {
+      id: '/_authenticated/etudiant/certificat'
+      path: '/certificat'
+      fullPath: '/etudiant/certificat'
+      preLoaderRoute: typeof AuthenticatedEtudiantCertificatRouteImport
+      parentRoute: typeof AuthenticatedEtudiantRoute
+    }
+    '/_authenticated/admin/paiements': {
+      id: '/_authenticated/admin/paiements'
+      path: '/paiements'
+      fullPath: '/admin/paiements'
+      preLoaderRoute: typeof AuthenticatedAdminPaiementsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/notifications': {
+      id: '/_authenticated/admin/notifications'
+      path: '/notifications'
+      fullPath: '/admin/notifications'
+      preLoaderRoute: typeof AuthenticatedAdminNotificationsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/formations': {
+      id: '/_authenticated/admin/formations'
+      path: '/formations'
+      fullPath: '/admin/formations'
+      preLoaderRoute: typeof AuthenticatedAdminFormationsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/etudiants': {
+      id: '/_authenticated/admin/etudiants'
+      path: '/etudiants'
+      fullPath: '/admin/etudiants'
+      preLoaderRoute: typeof AuthenticatedAdminEtudiantsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/cohortes': {
+      id: '/_authenticated/admin/cohortes'
+      path: '/cohortes'
+      fullPath: '/admin/cohortes'
+      preLoaderRoute: typeof AuthenticatedAdminCohortesRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
   }
 }
 
+interface AuthenticatedAdminRouteChildren {
+  AuthenticatedAdminCohortesRoute: typeof AuthenticatedAdminCohortesRoute
+  AuthenticatedAdminEtudiantsRoute: typeof AuthenticatedAdminEtudiantsRoute
+  AuthenticatedAdminFormationsRoute: typeof AuthenticatedAdminFormationsRoute
+  AuthenticatedAdminNotificationsRoute: typeof AuthenticatedAdminNotificationsRoute
+  AuthenticatedAdminPaiementsRoute: typeof AuthenticatedAdminPaiementsRoute
+  AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
+}
+
+const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
+  AuthenticatedAdminCohortesRoute: AuthenticatedAdminCohortesRoute,
+  AuthenticatedAdminEtudiantsRoute: AuthenticatedAdminEtudiantsRoute,
+  AuthenticatedAdminFormationsRoute: AuthenticatedAdminFormationsRoute,
+  AuthenticatedAdminNotificationsRoute: AuthenticatedAdminNotificationsRoute,
+  AuthenticatedAdminPaiementsRoute: AuthenticatedAdminPaiementsRoute,
+  AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
+}
+
+const AuthenticatedAdminRouteWithChildren =
+  AuthenticatedAdminRoute._addFileChildren(AuthenticatedAdminRouteChildren)
+
+interface AuthenticatedEtudiantRouteChildren {
+  AuthenticatedEtudiantCertificatRoute: typeof AuthenticatedEtudiantCertificatRoute
+  AuthenticatedEtudiantLiveRoute: typeof AuthenticatedEtudiantLiveRoute
+  AuthenticatedEtudiantPaiementsRoute: typeof AuthenticatedEtudiantPaiementsRoute
+  AuthenticatedEtudiantProgressionRoute: typeof AuthenticatedEtudiantProgressionRoute
+  AuthenticatedEtudiantRessourcesRoute: typeof AuthenticatedEtudiantRessourcesRoute
+  AuthenticatedEtudiantSupportRoute: typeof AuthenticatedEtudiantSupportRoute
+  AuthenticatedEtudiantIndexRoute: typeof AuthenticatedEtudiantIndexRoute
+}
+
+const AuthenticatedEtudiantRouteChildren: AuthenticatedEtudiantRouteChildren = {
+  AuthenticatedEtudiantCertificatRoute: AuthenticatedEtudiantCertificatRoute,
+  AuthenticatedEtudiantLiveRoute: AuthenticatedEtudiantLiveRoute,
+  AuthenticatedEtudiantPaiementsRoute: AuthenticatedEtudiantPaiementsRoute,
+  AuthenticatedEtudiantProgressionRoute: AuthenticatedEtudiantProgressionRoute,
+  AuthenticatedEtudiantRessourcesRoute: AuthenticatedEtudiantRessourcesRoute,
+  AuthenticatedEtudiantSupportRoute: AuthenticatedEtudiantSupportRoute,
+  AuthenticatedEtudiantIndexRoute: AuthenticatedEtudiantIndexRoute,
+}
+
+const AuthenticatedEtudiantRouteWithChildren =
+  AuthenticatedEtudiantRoute._addFileChildren(
+    AuthenticatedEtudiantRouteChildren,
+  )
+
+interface AuthenticatedRouteChildren {
+  AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
+  AuthenticatedEtudiantRoute: typeof AuthenticatedEtudiantRouteWithChildren
+}
+
+const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
+  AuthenticatedAdminRoute: AuthenticatedAdminRouteWithChildren,
+  AuthenticatedEtudiantRoute: AuthenticatedEtudiantRouteWithChildren,
+}
+
+const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
+  AuthenticatedRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthenticatedRoute: AuthenticatedRouteWithChildren,
+  ForgotPasswordRoute: ForgotPasswordRoute,
+  LoginRoute: LoginRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
+  SignupRoute: SignupRoute,
+  InscriptionSlugRoute: InscriptionSlugRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
