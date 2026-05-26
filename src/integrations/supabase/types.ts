@@ -87,10 +87,13 @@ export type Database = {
           end_date: string | null
           formation_id: string
           id: string
+          installment_1_deadline_days: number
+          installment_2_deadline_days: number
           installment_deadline_days: number
           name: string
           price_full: number | null
           price_installment: number | null
+          reminder_days_before: number[]
           slug: string
           start_date: string | null
           status: Database["public"]["Enums"]["cohort_status"]
@@ -102,10 +105,13 @@ export type Database = {
           end_date?: string | null
           formation_id: string
           id?: string
+          installment_1_deadline_days?: number
+          installment_2_deadline_days?: number
           installment_deadline_days?: number
           name: string
           price_full?: number | null
           price_installment?: number | null
+          reminder_days_before?: number[]
           slug: string
           start_date?: string | null
           status?: Database["public"]["Enums"]["cohort_status"]
@@ -117,10 +123,13 @@ export type Database = {
           end_date?: string | null
           formation_id?: string
           id?: string
+          installment_1_deadline_days?: number
+          installment_2_deadline_days?: number
           installment_deadline_days?: number
           name?: string
           price_full?: number | null
           price_installment?: number | null
+          reminder_days_before?: number[]
           slug?: string
           start_date?: string | null
           status?: Database["public"]["Enums"]["cohort_status"]
@@ -137,8 +146,102 @@ export type Database = {
           },
         ]
       }
+      form_fields: {
+        Row: {
+          cohort_id: string
+          created_at: string
+          field_type: Database["public"]["Enums"]["form_field_type"]
+          id: string
+          label: string
+          options: Json | null
+          position: number
+          required: boolean
+        }
+        Insert: {
+          cohort_id: string
+          created_at?: string
+          field_type: Database["public"]["Enums"]["form_field_type"]
+          id?: string
+          label: string
+          options?: Json | null
+          position?: number
+          required?: boolean
+        }
+        Update: {
+          cohort_id?: string
+          created_at?: string
+          field_type?: Database["public"]["Enums"]["form_field_type"]
+          id?: string
+          label?: string
+          options?: Json | null
+          position?: number
+          required?: boolean
+        }
+        Relationships: []
+      }
+      form_responses: {
+        Row: {
+          answers: Json
+          cohort_id: string
+          created_at: string
+          id: string
+          student_id: string
+        }
+        Insert: {
+          answers?: Json
+          cohort_id: string
+          created_at?: string
+          id?: string
+          student_id: string
+        }
+        Update: {
+          answers?: Json
+          cohort_id?: string
+          created_at?: string
+          id?: string
+          student_id?: string
+        }
+        Relationships: []
+      }
+      formation_resources: {
+        Row: {
+          created_at: string
+          description: string | null
+          file_path: string | null
+          formation_id: string
+          id: string
+          position: number
+          title: string
+          type: Database["public"]["Enums"]["resource_type"]
+          url: string | null
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          file_path?: string | null
+          formation_id: string
+          id?: string
+          position?: number
+          title: string
+          type: Database["public"]["Enums"]["resource_type"]
+          url?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          file_path?: string | null
+          formation_id?: string
+          id?: string
+          position?: number
+          title?: string
+          type?: Database["public"]["Enums"]["resource_type"]
+          url?: string | null
+        }
+        Relationships: []
+      }
       formations: {
         Row: {
+          cover_image_url: string | null
           created_at: string
           currency: string
           description: string | null
@@ -146,12 +249,15 @@ export type Database = {
           id: string
           image_url: string | null
           is_active: boolean
+          long_description: string | null
           price_amount: number
+          program: Json | null
           slug: string
           title: string
           updated_at: string
         }
         Insert: {
+          cover_image_url?: string | null
           created_at?: string
           currency?: string
           description?: string | null
@@ -159,12 +265,15 @@ export type Database = {
           id?: string
           image_url?: string | null
           is_active?: boolean
+          long_description?: string | null
           price_amount?: number
+          program?: Json | null
           slug: string
           title: string
           updated_at?: string
         }
         Update: {
+          cover_image_url?: string | null
           created_at?: string
           currency?: string
           description?: string | null
@@ -172,7 +281,9 @@ export type Database = {
           id?: string
           image_url?: string | null
           is_active?: boolean
+          long_description?: string | null
           price_amount?: number
+          program?: Json | null
           slug?: string
           title?: string
           updated_at?: string
@@ -296,6 +407,7 @@ export type Database = {
           proof_path: string | null
           rejection_reason: string | null
           status: Database["public"]["Enums"]["installment_status"]
+          student_confirmed_at: string | null
           submitted_at: string | null
           validated_at: string | null
           validated_by: string | null
@@ -310,6 +422,7 @@ export type Database = {
           proof_path?: string | null
           rejection_reason?: string | null
           status?: Database["public"]["Enums"]["installment_status"]
+          student_confirmed_at?: string | null
           submitted_at?: string | null
           validated_at?: string | null
           validated_by?: string | null
@@ -324,6 +437,7 @@ export type Database = {
           proof_path?: string | null
           rejection_reason?: string | null
           status?: Database["public"]["Enums"]["installment_status"]
+          student_confirmed_at?: string | null
           submitted_at?: string | null
           validated_at?: string | null
           validated_by?: string | null
@@ -337,6 +451,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      payment_reminders: {
+        Row: {
+          channel: string
+          error: string | null
+          id: string
+          installment_id: string
+          sent_at: string
+          status: string
+        }
+        Insert: {
+          channel?: string
+          error?: string | null
+          id?: string
+          installment_id: string
+          sent_at?: string
+          status?: string
+        }
+        Update: {
+          channel?: string
+          error?: string | null
+          id?: string
+          installment_id?: string
+          sent_at?: string
+          status?: string
+        }
+        Relationships: []
       }
       payments: {
         Row: {
@@ -546,7 +687,22 @@ export type Database = {
         | "in_progress"
         | "completed"
         | "cancelled"
-      enrollment_status: "active" | "suspended" | "completed" | "cancelled"
+      enrollment_status:
+        | "active"
+        | "suspended"
+        | "completed"
+        | "cancelled"
+        | "restricted"
+      form_field_type:
+        | "short_text"
+        | "long_text"
+        | "email"
+        | "phone"
+        | "single_choice"
+        | "multiple_choice"
+        | "file"
+        | "number"
+        | "date"
       installment_status: "pending" | "submitted" | "validated" | "rejected"
       notification_type:
         | "new_enrollment"
@@ -695,7 +851,24 @@ export const Constants = {
         "completed",
         "cancelled",
       ],
-      enrollment_status: ["active", "suspended", "completed", "cancelled"],
+      enrollment_status: [
+        "active",
+        "suspended",
+        "completed",
+        "cancelled",
+        "restricted",
+      ],
+      form_field_type: [
+        "short_text",
+        "long_text",
+        "email",
+        "phone",
+        "single_choice",
+        "multiple_choice",
+        "file",
+        "number",
+        "date",
+      ],
       installment_status: ["pending", "submitted", "validated", "rejected"],
       notification_type: [
         "new_enrollment",
