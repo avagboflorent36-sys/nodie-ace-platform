@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
@@ -58,9 +58,13 @@ function StudentsPage() {
               <TableRow><TableCell colSpan={5} className="py-12 text-center text-muted-foreground">Aucun étudiant.</TableCell></TableRow>
             ) : (
               filtered.map((s: any) => (
-                <TableRow key={s.id}>
-                  <TableCell className="font-medium">{s.first_name} {s.last_name}</TableCell>
-                  <TableCell>{s.email}</TableCell>
+                <TableRow key={s.id} className="cursor-pointer">
+                  <TableCell className="font-medium">
+                    <Link to="/admin/etudiants/$id" params={{ id: s.id }} className="hover:text-gold hover:underline">
+                      {s.first_name} {s.last_name}
+                    </Link>
+                  </TableCell>
+                  <TableCell><Link to="/admin/etudiants/$id" params={{ id: s.id }} className="hover:underline">{s.email}</Link></TableCell>
                   <TableCell>{s.whatsapp ?? "—"}</TableCell>
                   <TableCell>{s.country ?? "—"}</TableCell>
                   <TableCell>{new Date(s.created_at).toLocaleDateString("fr-FR")}</TableCell>

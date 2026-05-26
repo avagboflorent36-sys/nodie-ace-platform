@@ -1,65 +1,82 @@
-# Refonte espace étudiant
+# Plan : 3 améliorations admin
 
-## 1. Menu étudiant simplifié
+## 1. Fiche étudiant complète
 
-Mettre à jour `src/routes/_authenticated/etudiant.tsx` pour ne garder que :
+**Nouvelle route** `src/routes/_authenticated/admin/etudiants.$id.tsx`
+- Rendre les lignes du tableau `etudiants.tsx` cliquables (Link vers `/admin/etudiants/$id`).
+- Page de détail avec onglets ou sections :
+  - **Profil** : nom, email, WhatsApp, pays, date d'inscription, avatar.
+  - **Cohortes** : liste des `cohort_enrollments` (cohorte, formation, statut, date), avec bouton activer/restreindre.
+  - **Paiements** : tous les `payments` + `payment_installments` (mode, montants, échéances, statut, preuve, dates de validation).
+  - **Progression** : ressources complétées (`progress_tracking`) regroupées par module/cohorte.
+  - **Réponses au formulaire** : `form_responses` (cohorte + réponses JSON formatées).
+  - **Activité** : annonces lues, sessions live à venir de ses cohortes.
 
-- Accueil → `/etudiant`
-- Formation → `/etudiant/formation` (nouvelle route)
-- Séances live → `/etudiant/live`
-- Certificat → `/etudiant/certificat`
-- Support → `/etudiant/support`
+## 2. Statistiques par formation
 
-Suppression du menu : Ressources, Paiements, Progression.
+**Nouvel onglet/page** sur `admin/formations.tsx` (section « Statistiques » dans `FormationDetail`).
+- Pour la formation sélectionnée, agréger sur toutes ses cohortes :
+  - Nombre total d'inscrits, actifs, restreints.
+  - Répartition par cohorte (tableau : cohorte, inscrits, actifs, % paiement, % progression moyenne).
+  - Taux de complétion moyen (ressources complétées / total).
+  - Revenus encaissés vs. attendus (sum `amount_paid` / `amount_total`).
+  - Graphique simple inscriptions par mois (recharts déjà dispo).
 
-## 2. Nouvelle page « Formation »
+## 3. Tranches de paiement & relances configurables
 
-Créer `src/routes/_authenticated/etudiant/formation.tsx` qui regroupe, pour chaque cohorte active de l'étudiant :
+**Sur la cohorte** (`admin/cohortes.$id.tsx`, onglet « Paramètres ») :
+- Ajouter une section **Plan de paiement** :
+  - Liste éditable des tranches (position, label, % ou montant, jours avant échéance) — stockée dans une nouvelle table `cohort_payment_schedule` (cohort_id, position, amount_or_percent, due_offset_days, label) **OU** étendre les colonnes `installment_*_deadline_days` existantes vers un JSON `payment_schedule jsonb` sur `cohortes`. → Choix : **nouvelle table** pour permettre N tranches au lieu de 2.
+  - Champs : prix 1x, prix nx (déjà existants).
+- Ajouter une section **Relances automatiques** :
+  - Nouvelle table `cohort_reminder_rules` (cohort_id, days_before|days_after, channel email/whatsapp, template_key, enabled).
+  - UI : liste de règles (ex : J-7 email, J-3 email, J+1 whatsapp), toggle on/off, choix du canal et du modèle.
+  - Cron déjà existant via `sendPaymentReminders` → adapter pour lire ces règles et déclencher chaque jour via un endpoint `api/public/hooks/payment-reminders` planifié avec pg_cron.
 
-- En-tête : nom de la cohorte, titre + description longue de la formation, image de couverture, dates, lien Zoom
-- Bloc « Annonces » de la cohorte (récentes en premier)
-- Ressources de la formation (`formation_resources`)
-- Liste des modules avec leurs ressources (`modules` + `ressources`)
-- Bannière d'alerte si l'inscription est `restricted` (paiement en retard)
-
-Reprend la logique de l'actuelle page Ressources, enrichie des infos cohorte/formation.
-
-## 3. Suppression des anciennes pages
-
-Supprimer :
-- `src/routes/_authenticated/etudiant/ressources.tsx`
-- `src/routes/_authenticated/etudiant/paiements.tsx`
-- `src/routes/_authenticated/etudiant/progression.tsx`
-
-Nettoyer la page Accueil (`etudiant/index.tsx`) : retirer la carte « Paiements » et la statistique « Progression », garder un résumé cohortes + prochaines séances + dernières annonces.
-
-## 4. Synchronisation temps réel (admin ↔ étudiant)
-
-Activer Supabase Realtime pour les tables `annonces` et `notifications` via migration :
+## Migrations DB
 
 ```sql
-ALTER PUBLICATION supabase_realtime ADD TABLE public.annonces;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
-ALTER TABLE public.annonces REPLICA IDENTITY FULL;
-ALTER TABLE public.notifications REPLICA IDENTITY FULL;
+-- Tranches paramétrables
+CREATE TABLE public.cohort_payment_schedule (
+  id uuid PK default gen_random_uuid(),
+  cohort_id uuid NOT NULL,
+  position int NOT NULL,
+  label text,
+  percent numeric,            -- % du total (si null → amount fixe)
+  amount numeric,
+  due_offset_days int NOT NULL, -- jours après inscription
+  created_at timestamptz default now()
+);
+GRANT SELECT ON public.cohort_payment_schedule TO anon, authenticated;
+GRANT ALL ON public.cohort_payment_schedule TO service_role, authenticated;
+ALTER TABLE ... ENABLE RLS;
+-- Anyone reads / Admins manage
+
+-- Règles de relance
+CREATE TABLE public.cohort_reminder_rules (
+  id uuid PK,
+  cohort_id uuid NOT NULL,
+  offset_days int NOT NULL,   -- négatif = avant, positif = après
+  channel text NOT NULL,      -- 'email' | 'whatsapp'
+  template_key text NOT NULL, -- ex 'reminder_before', 'reminder_overdue'
+  enabled bool default true,
+  created_at timestamptz default now()
+);
+-- GRANTs + RLS admin manage / authenticated read
 ```
 
-Côté client :
-- Dans la page Formation, abonnement realtime sur `annonces` filtré par `cohort_id` → invalidation de la query annonces à chaque INSERT/UPDATE/DELETE.
-- Créer un hook léger `useRealtimeNotifications` (ou inline dans `AppShell`) qui écoute `notifications` filtré sur `user_id = auth.uid()` et invalide la query notifications, pour que la cloche se mette à jour instantanément côté étudiant comme admin.
-
-## 5. Détails techniques
-
-- Routes TanStack : créer `formation.tsx` avec `createFileRoute("/_authenticated/etudiant/formation")`, le routeTree sera régénéré automatiquement.
-- Toutes les requêtes utilisent `supabase` côté client + `useQuery` (cohérent avec le reste du code).
-- L'abonnement realtime est posé dans un `useEffect` qui se désabonne au démontage, et appelle `queryClient.invalidateQueries({ queryKey: [...] })`.
-- Le menu admin n'est pas modifié — la synchro temps réel rend simplement visibles immédiatement les annonces/notifs publiées depuis l'admin.
+À la création d'un `payment` en mode `installments_N`, les `payment_installments` sont générés à partir de `cohort_payment_schedule` (inscription_date + due_offset_days).
 
 ## Fichiers impactés
 
-- ✏️ `src/routes/_authenticated/etudiant.tsx` (menu)
-- ✏️ `src/routes/_authenticated/etudiant/index.tsx` (nettoyage stats)
-- ➕ `src/routes/_authenticated/etudiant/formation.tsx`
-- 🗑️ `ressources.tsx`, `paiements.tsx`, `progression.tsx`
-- ➕ migration : activation realtime sur `annonces` et `notifications`
-- ✏️ `src/components/AppShell.tsx` (ou nouveau hook) : abonnement realtime notifications
+- **Nouveau** : `src/routes/_authenticated/admin/etudiants.$id.tsx`
+- **Édit** : `src/routes/_authenticated/admin/etudiants.tsx` (lignes cliquables)
+- **Édit** : `src/routes/_authenticated/admin/formations.tsx` (bloc statistiques)
+- **Édit** : `src/routes/_authenticated/admin/cohortes.$id.tsx` (onglet Paramètres : tranches + relances)
+- **Édit** : `src/lib/reminders.functions.ts` (lecture des règles)
+- **Migrations** : 2 nouvelles tables + RLS + GRANTs
+- **Cron** : route `api/public/hooks/daily-reminders` + pg_cron quotidien
+
+## Confirmation demandée
+1. OK pour 2 nouvelles tables (`cohort_payment_schedule`, `cohort_reminder_rules`) ?
+2. OK pour cron quotidien automatique des relances ?

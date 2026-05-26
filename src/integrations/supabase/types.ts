@@ -81,6 +81,85 @@ export type Database = {
           },
         ]
       }
+      cohort_payment_schedule: {
+        Row: {
+          amount: number | null
+          cohort_id: string
+          created_at: string
+          due_offset_days: number
+          id: string
+          label: string | null
+          percent: number | null
+          position: number
+        }
+        Insert: {
+          amount?: number | null
+          cohort_id: string
+          created_at?: string
+          due_offset_days?: number
+          id?: string
+          label?: string | null
+          percent?: number | null
+          position?: number
+        }
+        Update: {
+          amount?: number | null
+          cohort_id?: string
+          created_at?: string
+          due_offset_days?: number
+          id?: string
+          label?: string | null
+          percent?: number | null
+          position?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cohort_payment_schedule_cohort_id_fkey"
+            columns: ["cohort_id"]
+            isOneToOne: false
+            referencedRelation: "cohortes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cohort_reminder_rules: {
+        Row: {
+          channel: string
+          cohort_id: string
+          created_at: string
+          enabled: boolean
+          id: string
+          offset_days: number
+          template_key: string
+        }
+        Insert: {
+          channel?: string
+          cohort_id: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          offset_days?: number
+          template_key?: string
+        }
+        Update: {
+          channel?: string
+          cohort_id?: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          offset_days?: number
+          template_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cohort_reminder_rules_cohort_id_fkey"
+            columns: ["cohort_id"]
+            isOneToOne: false
+            referencedRelation: "cohortes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cohortes: {
         Row: {
           created_at: string

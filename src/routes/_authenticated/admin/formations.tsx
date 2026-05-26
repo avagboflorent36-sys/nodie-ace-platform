@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/admin/formations")({
@@ -107,11 +108,118 @@ function FormationsAdmin() {
               </Card>
             ))}
         </div>
-        <div className="md:col-span-2">
-          {selectedId ? <FormationDetail formationId={selectedId} /> : <Card className="p-12 text-center text-muted-foreground">Sélectionnez une formation pour gérer son contenu pédagogique global.</Card>}
+        <div className="md:col-span-2 space-y-4">
+          {selectedId ? (
+            <>
+              <FormationStats formationId={selectedId} />
+              <FormationDetail formationId={selectedId} />
+            </>
+          ) : <Card className="p-12 text-center text-muted-foreground">Sélectionnez une formation pour gérer son contenu et voir les statistiques.</Card>}
         </div>
       </div>
     </div>
+  );
+}
+
+function FormationStats({ formationId }: { formationId: string }) {
+  const { data } = useQuery({
+    queryKey: ["formation-stats", formationId],
+    queryFn: async () => {
+      const { data: cohorts } = await supabase.from("cohortes").select("id, name, currency").eq("formation_id", formationId);
+      const cohortIds = (cohorts ?? []).map((c: any) => c.id);
+      if (cohortIds.length === 0) return { cohorts: [], totals: { enrolled: 0, active: 0, restricted: 0, revenue: 0, expected: 0 } };
+
+      const [enrollments, payments, modules] = await Promise.all([
+        supabase.from("cohort_enrollments").select("cohort_id, status, student_id").in("cohort_id", cohortIds),
+        supabase.from("payments").select("cohort_id, amount_total, amount_paid").in("cohort_id", cohortIds),
+        supabase.from("modules").select("id, cohort_id, ressources(id)").in("cohort_id", cohortIds),
+      ]);
+
+      const ressourceIdsByCohort = new Map<string, string[]>();
+      for (const m of modules.data ?? []) {
+        const arr = ressourceIdsByCohort.get((m as any).cohort_id) ?? [];
+        for (const r of (m as any).ressources ?? []) arr.push(r.id);
+        ressourceIdsByCohort.set((m as any).cohort_id, arr);
+      }
+
+      const allRessIds = Array.from(ressourceIdsByCohort.values()).flat();
+      const { data: progress } = allRessIds.length
+        ? await supabase.from("progress_tracking").select("ressource_id, student_id").in("ressource_id", allRessIds)
+        : { data: [] as any[] };
+
+      const rows = (cohorts ?? []).map((c: any) => {
+        const enr = (enrollments.data ?? []).filter((e: any) => e.cohort_id === c.id);
+        const pays = (payments.data ?? []).filter((p: any) => p.cohort_id === c.id);
+        const ressIds = ressourceIdsByCohort.get(c.id) ?? [];
+        const studentIds = new Set(enr.filter((e: any) => e.status === "active").map((e: any) => e.student_id));
+        let avgCompletion = 0;
+        if (ressIds.length > 0 && studentIds.size > 0) {
+          let total = 0;
+          for (const sid of studentIds) {
+            const done = (progress ?? []).filter((p: any) => p.student_id === sid && ressIds.includes(p.ressource_id)).length;
+            total += done / ressIds.length;
+          }
+          avgCompletion = (total / studentIds.size) * 100;
+        }
+        const expected = pays.reduce((s: number, p: any) => s + Number(p.amount_total || 0), 0);
+        const revenue = pays.reduce((s: number, p: any) => s + Number(p.amount_paid || 0), 0);
+        return {
+          id: c.id, name: c.name, currency: c.currency ?? "XOF",
+          enrolled: enr.length,
+          active: enr.filter((e: any) => e.status === "active").length,
+          restricted: enr.filter((e: any) => e.status === "restricted").length,
+          revenue, expected,
+          paymentRate: expected > 0 ? (revenue / expected) * 100 : 0,
+          completion: avgCompletion,
+        };
+      });
+
+      const totals = rows.reduce((acc, r) => ({
+        enrolled: acc.enrolled + r.enrolled, active: acc.active + r.active, restricted: acc.restricted + r.restricted,
+        revenue: acc.revenue + r.revenue, expected: acc.expected + r.expected,
+      }), { enrolled: 0, active: 0, restricted: 0, revenue: 0, expected: 0 });
+
+      return { cohorts: rows, totals };
+    },
+  });
+
+  if (!data) return null;
+  const t = data.totals;
+
+  return (
+    <Card className="p-6">
+      <h2 className="text-lg font-semibold">Statistiques par cohorte</h2>
+      <p className="mt-1 text-xs text-muted-foreground">Agrégation de tous les étudiants suivant cette formation.</p>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {[
+          { label: "Inscrits", value: t.enrolled },
+          { label: "Actifs", value: t.active },
+          { label: "Restreints", value: t.restricted },
+          { label: "Encaissé / Attendu", value: `${t.revenue.toLocaleString()} / ${t.expected.toLocaleString()}` },
+        ].map((k) => (
+          <div key={k.label} className="rounded-lg border p-3">
+            <div className="text-xs uppercase text-muted-foreground">{k.label}</div>
+            <div className="mt-1 text-xl font-bold text-gold">{k.value}</div>
+          </div>
+        ))}
+      </div>
+      {data.cohorts.length > 0 && (
+        <Table className="mt-4">
+          <TableHeader><TableRow><TableHead>Cohorte</TableHead><TableHead>Inscrits</TableHead><TableHead>Actifs</TableHead><TableHead>% Paiement</TableHead><TableHead>% Progression</TableHead></TableRow></TableHeader>
+          <TableBody>
+            {data.cohorts.map((c) => (
+              <TableRow key={c.id}>
+                <TableCell className="font-medium">{c.name}</TableCell>
+                <TableCell>{c.enrolled}</TableCell>
+                <TableCell>{c.active}</TableCell>
+                <TableCell>{c.paymentRate.toFixed(0)}%</TableCell>
+                <TableCell>{c.completion.toFixed(0)}%</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+    </Card>
   );
 }
 
