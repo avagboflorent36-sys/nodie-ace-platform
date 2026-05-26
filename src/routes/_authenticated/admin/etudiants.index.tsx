@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 
-export const Route = createFileRoute("/_authenticated/admin/etudiants")({
+export const Route = createFileRoute("/_authenticated/admin/etudiants/")({
   component: StudentsPage,
 });
 
