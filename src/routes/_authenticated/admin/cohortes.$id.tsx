@@ -509,3 +509,113 @@ function ReminderRulesEditor({ cohortId }: { cohortId: string }) {
     </div>
   );
 }
+
+function AnnoncesTab({ cohortId }: { cohortId: string }) {
+  const qc = useQueryClient();
+  const [form, setForm] = useState({ title: "", content: "" });
+
+  const { data: rows = [] } = useQuery({
+    queryKey: ["cohort-annonces", cohortId],
+    queryFn: async () => (await supabase.from("annonces").select("id, title, content, created_at").eq("cohort_id", cohortId).order("created_at", { ascending: false })).data ?? [],
+  });
+
+  const create = async () => {
+    if (!form.title.trim() || !form.content.trim()) return toast.error("Titre et contenu requis");
+    const { data: ann, error } = await supabase.from("annonces").insert({ cohort_id: cohortId, title: form.title.trim(), content: form.content.trim() }).select("id").single();
+    if (error) return toast.error(error.message);
+    // Notifications in-app pour chaque étudiant inscrit
+    const { data: enrollments } = await supabase.from("cohort_enrollments").select("student_id").eq("cohort_id", cohortId);
+    if (enrollments && enrollments.length > 0) {
+      await supabase.from("notifications").insert(enrollments.map((e: any) => ({
+        user_id: e.student_id, type: "announcement", title: form.title.trim(), content: form.content.trim().slice(0, 200), link: "/etudiant/formation",
+      })));
+    }
+    toast.success("Annonce publiée"); setForm({ title: "", content: "" });
+    qc.invalidateQueries({ queryKey: ["cohort-annonces", cohortId] });
+    void ann;
+  };
+
+  const del = async (id: string) => {
+    if (!confirm("Supprimer cette annonce ?")) return;
+    await supabase.from("annonces").delete().eq("id", id);
+    qc.invalidateQueries({ queryKey: ["cohort-annonces", cohortId] });
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card className="p-4 space-y-3">
+        <div><Label>Titre</Label><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
+        <div><Label>Contenu</Label><Textarea rows={4} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} /></div>
+        <Button onClick={create} className="bg-gold text-primary hover:bg-gold/90"><Plus className="mr-1 h-3 w-3" /> Publier</Button>
+      </Card>
+      {rows.length === 0 ? <Card className="p-8 text-center text-muted-foreground">Aucune annonce.</Card> :
+        rows.map((a: any) => (
+          <Card key={a.id} className="p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1">
+                <div className="font-medium">{a.title}</div>
+                <p className="text-sm text-muted-foreground whitespace-pre-wrap mt-1">{a.content}</p>
+                <p className="text-xs text-muted-foreground mt-2">{new Date(a.created_at).toLocaleString("fr-FR")}</p>
+              </div>
+              <Button size="sm" variant="ghost" onClick={() => del(a.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+            </div>
+          </Card>
+        ))}
+    </div>
+  );
+}
+
+function LiveTab({ cohortId }: { cohortId: string }) {
+  const qc = useQueryClient();
+  const [form, setForm] = useState({ title: "", scheduled_at: "", meeting_link: "", description: "" });
+
+  const { data: rows = [] } = useQuery({
+    queryKey: ["cohort-live", cohortId],
+    queryFn: async () => (await supabase.from("live_sessions").select("*").eq("cohort_id", cohortId).order("scheduled_at", { ascending: false })).data ?? [],
+  });
+
+  const create = async () => {
+    if (!form.title.trim() || !form.scheduled_at) return toast.error("Titre et date requis");
+    const { error } = await supabase.from("live_sessions").insert({
+      cohort_id: cohortId, title: form.title.trim(), scheduled_at: new Date(form.scheduled_at).toISOString(),
+      meeting_link: form.meeting_link.trim() || null, description: form.description.trim() || null,
+    });
+    if (error) return toast.error(error.message);
+    toast.success("Séance créée"); setForm({ title: "", scheduled_at: "", meeting_link: "", description: "" });
+    qc.invalidateQueries({ queryKey: ["cohort-live", cohortId] });
+  };
+
+  const del = async (id: string) => {
+    if (!confirm("Supprimer cette séance ?")) return;
+    await supabase.from("live_sessions").delete().eq("id", id);
+    qc.invalidateQueries({ queryKey: ["cohort-live", cohortId] });
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card className="p-4 space-y-3">
+        <div className="grid grid-cols-2 gap-3">
+          <div><Label>Titre</Label><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
+          <div><Label>Date & heure</Label><Input type="datetime-local" value={form.scheduled_at} onChange={(e) => setForm({ ...form, scheduled_at: e.target.value })} /></div>
+        </div>
+        <div><Label>Lien Zoom / Meet</Label><Input value={form.meeting_link} onChange={(e) => setForm({ ...form, meeting_link: e.target.value })} placeholder="https://..." /></div>
+        <div><Label>Description</Label><Textarea rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
+        <Button onClick={create} className="bg-gold text-primary hover:bg-gold/90"><Plus className="mr-1 h-3 w-3" /> Créer la séance</Button>
+      </Card>
+      {rows.length === 0 ? <Card className="p-8 text-center text-muted-foreground">Aucune séance.</Card> :
+        rows.map((s: any) => (
+          <Card key={s.id} className="p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1">
+                <div className="font-medium">{s.title}</div>
+                <div className="text-xs text-muted-foreground mt-1">{new Date(s.scheduled_at).toLocaleString("fr-FR")}</div>
+                {s.description && <p className="text-sm text-muted-foreground mt-1">{s.description}</p>}
+                {s.meeting_link && <a href={s.meeting_link} target="_blank" rel="noreferrer" className="text-xs text-gold hover:underline mt-1 inline-block">{s.meeting_link}</a>}
+              </div>
+              <Button size="sm" variant="ghost" onClick={() => del(s.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+            </div>
+          </Card>
+        ))}
+    </div>
+  );
+}
