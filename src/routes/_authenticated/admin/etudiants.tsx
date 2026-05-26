@@ -59,13 +59,15 @@ function StudentsPage() {
               <TableRow><TableCell colSpan={5} className="py-12 text-center text-muted-foreground">Aucun étudiant.</TableCell></TableRow>
             ) : (
               filtered.map((s: any) => (
-                <TableRow key={s.id} className="cursor-pointer">
-                  <TableCell className="font-medium">
-                    <Link to="/admin/etudiants/$id" params={{ id: s.id }} className="hover:text-gold hover:underline">
-                      {s.first_name} {s.last_name}
-                    </Link>
+                <TableRow
+                  key={s.id}
+                  className="cursor-pointer hover:bg-accent/40"
+                  onClick={() => navigate({ to: "/admin/etudiants/$id", params: { id: s.id } })}
+                >
+                  <TableCell className="font-medium text-gold">
+                    {s.first_name} {s.last_name}
                   </TableCell>
-                  <TableCell><Link to="/admin/etudiants/$id" params={{ id: s.id }} className="hover:underline">{s.email}</Link></TableCell>
+                  <TableCell>{s.email}</TableCell>
                   <TableCell>{s.whatsapp ?? "—"}</TableCell>
                   <TableCell>{s.country ?? "—"}</TableCell>
                   <TableCell>{new Date(s.created_at).toLocaleDateString("fr-FR")}</TableCell>
