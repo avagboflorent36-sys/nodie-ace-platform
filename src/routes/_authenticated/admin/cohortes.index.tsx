@@ -172,11 +172,25 @@ function CohortesAdmin() {
                   <div><Label>Prix paiement en 2x (total)</Label><Input type="number" value={form.priceInstall} onChange={(e) => setForm({ ...form, priceInstall: e.target.value })} /></div>
                 </div>
                 <div className="rounded-lg border bg-secondary/30 p-4 space-y-3">
-                  <p className="text-sm font-medium">Échéances paiement en 2 fois</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div><Label className="text-xs">Tranche 1 — payer sous (jours)</Label><Input type="number" value={form.inst1Days} onChange={(e) => setForm({ ...form, inst1Days: e.target.value })} /></div>
-                    <div><Label className="text-xs">Tranche 2 — payer sous (jours)</Label><Input type="number" value={form.inst2Days} onChange={(e) => setForm({ ...form, inst2Days: e.target.value })} /></div>
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium">Tranches de paiement ({installments.length})</p>
+                    <Button type="button" size="sm" variant="outline" onClick={addInstallment}>
+                      <Plus className="mr-1 h-3 w-3" /> Ajouter une tranche
+                    </Button>
                   </div>
+                  {installments.map((it, i) => (
+                    <div key={i} className="grid grid-cols-12 gap-2 items-end">
+                      <div className="col-span-4"><Label className="text-xs">Libellé</Label><Input value={it.label} onChange={(e) => updateInstallment(i, { label: e.target.value })} /></div>
+                      <div className="col-span-3"><Label className="text-xs">Payer sous (jours)</Label><Input type="number" value={it.days} onChange={(e) => updateInstallment(i, { days: e.target.value })} /></div>
+                      <div className="col-span-3"><Label className="text-xs">% du total</Label><Input type="number" value={it.percent} onChange={(e) => updateInstallment(i, { percent: e.target.value })} /></div>
+                      <div className="col-span-2 flex justify-end">
+                        <Button type="button" size="icon" variant="ghost" disabled={installments.length <= 1} onClick={() => removeInstallment(i)}>
+                          <Trash2 className="h-3 w-3 text-destructive" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                  <p className="text-xs text-muted-foreground">Total des % : {installments.reduce((s, it) => s + (Number(it.percent) || 0), 0)}% (idéalement 100%).</p>
                 </div>
                 <div>
                   <Label>Relances automatiques avant échéance (jours, séparés par virgule)</Label>
