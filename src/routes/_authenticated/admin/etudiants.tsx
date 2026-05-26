@@ -12,6 +12,7 @@ export const Route = createFileRoute("/_authenticated/admin/etudiants")({
 });
 
 function StudentsPage() {
+  const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const { data: students = [] } = useQuery({
     queryKey: ["admin-students"],
