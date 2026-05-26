@@ -64,10 +64,12 @@ function CohortDetail() {
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-8">
           <TabsTrigger value="overview">Vue d'ensemble</TabsTrigger>
           <TabsTrigger value="students">Étudiants</TabsTrigger>
           <TabsTrigger value="content">Contenu</TabsTrigger>
+          <TabsTrigger value="annonces">Annonces</TabsTrigger>
+          <TabsTrigger value="live">Live</TabsTrigger>
           <TabsTrigger value="form">Formulaire</TabsTrigger>
           <TabsTrigger value="responses">Réponses</TabsTrigger>
           <TabsTrigger value="settings">Paramètres</TabsTrigger>
@@ -76,6 +78,8 @@ function CohortDetail() {
         <TabsContent value="overview" className="space-y-4 pt-4"><OverviewTab cohortId={id} /></TabsContent>
         <TabsContent value="students" className="space-y-4 pt-4"><StudentsTab cohortId={id} /></TabsContent>
         <TabsContent value="content" className="space-y-4 pt-4"><ContentTab cohortId={id} /></TabsContent>
+        <TabsContent value="annonces" className="space-y-4 pt-4"><AnnoncesTab cohortId={id} /></TabsContent>
+        <TabsContent value="live" className="space-y-4 pt-4"><LiveTab cohortId={id} /></TabsContent>
         <TabsContent value="form" className="space-y-4 pt-4"><FormBuilderTab cohortId={id} inscriptionUrl={inscriptionUrl} /></TabsContent>
         <TabsContent value="responses" className="space-y-4 pt-4"><ResponsesTab cohortId={id} /></TabsContent>
         <TabsContent value="settings" className="space-y-4 pt-4"><SettingsTab cohort={cohort} onSaved={() => { refetchCohort(); qc.invalidateQueries({ queryKey: ["admin-cohortes"] }); }} /></TabsContent>
