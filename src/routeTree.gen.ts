@@ -27,7 +27,7 @@ import { Route as AuthenticatedEtudiantCertificatRouteImport } from './routes/_a
 import { Route as AuthenticatedAdminPaiementsRouteImport } from './routes/_authenticated/admin/paiements'
 import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_authenticated/admin/notifications'
 import { Route as AuthenticatedAdminFormationsRouteImport } from './routes/_authenticated/admin/formations'
-import { Route as AuthenticatedAdminEtudiantsRouteImport } from './routes/_authenticated/admin/etudiants'
+import { Route as AuthenticatedAdminEtudiantsIndexRouteImport } from './routes/_authenticated/admin/etudiants.index'
 import { Route as AuthenticatedAdminCohortesIndexRouteImport } from './routes/_authenticated/admin/cohortes.index'
 import { Route as AuthenticatedAdminEtudiantsIdRouteImport } from './routes/_authenticated/admin/etudiants.$id'
 import { Route as AuthenticatedAdminCohortesIdRouteImport } from './routes/_authenticated/admin/cohortes.$id'
@@ -129,10 +129,10 @@ const AuthenticatedAdminFormationsRoute =
     path: '/formations',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
-const AuthenticatedAdminEtudiantsRoute =
-  AuthenticatedAdminEtudiantsRouteImport.update({
-    id: '/etudiants',
-    path: '/etudiants',
+const AuthenticatedAdminEtudiantsIndexRoute =
+  AuthenticatedAdminEtudiantsIndexRouteImport.update({
+    id: '/etudiants/',
+    path: '/etudiants/',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminCohortesIndexRoute =
@@ -143,9 +143,9 @@ const AuthenticatedAdminCohortesIndexRoute =
   } as any)
 const AuthenticatedAdminEtudiantsIdRoute =
   AuthenticatedAdminEtudiantsIdRouteImport.update({
-    id: '/$id',
-    path: '/$id',
-    getParentRoute: () => AuthenticatedAdminEtudiantsRoute,
+    id: '/etudiants/$id',
+    path: '/etudiants/$id',
+    getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminCohortesIdRoute =
   AuthenticatedAdminCohortesIdRouteImport.update({
@@ -163,7 +163,6 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/etudiant': typeof AuthenticatedEtudiantRouteWithChildren
   '/inscription/$slug': typeof InscriptionSlugRoute
-  '/admin/etudiants': typeof AuthenticatedAdminEtudiantsRouteWithChildren
   '/admin/formations': typeof AuthenticatedAdminFormationsRoute
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/paiements': typeof AuthenticatedAdminPaiementsRoute
@@ -176,6 +175,7 @@ export interface FileRoutesByFullPath {
   '/admin/cohortes/$id': typeof AuthenticatedAdminCohortesIdRoute
   '/admin/etudiants/$id': typeof AuthenticatedAdminEtudiantsIdRoute
   '/admin/cohortes/': typeof AuthenticatedAdminCohortesIndexRoute
+  '/admin/etudiants/': typeof AuthenticatedAdminEtudiantsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -184,7 +184,6 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/inscription/$slug': typeof InscriptionSlugRoute
-  '/admin/etudiants': typeof AuthenticatedAdminEtudiantsRouteWithChildren
   '/admin/formations': typeof AuthenticatedAdminFormationsRoute
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/paiements': typeof AuthenticatedAdminPaiementsRoute
@@ -197,6 +196,7 @@ export interface FileRoutesByTo {
   '/admin/cohortes/$id': typeof AuthenticatedAdminCohortesIdRoute
   '/admin/etudiants/$id': typeof AuthenticatedAdminEtudiantsIdRoute
   '/admin/cohortes': typeof AuthenticatedAdminCohortesIndexRoute
+  '/admin/etudiants': typeof AuthenticatedAdminEtudiantsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -209,7 +209,6 @@ export interface FileRoutesById {
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/etudiant': typeof AuthenticatedEtudiantRouteWithChildren
   '/inscription/$slug': typeof InscriptionSlugRoute
-  '/_authenticated/admin/etudiants': typeof AuthenticatedAdminEtudiantsRouteWithChildren
   '/_authenticated/admin/formations': typeof AuthenticatedAdminFormationsRoute
   '/_authenticated/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/_authenticated/admin/paiements': typeof AuthenticatedAdminPaiementsRoute
@@ -222,6 +221,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/cohortes/$id': typeof AuthenticatedAdminCohortesIdRoute
   '/_authenticated/admin/etudiants/$id': typeof AuthenticatedAdminEtudiantsIdRoute
   '/_authenticated/admin/cohortes/': typeof AuthenticatedAdminCohortesIndexRoute
+  '/_authenticated/admin/etudiants/': typeof AuthenticatedAdminEtudiantsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -234,7 +234,6 @@ export interface FileRouteTypes {
     | '/admin'
     | '/etudiant'
     | '/inscription/$slug'
-    | '/admin/etudiants'
     | '/admin/formations'
     | '/admin/notifications'
     | '/admin/paiements'
@@ -247,6 +246,7 @@ export interface FileRouteTypes {
     | '/admin/cohortes/$id'
     | '/admin/etudiants/$id'
     | '/admin/cohortes/'
+    | '/admin/etudiants/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -255,7 +255,6 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/signup'
     | '/inscription/$slug'
-    | '/admin/etudiants'
     | '/admin/formations'
     | '/admin/notifications'
     | '/admin/paiements'
@@ -268,6 +267,7 @@ export interface FileRouteTypes {
     | '/admin/cohortes/$id'
     | '/admin/etudiants/$id'
     | '/admin/cohortes'
+    | '/admin/etudiants'
   id:
     | '__root__'
     | '/'
@@ -279,7 +279,6 @@ export interface FileRouteTypes {
     | '/_authenticated/admin'
     | '/_authenticated/etudiant'
     | '/inscription/$slug'
-    | '/_authenticated/admin/etudiants'
     | '/_authenticated/admin/formations'
     | '/_authenticated/admin/notifications'
     | '/_authenticated/admin/paiements'
@@ -292,6 +291,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/cohortes/$id'
     | '/_authenticated/admin/etudiants/$id'
     | '/_authenticated/admin/cohortes/'
+    | '/_authenticated/admin/etudiants/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -432,11 +432,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminFormationsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
-    '/_authenticated/admin/etudiants': {
-      id: '/_authenticated/admin/etudiants'
+    '/_authenticated/admin/etudiants/': {
+      id: '/_authenticated/admin/etudiants/'
       path: '/etudiants'
-      fullPath: '/admin/etudiants'
-      preLoaderRoute: typeof AuthenticatedAdminEtudiantsRouteImport
+      fullPath: '/admin/etudiants/'
+      preLoaderRoute: typeof AuthenticatedAdminEtudiantsIndexRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/cohortes/': {
@@ -448,10 +448,10 @@ declare module '@tanstack/react-router' {
     }
     '/_authenticated/admin/etudiants/$id': {
       id: '/_authenticated/admin/etudiants/$id'
-      path: '/$id'
+      path: '/etudiants/$id'
       fullPath: '/admin/etudiants/$id'
       preLoaderRoute: typeof AuthenticatedAdminEtudiantsIdRouteImport
-      parentRoute: typeof AuthenticatedAdminEtudiantsRoute
+      parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/cohortes/$id': {
       id: '/_authenticated/admin/cohortes/$id'
@@ -463,39 +463,26 @@ declare module '@tanstack/react-router' {
   }
 }
 
-interface AuthenticatedAdminEtudiantsRouteChildren {
-  AuthenticatedAdminEtudiantsIdRoute: typeof AuthenticatedAdminEtudiantsIdRoute
-}
-
-const AuthenticatedAdminEtudiantsRouteChildren: AuthenticatedAdminEtudiantsRouteChildren =
-  {
-    AuthenticatedAdminEtudiantsIdRoute: AuthenticatedAdminEtudiantsIdRoute,
-  }
-
-const AuthenticatedAdminEtudiantsRouteWithChildren =
-  AuthenticatedAdminEtudiantsRoute._addFileChildren(
-    AuthenticatedAdminEtudiantsRouteChildren,
-  )
-
 interface AuthenticatedAdminRouteChildren {
-  AuthenticatedAdminEtudiantsRoute: typeof AuthenticatedAdminEtudiantsRouteWithChildren
   AuthenticatedAdminFormationsRoute: typeof AuthenticatedAdminFormationsRoute
   AuthenticatedAdminNotificationsRoute: typeof AuthenticatedAdminNotificationsRoute
   AuthenticatedAdminPaiementsRoute: typeof AuthenticatedAdminPaiementsRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
   AuthenticatedAdminCohortesIdRoute: typeof AuthenticatedAdminCohortesIdRoute
+  AuthenticatedAdminEtudiantsIdRoute: typeof AuthenticatedAdminEtudiantsIdRoute
   AuthenticatedAdminCohortesIndexRoute: typeof AuthenticatedAdminCohortesIndexRoute
+  AuthenticatedAdminEtudiantsIndexRoute: typeof AuthenticatedAdminEtudiantsIndexRoute
 }
 
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
-  AuthenticatedAdminEtudiantsRoute:
-    AuthenticatedAdminEtudiantsRouteWithChildren,
   AuthenticatedAdminFormationsRoute: AuthenticatedAdminFormationsRoute,
   AuthenticatedAdminNotificationsRoute: AuthenticatedAdminNotificationsRoute,
   AuthenticatedAdminPaiementsRoute: AuthenticatedAdminPaiementsRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
   AuthenticatedAdminCohortesIdRoute: AuthenticatedAdminCohortesIdRoute,
+  AuthenticatedAdminEtudiantsIdRoute: AuthenticatedAdminEtudiantsIdRoute,
   AuthenticatedAdminCohortesIndexRoute: AuthenticatedAdminCohortesIndexRoute,
+  AuthenticatedAdminEtudiantsIndexRoute: AuthenticatedAdminEtudiantsIndexRoute,
 }
 
 const AuthenticatedAdminRouteWithChildren =
