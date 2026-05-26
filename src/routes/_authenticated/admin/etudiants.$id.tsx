@@ -368,7 +368,7 @@ function NotifyDialog({ studentId }: { studentId: string }) {
   const qc = useQueryClient();
   const send = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("notifications").insert({ user_id: studentId, type: "system" as any, title, content });
+      const { error } = await supabase.from("notifications").insert({ user_id: studentId, type: "announcement" as any, title, content });
       if (error) throw error;
     },
     onSuccess: () => { toast.success("Notification envoyée"); setOpen(false); setTitle(""); setContent(""); qc.invalidateQueries({ queryKey: ["admin-student", studentId] }); },
