@@ -8,6 +8,17 @@ const SITE_URL =
   process.env.SITE_URL ||
   "https://project--66439da9-0337-4213-a275-40cffeef22c6.lovable.app";
 
+function normalizeChariowProductId(value?: string | null) {
+  const raw = (value ?? "").trim();
+  if (!raw) return null;
+
+  const idMatch = raw.match(/prd_[a-z0-9]+/i);
+  if (idMatch) return idMatch[0];
+
+  const withoutQuery = raw.split(/[?#]/)[0].replace(/\/+$/, "");
+  return withoutQuery.split("/").pop()?.trim() || null;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. Démarrer un checkout Chariow (public — paiement avant compte)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -42,7 +53,7 @@ export const startChariowCheckout = createServerFn({ method: "POST" })
     else productId = cohort.chariow_product_id_installment_2;
 
     // Accept full URLs or "/prd_xxx" pasted by mistake — keep only the prd_xxx id
-    if (productId) productId = productId.trim().replace(/^.*\//, "");
+    productId = normalizeChariowProductId(productId);
 
     if (!productId) {
       throw new Error(
@@ -117,7 +128,8 @@ export const startChariowCheckout = createServerFn({ method: "POST" })
     const url: string | undefined =
       (checkout && typeof checkout === "object" && (checkout as any).checkout_url) ||
       (checkout && typeof checkout === "object" && (checkout as any).url) ||
-      (checkout && typeof checkout === "object" && (checkout as any).data?.checkout_url);
+      (checkout && typeof checkout === "object" && (checkout as any).data?.checkout_url) ||
+      (checkout && typeof checkout === "object" && (checkout as any).data?.payment?.checkout_url);
 
     if (!url) {
       throw new Error("Chariow n'a pas renvoyé d'URL de paiement.");
@@ -251,11 +263,11 @@ export const setCohortChariowProducts = createServerFn({ method: "POST" })
     const { error } = await supabaseAdmin
       .from("cohortes")
       .update({
-        chariow_product_id_full: data.chariow_product_id_full || null,
+        chariow_product_id_full: normalizeChariowProductId(data.chariow_product_id_full),
         chariow_product_id_installment_1:
-          data.chariow_product_id_installment_1 || null,
+          normalizeChariowProductId(data.chariow_product_id_installment_1),
         chariow_product_id_installment_2:
-          data.chariow_product_id_installment_2 || null,
+          normalizeChariowProductId(data.chariow_product_id_installment_2),
       })
       .eq("id", data.cohort_id);
     if (error) throw new Error(error.message);
