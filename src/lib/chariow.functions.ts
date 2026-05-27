@@ -62,7 +62,8 @@ export const startChariowCheckout = createServerFn({ method: "POST" })
       );
     }
 
-    const redirect = `${SITE_URL}/inscription/${cohort.slug}?sale={sale_id}`;
+    const origin = (data.return_origin ?? SITE_URL).replace(/\/+$/, "");
+    const redirect = `${origin}/inscription/${cohort.slug}?sale={sale_id}`;
 
     // Chariow expects phone as { number, country_code } where country_code
     // is the ISO 3166-1 alpha-2 country code (e.g. "SN", "FR", "US"),
