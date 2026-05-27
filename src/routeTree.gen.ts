@@ -26,6 +26,7 @@ import { Route as AuthenticatedEtudiantPaiementsRouteImport } from './routes/_au
 import { Route as AuthenticatedEtudiantLiveRouteImport } from './routes/_authenticated/etudiant/live'
 import { Route as AuthenticatedEtudiantFormationRouteImport } from './routes/_authenticated/etudiant/formation'
 import { Route as AuthenticatedEtudiantCertificatRouteImport } from './routes/_authenticated/etudiant/certificat'
+import { Route as AuthenticatedAdminWebhookSecretRouteImport } from './routes/_authenticated/admin/webhook-secret'
 import { Route as AuthenticatedAdminPaiementsRouteImport } from './routes/_authenticated/admin/paiements'
 import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_authenticated/admin/notifications'
 import { Route as AuthenticatedAdminFormationsRouteImport } from './routes/_authenticated/admin/formations'
@@ -127,6 +128,12 @@ const AuthenticatedEtudiantCertificatRoute =
     path: '/certificat',
     getParentRoute: () => AuthenticatedEtudiantRoute,
   } as any)
+const AuthenticatedAdminWebhookSecretRoute =
+  AuthenticatedAdminWebhookSecretRouteImport.update({
+    id: '/webhook-secret',
+    path: '/webhook-secret',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminPaiementsRoute =
   AuthenticatedAdminPaiementsRouteImport.update({
     id: '/paiements',
@@ -194,6 +201,7 @@ export interface FileRoutesByFullPath {
   '/admin/formations': typeof AuthenticatedAdminFormationsRoute
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/paiements': typeof AuthenticatedAdminPaiementsRoute
+  '/admin/webhook-secret': typeof AuthenticatedAdminWebhookSecretRoute
   '/etudiant/certificat': typeof AuthenticatedEtudiantCertificatRoute
   '/etudiant/formation': typeof AuthenticatedEtudiantFormationRoute
   '/etudiant/live': typeof AuthenticatedEtudiantLiveRoute
@@ -219,6 +227,7 @@ export interface FileRoutesByTo {
   '/admin/formations': typeof AuthenticatedAdminFormationsRoute
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/paiements': typeof AuthenticatedAdminPaiementsRoute
+  '/admin/webhook-secret': typeof AuthenticatedAdminWebhookSecretRoute
   '/etudiant/certificat': typeof AuthenticatedEtudiantCertificatRoute
   '/etudiant/formation': typeof AuthenticatedEtudiantFormationRoute
   '/etudiant/live': typeof AuthenticatedEtudiantLiveRoute
@@ -248,6 +257,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/formations': typeof AuthenticatedAdminFormationsRoute
   '/_authenticated/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/_authenticated/admin/paiements': typeof AuthenticatedAdminPaiementsRoute
+  '/_authenticated/admin/webhook-secret': typeof AuthenticatedAdminWebhookSecretRoute
   '/_authenticated/etudiant/certificat': typeof AuthenticatedEtudiantCertificatRoute
   '/_authenticated/etudiant/formation': typeof AuthenticatedEtudiantFormationRoute
   '/_authenticated/etudiant/live': typeof AuthenticatedEtudiantLiveRoute
@@ -277,6 +287,7 @@ export interface FileRouteTypes {
     | '/admin/formations'
     | '/admin/notifications'
     | '/admin/paiements'
+    | '/admin/webhook-secret'
     | '/etudiant/certificat'
     | '/etudiant/formation'
     | '/etudiant/live'
@@ -302,6 +313,7 @@ export interface FileRouteTypes {
     | '/admin/formations'
     | '/admin/notifications'
     | '/admin/paiements'
+    | '/admin/webhook-secret'
     | '/etudiant/certificat'
     | '/etudiant/formation'
     | '/etudiant/live'
@@ -330,6 +342,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/formations'
     | '/_authenticated/admin/notifications'
     | '/_authenticated/admin/paiements'
+    | '/_authenticated/admin/webhook-secret'
     | '/_authenticated/etudiant/certificat'
     | '/_authenticated/etudiant/formation'
     | '/_authenticated/etudiant/live'
@@ -479,6 +492,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedEtudiantCertificatRouteImport
       parentRoute: typeof AuthenticatedEtudiantRoute
     }
+    '/_authenticated/admin/webhook-secret': {
+      id: '/_authenticated/admin/webhook-secret'
+      path: '/webhook-secret'
+      fullPath: '/admin/webhook-secret'
+      preLoaderRoute: typeof AuthenticatedAdminWebhookSecretRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/paiements': {
       id: '/_authenticated/admin/paiements'
       path: '/paiements'
@@ -549,6 +569,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminFormationsRoute: typeof AuthenticatedAdminFormationsRoute
   AuthenticatedAdminNotificationsRoute: typeof AuthenticatedAdminNotificationsRoute
   AuthenticatedAdminPaiementsRoute: typeof AuthenticatedAdminPaiementsRoute
+  AuthenticatedAdminWebhookSecretRoute: typeof AuthenticatedAdminWebhookSecretRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
   AuthenticatedAdminCohortesIdRoute: typeof AuthenticatedAdminCohortesIdRoute
   AuthenticatedAdminEtudiantsIdRoute: typeof AuthenticatedAdminEtudiantsIdRoute
@@ -560,6 +581,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminFormationsRoute: AuthenticatedAdminFormationsRoute,
   AuthenticatedAdminNotificationsRoute: AuthenticatedAdminNotificationsRoute,
   AuthenticatedAdminPaiementsRoute: AuthenticatedAdminPaiementsRoute,
+  AuthenticatedAdminWebhookSecretRoute: AuthenticatedAdminWebhookSecretRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
   AuthenticatedAdminCohortesIdRoute: AuthenticatedAdminCohortesIdRoute,
   AuthenticatedAdminEtudiantsIdRoute: AuthenticatedAdminEtudiantsIdRoute,

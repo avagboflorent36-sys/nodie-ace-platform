@@ -1,5 +1,5 @@
 import { createFileRoute, Navigate, Outlet } from "@tanstack/react-router";
-import { LayoutDashboard, Users, BookOpen, Layers, CreditCard, Bell } from "lucide-react";
+import { LayoutDashboard, Users, BookOpen, Layers, CreditCard, Bell, KeyRound } from "lucide-react";
 
 import { AppShell } from "@/components/AppShell";
 import { useAuth } from "@/hooks/useAuth";
@@ -15,6 +15,7 @@ const items = [
   { title: "Cohortes", url: "/admin/cohortes", icon: Layers },
   { title: "Paiements", url: "/admin/paiements", icon: CreditCard },
   { title: "Notifications", url: "/admin/notifications", icon: Bell },
+  { title: "Webhook Chariow", url: "/admin/webhook-secret", icon: KeyRound },
 ];
 
 function AdminLayout() {
