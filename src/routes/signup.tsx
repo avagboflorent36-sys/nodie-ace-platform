@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, Navigate, useNavigate } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
 import { toast } from "sonner";
 
@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { signupSchema } from "@/lib/validators";
+import { useAuth } from "@/hooks/useAuth";
 
 export const Route = createFileRoute("/signup")({
   head: () => ({ meta: [{ title: "Inscription — Nodie IA Academy" }] }),
@@ -17,8 +18,13 @@ export const Route = createFileRoute("/signup")({
 
 function SignupPage() {
   const navigate = useNavigate();
+  const { user, loading: authLoading, rolesLoaded, isAdmin } = useAuth();
   const [form, setForm] = useState({ firstName: "", lastName: "", email: "", password: "" });
   const [loading, setLoading] = useState(false);
+
+  if (!authLoading && user && rolesLoaded) {
+    return <Navigate to={isAdmin ? "/admin" : "/etudiant"} />;
+  }
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
