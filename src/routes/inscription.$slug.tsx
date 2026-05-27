@@ -413,6 +413,9 @@ function PostPaymentStep({
       );
       navigate({ to: "/login" });
     }
+  };
+
+
 
   const renderField = (f: any) => {
     const val = answers[f.label];
