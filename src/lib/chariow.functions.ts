@@ -125,19 +125,38 @@ export const startChariowCheckout = createServerFn({ method: "POST" })
       },
     });
 
-    // Chariow may wrap the URL at varying nesting depths — walk the response
-    // looking for the first checkout-like URL.
+    // Chariow may wrap the URL at varying nesting depths — walk the response,
+    // but only accept real checkout/payment URLs. Product/store/customer portal
+    // links can also contain "chariow" and must not trigger a redirect.
+    function isCheckoutUrl(value: string, key = "") {
+      if (!/^https?:\/\//i.test(value)) return false;
+      try {
+        const url = new URL(value);
+        const host = url.hostname.toLowerCase();
+        const path = url.pathname.toLowerCase();
+        const search = url.search.toLowerCase();
+        if (/(^|\/)products?(\/|$)|(^|\/)catalog(\/|$)|(^|\/)customer(\/|$)|(^|\/)portal(\/|$)|(^|\/)purchases?(\/|$)/i.test(path)) {
+          return false;
+        }
+        const haystack = `${host} ${path} ${search}`;
+        if (/(checkout|payment|invoice|transaction|\/pay(\/|$|\?))/.test(haystack)) {
+          return true;
+        }
+        return /(checkout|payment|pay)/i.test(key) && host.includes("chariow");
+      } catch {
+        return false;
+      }
+    }
+
     function findCheckoutUrl(node: any, depth = 0): string | undefined {
       if (!node || depth > 6) return undefined;
       if (typeof node === "string") {
-        return /^https?:\/\//i.test(node) && /(checkout|pay|chariow)/i.test(node)
-          ? node
-          : undefined;
+        return isCheckoutUrl(node) ? node : undefined;
       }
       if (typeof node !== "object") return undefined;
-      for (const key of ["checkout_url", "payment_url", "url", "link", "redirect_url"]) {
+      for (const key of ["checkout_url", "checkoutUrl", "payment_url", "paymentUrl", "payment_link", "paymentLink", "url", "link"]) {
         const v = (node as any)[key];
-        if (typeof v === "string" && /^https?:\/\//i.test(v)) return v;
+        if (typeof v === "string" && isCheckoutUrl(v, key)) return v;
       }
       for (const v of Object.values(node)) {
         const found = findCheckoutUrl(v, depth + 1);
