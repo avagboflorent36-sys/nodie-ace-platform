@@ -48,12 +48,31 @@ export const startChariowCheckout = createServerFn({ method: "POST" })
     }
 
     const redirect = `${SITE_URL}/inscription/${cohort.slug}?sale={sale_id}`;
+
+    // Chariow expects phone as an array of { number, country_code }
+    // Parse "+221 77 123 45 67" → country_code "221", number "771234567"
+    const rawPhone = (data.phone || "").trim();
+    const digits = rawPhone.replace(/[^\d]/g, "");
+    let countryCode = "221";
+    let number = digits;
+    if (rawPhone.startsWith("+") && digits.length > 3) {
+      // Heuristic: take first 1-3 digits as country code
+      const m = rawPhone.match(/^\+(\d{1,3})\s*(.*)$/);
+      if (m) {
+        countryCode = m[1];
+        number = m[2].replace(/[^\d]/g, "") || digits.slice(countryCode.length);
+      }
+    } else if (digits.length > 9) {
+      countryCode = digits.slice(0, digits.length - 9);
+      number = digits.slice(-9);
+    }
+
     const checkout = await initCheckout({
       product_id: productId,
       email: data.email,
       first_name: data.first_name,
       last_name: data.last_name,
-      phone: data.phone,
+      phone: [{ number, country_code: countryCode }],
       redirect_url: redirect,
       custom_metadata: {
         cohort_id: cohort.id,
