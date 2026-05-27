@@ -147,7 +147,12 @@ function StudentPayments() {
                                 cohort_id: p.cohort_id, mode: "installments_2", installment_position: 2,
                                 email: prof?.email ?? "", first_name: prof?.first_name ?? "", last_name: prof?.last_name ?? "", phone: prof?.whatsapp ?? "",
                               }});
-                              window.location.href = r.checkout_url;
+                              if (r.checkout_url) {
+                                window.location.href = r.checkout_url;
+                                return;
+                              }
+                              toast.error(r.message ?? "Impossible de créer le paiement Chariow");
+                              setPaying(null);
                             } catch (e: any) { toast.error(e?.message ?? "Erreur"); setPaying(null); }
                           }}
                         ><CreditCard className="mr-1 h-3 w-3" /> Payer tranche 2</Button>
