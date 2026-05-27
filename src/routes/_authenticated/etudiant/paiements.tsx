@@ -95,6 +95,11 @@ function StudentPayments() {
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <Badge variant="outline" className="mb-1">{p.cohortes?.formations?.title ?? "—"}</Badge>
+                  {p.source === "chariow" && (
+                    <Badge variant="outline" className="ml-1 mb-1 border-emerald-500/40 text-emerald-700 dark:text-emerald-400">
+                      <CheckCircle2 className="mr-1 h-3 w-3" /> Payé via Chariow
+                    </Badge>
+                  )}
                   <h2 className="text-lg font-semibold">{p.cohortes?.name}</h2>
                   <p className="text-sm text-muted-foreground mt-1">
                     Mode : {p.mode === "full" ? "Paiement intégral" : "2 tranches"} —
