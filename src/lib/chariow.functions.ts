@@ -33,6 +33,7 @@ export const startChariowCheckout = createServerFn({ method: "POST" })
         first_name: z.string().trim().min(1).max(100),
         last_name: z.string().trim().min(1).max(100),
         phone: z.string().trim().min(3).max(40),
+        return_origin: z.string().url().max(255).optional(),
       })
       .parse(input),
   )
