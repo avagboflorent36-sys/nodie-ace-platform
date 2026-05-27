@@ -41,6 +41,9 @@ export const startChariowCheckout = createServerFn({ method: "POST" })
       productId = cohort.chariow_product_id_installment_1;
     else productId = cohort.chariow_product_id_installment_2;
 
+    // Accept full URLs or "/prd_xxx" pasted by mistake — keep only the prd_xxx id
+    if (productId) productId = productId.trim().replace(/^.*\//, "");
+
     if (!productId) {
       throw new Error(
         "Cette cohorte n'est pas encore configurée pour ce mode de paiement.",
