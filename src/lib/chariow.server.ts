@@ -32,7 +32,7 @@ export interface CheckoutInput {
   email: string;
   first_name?: string;
   last_name?: string;
-  phone?: string;
+  phone?: Array<{ number: string; country_code: string }>;
   custom_metadata?: Record<string, string>;
   redirect_url?: string;
 }
