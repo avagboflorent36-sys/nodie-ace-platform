@@ -148,6 +148,7 @@ function CheckoutStep({ cohort }: { cohort: any }) {
           first_name: form.firstName.trim(),
           last_name: form.lastName.trim(),
           phone: form.phone.trim(),
+          return_origin: window.location.origin,
         },
       });
       if (r.checkout_url) {
@@ -391,12 +392,30 @@ function PostPaymentStep({
       });
     }
 
+    // Ensure session is active (auto-confirm should give one immediately;
+    // fallback to signInWithPassword if not)
+    let hasSession = !!signed.session;
+    if (!hasSession) {
+      const { error: siErr } = await supabase.auth.signInWithPassword({
+        email: form.email.trim().toLowerCase(),
+        password: form.password,
+      });
+      hasSession = !siErr;
+    }
+
     setLoading(false);
-    toast.success(
-      "Compte créé ! Vérifiez votre email puis connectez-vous pour accéder à votre espace.",
-    );
-    navigate({ to: "/login" });
+    if (hasSession) {
+      toast.success("Bienvenue ! Votre espace étudiant est prêt.");
+      navigate({ to: "/etudiant" });
+    } else {
+      toast.success(
+        "Compte créé ! Vérifiez votre email puis connectez-vous pour accéder à votre espace.",
+      );
+      navigate({ to: "/login" });
+    }
   };
+
+
 
   const renderField = (f: any) => {
     const val = answers[f.label];
