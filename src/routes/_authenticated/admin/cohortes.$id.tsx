@@ -450,10 +450,10 @@ function ChariowSection({ cohort, onSaved }: { cohort: any; onSaved: () => void 
         <h3 className="font-semibold">Intégration Chariow</h3>
         <p className="text-xs text-muted-foreground">Collez les Product IDs Chariow pour activer le paiement automatique.</p>
       </div>
-      <div><Label>Product ID — Paiement 1x</Label><Input value={form.full} onChange={(e) => setForm({ ...form, full: e.target.value })} placeholder="prod_..." /></div>
+      <div><Label>Product ID — Paiement 1x</Label><Input value={form.full} onChange={(e) => setForm({ ...form, full: e.target.value })} placeholder="prd_..." /></div>
       <div className="grid grid-cols-2 gap-3">
-        <div><Label>Product ID — Tranche 1 (2x)</Label><Input value={form.inst1} onChange={(e) => setForm({ ...form, inst1: e.target.value })} placeholder="prod_..." /></div>
-        <div><Label>Product ID — Tranche 2 (2x)</Label><Input value={form.inst2} onChange={(e) => setForm({ ...form, inst2: e.target.value })} placeholder="prod_..." /></div>
+        <div><Label>Product ID — Tranche 1 (2x)</Label><Input value={form.inst1} onChange={(e) => setForm({ ...form, inst1: e.target.value })} placeholder="prd_..." /></div>
+        <div><Label>Product ID — Tranche 2 (2x)</Label><Input value={form.inst2} onChange={(e) => setForm({ ...form, inst2: e.target.value })} placeholder="prd_..." /></div>
       </div>
       <Button onClick={save} className="bg-gold text-primary hover:bg-gold/90"><Save className="mr-1 h-4 w-4" /> Enregistrer Chariow</Button>
       <Card className="p-3 bg-secondary/40 mt-3">
