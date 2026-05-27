@@ -412,7 +412,47 @@ function SettingsTab({ cohort, onSaved }: { cohort: any; onSaved: () => void }) 
       <div className="pt-6 border-t">
         <ReminderRulesEditor cohortId={cohort.id} />
       </div>
+      <div className="pt-6 border-t">
+        <ChariowSection cohort={cohort} onSaved={onSaved} />
+      </div>
     </Card>
+  );
+}
+
+function ChariowSection({ cohort, onSaved }: { cohort: any; onSaved: () => void }) {
+  const [form, setForm] = useState({
+    full: cohort.chariow_product_id_full ?? "",
+    inst1: cohort.chariow_product_id_installment_1 ?? "",
+    inst2: cohort.chariow_product_id_installment_2 ?? "",
+  });
+  const webhookUrl = `${window.location.origin}/api/public/hooks/chariow/<VOTRE_SECRET>`;
+  const save = async () => {
+    const { error } = await supabase.from("cohortes").update({
+      chariow_product_id_full: form.full.trim() || null,
+      chariow_product_id_installment_1: form.inst1.trim() || null,
+      chariow_product_id_installment_2: form.inst2.trim() || null,
+    } as any).eq("id", cohort.id);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Configuration Chariow enregistrée"); onSaved();
+  };
+  return (
+    <div className="space-y-3">
+      <div>
+        <h3 className="font-semibold">Intégration Chariow</h3>
+        <p className="text-xs text-muted-foreground">Collez les Product IDs Chariow pour activer le paiement automatique.</p>
+      </div>
+      <div><Label>Product ID — Paiement 1x</Label><Input value={form.full} onChange={(e) => setForm({ ...form, full: e.target.value })} placeholder="prod_..." /></div>
+      <div className="grid grid-cols-2 gap-3">
+        <div><Label>Product ID — Tranche 1 (2x)</Label><Input value={form.inst1} onChange={(e) => setForm({ ...form, inst1: e.target.value })} placeholder="prod_..." /></div>
+        <div><Label>Product ID — Tranche 2 (2x)</Label><Input value={form.inst2} onChange={(e) => setForm({ ...form, inst2: e.target.value })} placeholder="prod_..." /></div>
+      </div>
+      <Button onClick={save} className="bg-gold text-primary hover:bg-gold/90"><Save className="mr-1 h-4 w-4" /> Enregistrer Chariow</Button>
+      <Card className="p-3 bg-secondary/40 mt-3">
+        <p className="text-xs font-medium">URL Webhook à coller dans Chariow (Pulse — événement <code>successful.sale</code>)</p>
+        <p className="text-xs text-muted-foreground break-all mt-1">{webhookUrl}</p>
+        <p className="text-[11px] text-muted-foreground mt-2">Remplacez <code>&lt;VOTRE_SECRET&gt;</code> par la valeur du secret <code>CHARIOW_WEBHOOK_URL_SECRET</code> configuré côté serveur.</p>
+      </Card>
+    </div>
   );
 }
 
