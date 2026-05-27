@@ -49,6 +49,36 @@ export type Database = {
           },
         ]
       }
+      chariow_webhook_events: {
+        Row: {
+          error: string | null
+          event_type: string
+          id: string
+          payload: Json
+          processed_at: string | null
+          received_at: string
+          sale_id: string
+        }
+        Insert: {
+          error?: string | null
+          event_type: string
+          id?: string
+          payload: Json
+          processed_at?: string | null
+          received_at?: string
+          sale_id: string
+        }
+        Update: {
+          error?: string | null
+          event_type?: string
+          id?: string
+          payload?: Json
+          processed_at?: string | null
+          received_at?: string
+          sale_id?: string
+        }
+        Relationships: []
+      }
       cohort_enrollments: {
         Row: {
           cohort_id: string
@@ -162,6 +192,9 @@ export type Database = {
       }
       cohortes: {
         Row: {
+          chariow_product_id_full: string | null
+          chariow_product_id_installment_1: string | null
+          chariow_product_id_installment_2: string | null
           created_at: string
           end_date: string | null
           formation_id: string
@@ -180,6 +213,9 @@ export type Database = {
           zoom_link: string | null
         }
         Insert: {
+          chariow_product_id_full?: string | null
+          chariow_product_id_installment_1?: string | null
+          chariow_product_id_installment_2?: string | null
           created_at?: string
           end_date?: string | null
           formation_id: string
@@ -198,6 +234,9 @@ export type Database = {
           zoom_link?: string | null
         }
         Update: {
+          chariow_product_id_full?: string | null
+          chariow_product_id_installment_1?: string | null
+          chariow_product_id_installment_2?: string | null
           created_at?: string
           end_date?: string | null
           formation_id?: string
@@ -508,6 +547,8 @@ export type Database = {
       payment_installments: {
         Row: {
           amount: number
+          chariow_raw_payload: Json | null
+          chariow_sale_id: string | null
           created_at: string
           due_date: string | null
           id: string
@@ -523,6 +564,8 @@ export type Database = {
         }
         Insert: {
           amount: number
+          chariow_raw_payload?: Json | null
+          chariow_sale_id?: string | null
           created_at?: string
           due_date?: string | null
           id?: string
@@ -538,6 +581,8 @@ export type Database = {
         }
         Update: {
           amount?: number
+          chariow_raw_payload?: Json | null
+          chariow_sale_id?: string | null
           created_at?: string
           due_date?: string | null
           id?: string
@@ -592,12 +637,15 @@ export type Database = {
         Row: {
           amount_paid: number
           amount_total: number
+          chariow_customer_email: string | null
+          chariow_sale_id: string | null
           cohort_id: string
           created_at: string
           currency: string
           final_deadline: string | null
           id: string
           mode: Database["public"]["Enums"]["payment_mode"]
+          source: string
           status: Database["public"]["Enums"]["payment_status"]
           student_id: string
           updated_at: string
@@ -605,12 +653,15 @@ export type Database = {
         Insert: {
           amount_paid?: number
           amount_total: number
+          chariow_customer_email?: string | null
+          chariow_sale_id?: string | null
           cohort_id: string
           created_at?: string
           currency?: string
           final_deadline?: string | null
           id?: string
           mode: Database["public"]["Enums"]["payment_mode"]
+          source?: string
           status?: Database["public"]["Enums"]["payment_status"]
           student_id: string
           updated_at?: string
@@ -618,12 +669,15 @@ export type Database = {
         Update: {
           amount_paid?: number
           amount_total?: number
+          chariow_customer_email?: string | null
+          chariow_sale_id?: string | null
           cohort_id?: string
           created_at?: string
           currency?: string
           final_deadline?: string | null
           id?: string
           mode?: Database["public"]["Enums"]["payment_mode"]
+          source?: string
           status?: Database["public"]["Enums"]["payment_status"]
           student_id?: string
           updated_at?: string
@@ -637,6 +691,57 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      pending_enrollments: {
+        Row: {
+          chariow_sale_id: string | null
+          claim_token: string
+          claimed_at: string | null
+          claimed_by: string | null
+          cohort_id: string
+          created_at: string
+          email: string
+          expires_at: string
+          first_name: string | null
+          id: string
+          installment_position: number | null
+          last_name: string | null
+          mode: Database["public"]["Enums"]["payment_mode"]
+          phone: string | null
+        }
+        Insert: {
+          chariow_sale_id?: string | null
+          claim_token: string
+          claimed_at?: string | null
+          claimed_by?: string | null
+          cohort_id: string
+          created_at?: string
+          email: string
+          expires_at?: string
+          first_name?: string | null
+          id?: string
+          installment_position?: number | null
+          last_name?: string | null
+          mode: Database["public"]["Enums"]["payment_mode"]
+          phone?: string | null
+        }
+        Update: {
+          chariow_sale_id?: string | null
+          claim_token?: string
+          claimed_at?: string | null
+          claimed_by?: string | null
+          cohort_id?: string
+          created_at?: string
+          email?: string
+          expires_at?: string
+          first_name?: string | null
+          id?: string
+          installment_position?: number | null
+          last_name?: string | null
+          mode?: Database["public"]["Enums"]["payment_mode"]
+          phone?: string | null
+        }
+        Relationships: []
       }
       profiles: {
         Row: {
