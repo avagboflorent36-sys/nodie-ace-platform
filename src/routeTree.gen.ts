@@ -34,6 +34,7 @@ import { Route as AuthenticatedAdminCohortesIndexRouteImport } from './routes/_a
 import { Route as ApiPublicHooksPaymentRemindersRouteImport } from './routes/api/public/hooks/payment-reminders'
 import { Route as AuthenticatedAdminEtudiantsIdRouteImport } from './routes/_authenticated/admin/etudiants.$id'
 import { Route as AuthenticatedAdminCohortesIdRouteImport } from './routes/_authenticated/admin/cohortes.$id'
+import { Route as ApiPublicHooksChariowSecretRouteImport } from './routes/api/public/hooks/chariow.$secret'
 
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
@@ -174,6 +175,12 @@ const AuthenticatedAdminCohortesIdRoute =
     path: '/cohortes/$id',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const ApiPublicHooksChariowSecretRoute =
+  ApiPublicHooksChariowSecretRouteImport.update({
+    id: '/api/public/hooks/chariow/$secret',
+    path: '/api/public/hooks/chariow/$secret',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -200,6 +207,7 @@ export interface FileRoutesByFullPath {
   '/api/public/hooks/payment-reminders': typeof ApiPublicHooksPaymentRemindersRoute
   '/admin/cohortes/': typeof AuthenticatedAdminCohortesIndexRoute
   '/admin/etudiants/': typeof AuthenticatedAdminEtudiantsIndexRoute
+  '/api/public/hooks/chariow/$secret': typeof ApiPublicHooksChariowSecretRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -224,6 +232,7 @@ export interface FileRoutesByTo {
   '/api/public/hooks/payment-reminders': typeof ApiPublicHooksPaymentRemindersRoute
   '/admin/cohortes': typeof AuthenticatedAdminCohortesIndexRoute
   '/admin/etudiants': typeof AuthenticatedAdminEtudiantsIndexRoute
+  '/api/public/hooks/chariow/$secret': typeof ApiPublicHooksChariowSecretRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -252,6 +261,7 @@ export interface FileRoutesById {
   '/api/public/hooks/payment-reminders': typeof ApiPublicHooksPaymentRemindersRoute
   '/_authenticated/admin/cohortes/': typeof AuthenticatedAdminCohortesIndexRoute
   '/_authenticated/admin/etudiants/': typeof AuthenticatedAdminEtudiantsIndexRoute
+  '/api/public/hooks/chariow/$secret': typeof ApiPublicHooksChariowSecretRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -280,6 +290,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/payment-reminders'
     | '/admin/cohortes/'
     | '/admin/etudiants/'
+    | '/api/public/hooks/chariow/$secret'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -304,6 +315,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/payment-reminders'
     | '/admin/cohortes'
     | '/admin/etudiants'
+    | '/api/public/hooks/chariow/$secret'
   id:
     | '__root__'
     | '/'
@@ -331,6 +343,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/payment-reminders'
     | '/_authenticated/admin/cohortes/'
     | '/_authenticated/admin/etudiants/'
+    | '/api/public/hooks/chariow/$secret'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -342,6 +355,7 @@ export interface RootRouteChildren {
   SignupRoute: typeof SignupRoute
   InscriptionSlugRoute: typeof InscriptionSlugRoute
   ApiPublicHooksPaymentRemindersRoute: typeof ApiPublicHooksPaymentRemindersRoute
+  ApiPublicHooksChariowSecretRoute: typeof ApiPublicHooksChariowSecretRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -521,6 +535,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminCohortesIdRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/api/public/hooks/chariow/$secret': {
+      id: '/api/public/hooks/chariow/$secret'
+      path: '/api/public/hooks/chariow/$secret'
+      fullPath: '/api/public/hooks/chariow/$secret'
+      preLoaderRoute: typeof ApiPublicHooksChariowSecretRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -597,6 +618,7 @@ const rootRouteChildren: RootRouteChildren = {
   SignupRoute: SignupRoute,
   InscriptionSlugRoute: InscriptionSlugRoute,
   ApiPublicHooksPaymentRemindersRoute: ApiPublicHooksPaymentRemindersRoute,
+  ApiPublicHooksChariowSecretRoute: ApiPublicHooksChariowSecretRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
