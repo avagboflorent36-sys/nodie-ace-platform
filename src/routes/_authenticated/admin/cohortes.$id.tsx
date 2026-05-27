@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -16,6 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
+import { setCohortChariowProducts } from "@/lib/chariow.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/cohortes/$id")({
   component: CohortDetail,
@@ -420,6 +422,7 @@ function SettingsTab({ cohort, onSaved }: { cohort: any; onSaved: () => void }) 
 }
 
 function ChariowSection({ cohort, onSaved }: { cohort: any; onSaved: () => void }) {
+  const saveChariowProducts = useServerFn(setCohortChariowProducts);
   const [form, setForm] = useState({
     full: cohort.chariow_product_id_full ?? "",
     inst1: cohort.chariow_product_id_installment_1 ?? "",
@@ -427,13 +430,19 @@ function ChariowSection({ cohort, onSaved }: { cohort: any; onSaved: () => void 
   });
   const webhookUrl = `${window.location.origin}/api/public/hooks/chariow/<VOTRE_SECRET>`;
   const save = async () => {
-    const { error } = await supabase.from("cohortes").update({
-      chariow_product_id_full: form.full.trim() || null,
-      chariow_product_id_installment_1: form.inst1.trim() || null,
-      chariow_product_id_installment_2: form.inst2.trim() || null,
-    } as any).eq("id", cohort.id);
-    if (error) { toast.error(error.message); return; }
-    toast.success("Configuration Chariow enregistrée"); onSaved();
+    try {
+      await saveChariowProducts({
+        data: {
+          cohort_id: cohort.id,
+          chariow_product_id_full: form.full,
+          chariow_product_id_installment_1: form.inst1,
+          chariow_product_id_installment_2: form.inst2,
+        },
+      });
+      toast.success("Configuration Chariow enregistrée"); onSaved();
+    } catch (error: any) {
+      toast.error(error?.message ?? "Impossible d'enregistrer Chariow");
+    }
   };
   return (
     <div className="space-y-3">
@@ -441,10 +450,10 @@ function ChariowSection({ cohort, onSaved }: { cohort: any; onSaved: () => void 
         <h3 className="font-semibold">Intégration Chariow</h3>
         <p className="text-xs text-muted-foreground">Collez les Product IDs Chariow pour activer le paiement automatique.</p>
       </div>
-      <div><Label>Product ID — Paiement 1x</Label><Input value={form.full} onChange={(e) => setForm({ ...form, full: e.target.value })} placeholder="prod_..." /></div>
+      <div><Label>Product ID — Paiement 1x</Label><Input value={form.full} onChange={(e) => setForm({ ...form, full: e.target.value })} placeholder="prd_..." /></div>
       <div className="grid grid-cols-2 gap-3">
-        <div><Label>Product ID — Tranche 1 (2x)</Label><Input value={form.inst1} onChange={(e) => setForm({ ...form, inst1: e.target.value })} placeholder="prod_..." /></div>
-        <div><Label>Product ID — Tranche 2 (2x)</Label><Input value={form.inst2} onChange={(e) => setForm({ ...form, inst2: e.target.value })} placeholder="prod_..." /></div>
+        <div><Label>Product ID — Tranche 1 (2x)</Label><Input value={form.inst1} onChange={(e) => setForm({ ...form, inst1: e.target.value })} placeholder="prd_..." /></div>
+        <div><Label>Product ID — Tranche 2 (2x)</Label><Input value={form.inst2} onChange={(e) => setForm({ ...form, inst2: e.target.value })} placeholder="prd_..." /></div>
       </div>
       <Button onClick={save} className="bg-gold text-primary hover:bg-gold/90"><Save className="mr-1 h-4 w-4" /> Enregistrer Chariow</Button>
       <Card className="p-3 bg-secondary/40 mt-3">
