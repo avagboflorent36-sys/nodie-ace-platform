@@ -125,13 +125,34 @@ export const startChariowCheckout = createServerFn({ method: "POST" })
       },
     });
 
-    const url: string | undefined =
-      (checkout && typeof checkout === "object" && (checkout as any).checkout_url) ||
-      (checkout && typeof checkout === "object" && (checkout as any).url) ||
-      (checkout && typeof checkout === "object" && (checkout as any).data?.checkout_url) ||
-      (checkout && typeof checkout === "object" && (checkout as any).data?.payment?.checkout_url);
+    // Chariow may wrap the URL at varying nesting depths — walk the response
+    // looking for the first checkout-like URL.
+    function findCheckoutUrl(node: any, depth = 0): string | undefined {
+      if (!node || depth > 6) return undefined;
+      if (typeof node === "string") {
+        return /^https?:\/\//i.test(node) && /(checkout|pay|chariow)/i.test(node)
+          ? node
+          : undefined;
+      }
+      if (typeof node !== "object") return undefined;
+      for (const key of ["checkout_url", "payment_url", "url", "link", "redirect_url"]) {
+        const v = (node as any)[key];
+        if (typeof v === "string" && /^https?:\/\//i.test(v)) return v;
+      }
+      for (const v of Object.values(node)) {
+        const found = findCheckoutUrl(v, depth + 1);
+        if (found) return found;
+      }
+      return undefined;
+    }
+
+    const url = findCheckoutUrl(checkout);
 
     if (!url) {
+      console.error(
+        "[Chariow] checkout response without URL:",
+        JSON.stringify(checkout).slice(0, 1500),
+      );
       throw new Error("Chariow n'a pas renvoyé d'URL de paiement.");
     }
     return { checkout_url: url };
