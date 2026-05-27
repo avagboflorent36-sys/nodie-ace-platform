@@ -146,16 +146,34 @@ export const startChariowCheckout = createServerFn({ method: "POST" })
       return undefined;
     }
 
+    const responseData = (checkout as any)?.data ?? checkout;
+    const step = typeof responseData?.step === "string" ? responseData.step : null;
+    const message =
+      typeof responseData?.message === "string" ? responseData.message : null;
     const url = findCheckoutUrl(checkout);
+
+    if (!url && step === "already_purchased") {
+      return {
+        checkout_url: null,
+        status: "already_purchased",
+        message:
+          message ??
+          "Ce produit est déjà associé à cette adresse email sur Chariow.",
+      };
+    }
 
     if (!url) {
       console.error(
         "[Chariow] checkout response without URL:",
         JSON.stringify(checkout).slice(0, 1500),
       );
-      throw new Error("Chariow n'a pas renvoyé d'URL de paiement.");
+      return {
+        checkout_url: null,
+        status: "missing_checkout_url",
+        message: "Chariow n'a pas renvoyé d'URL de paiement.",
+      };
     }
-    return { checkout_url: url };
+    return { checkout_url: url, status: "checkout_created", message: null };
   });
 
 // ─────────────────────────────────────────────────────────────────────────────
