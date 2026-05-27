@@ -148,6 +148,7 @@ function CheckoutStep({ cohort }: { cohort: any }) {
           first_name: form.firstName.trim(),
           last_name: form.lastName.trim(),
           phone: form.phone.trim(),
+          return_origin: window.location.origin,
         },
       });
       if (r.checkout_url) {
