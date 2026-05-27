@@ -1,7 +1,9 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useState, type FormEvent } from "react";
+import { useServerFn } from "@tanstack/react-start";
+import { useEffect, useState, type FormEvent } from "react";
 import { toast } from "sonner";
+import { CheckCircle2, Loader2 } from "lucide-react";
 
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
@@ -11,174 +13,603 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  startChariowCheckout,
+  fetchSaleStatus,
+  claimPendingEnrollment,
+} from "@/lib/chariow.functions";
+
+type SearchParams = { sale?: string; claim?: string };
 
 export const Route = createFileRoute("/inscription/$slug")({
+  validateSearch: (s: Record<string, unknown>): SearchParams => ({
+    sale: typeof s.sale === "string" ? s.sale : undefined,
+    claim: typeof s.claim === "string" ? s.claim : undefined,
+  }),
   component: InscriptionPage,
 });
 
 function InscriptionPage() {
   const { slug } = Route.useParams();
-  const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
-  const [base, setBase] = useState({
-    firstName: "", lastName: "", email: "", whatsapp: "", country: "", password: "",
-    paymentMode: "full" as "full" | "installments_2",
-  });
-  const [customAnswers, setCustomAnswers] = useState<Record<string, any>>({});
-  const [proof, setProof] = useState<File | null>(null);
+  const search = useSearch({ from: "/inscription/$slug" }) as SearchParams;
+  const saleId = search.sale;
+  const claimToken = search.claim;
 
   const { data: cohort, isLoading } = useQuery({
     queryKey: ["cohort-by-slug", slug],
     queryFn: async () => {
-      const { data } = await supabase.from("cohortes").select("id, name, status, price_full, price_installment, installment_1_deadline_days, installment_2_deadline_days, formations(title, currency, description, long_description, cover_image_url)").eq("slug", slug).maybeSingle();
+      const { data } = await supabase
+        .from("cohortes")
+        .select(
+          "id, name, status, price_full, price_installment, chariow_product_id_full, chariow_product_id_installment_1, formations(title, currency, description, cover_image_url)",
+        )
+        .eq("slug", slug)
+        .maybeSingle();
       return data;
     },
   });
 
-  const { data: customFields = [] } = useQuery({
-    queryKey: ["cohort-form-fields", cohort?.id],
-    enabled: !!cohort?.id,
-    queryFn: async () => (await supabase.from("form_fields").select("*").eq("cohort_id", cohort!.id).order("position")).data ?? [],
-  });
-
-  if (isLoading) return <div className="flex min-h-screen items-center justify-center text-muted-foreground">Chargement...</div>;
-  if (!cohort) return <div className="flex min-h-screen items-center justify-center text-muted-foreground">Cohorte introuvable.</div>;
-
-  const onSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!base.firstName || !base.lastName || !base.email || !base.whatsapp || !base.country) { toast.error("Tous les champs sont requis"); return; }
-    if (!base.password || base.password.length < 8) { toast.error("Mot de passe : 8 caractères min"); return; }
-    if (!proof) { toast.error("Preuve de paiement requise"); return; }
-    for (const f of customFields as any[]) {
-      if (f.required && !customAnswers[f.label]) { toast.error(`Champ requis : ${f.label}`); return; }
-    }
-    setLoading(true);
-
-    const { data: signed, error: suErr } = await supabase.auth.signUp({
-      email: base.email, password: base.password,
-      options: { emailRedirectTo: `${window.location.origin}/etudiant`, data: { first_name: base.firstName, last_name: base.lastName, whatsapp: base.whatsapp, country: base.country } },
-    });
-    if (suErr || !signed.user) { setLoading(false); toast.error(suErr?.message ?? "Erreur"); return; }
-    const userId = signed.user.id;
-
-    await supabase.from("cohort_enrollments").insert({ student_id: userId, cohort_id: cohort.id });
-    if (customFields.length > 0) {
-      await supabase.from("form_responses").insert({ cohort_id: cohort.id, student_id: userId, answers: customAnswers });
-    }
-
-    const total = base.paymentMode === "full" ? Number(cohort.price_full ?? 0) : Number(cohort.price_installment ?? cohort.price_full ?? 0);
-    const today = new Date();
-    const d1 = new Date(today); d1.setDate(d1.getDate() + (cohort.installment_1_deadline_days ?? 15));
-    const d2 = new Date(today); d2.setDate(d2.getDate() + (cohort.installment_2_deadline_days ?? 45));
-
-    const { data: payment } = await supabase.from("payments").insert({
-      student_id: userId, cohort_id: cohort.id, amount_total: total, mode: base.paymentMode,
-      status: "pending", final_deadline: (base.paymentMode === "full" ? d1 : d2).toISOString().slice(0, 10),
-    }).select().single();
-
-    if (payment) {
-      const installments = base.paymentMode === "full"
-        ? [{ payment_id: payment.id, position: 1, amount: total, due_date: d1.toISOString().slice(0, 10) }]
-        : [
-            { payment_id: payment.id, position: 1, amount: total / 2, due_date: d1.toISOString().slice(0, 10) },
-            { payment_id: payment.id, position: 2, amount: total / 2, due_date: d2.toISOString().slice(0, 10) },
-          ];
-      const { data: created } = await supabase.from("payment_installments").insert(installments).select();
-      if (created && created.length > 0 && proof) {
-        const first = created.find((x: any) => x.position === 1);
-        if (first) {
-          const path = `${userId}/${first.id}-${Date.now()}-${proof.name}`;
-          await supabase.storage.from("payment-proofs").upload(path, proof);
-          await supabase.from("payment_installments").update({ proof_path: path, status: "submitted", submitted_at: new Date().toISOString() }).eq("id", first.id);
-        }
-      }
-    }
-
-    setLoading(false);
-    toast.success("Inscription réussie ! Connectez-vous pour accéder à votre espace.");
-    navigate({ to: "/login" });
-  };
-
-  const renderField = (f: any) => {
-    const val = customAnswers[f.label];
-    const set = (v: any) => setCustomAnswers({ ...customAnswers, [f.label]: v });
-    switch (f.field_type) {
-      case "long_text": return <Textarea value={val ?? ""} onChange={(e) => set(e.target.value)} required={f.required} />;
-      case "email": return <Input type="email" value={val ?? ""} onChange={(e) => set(e.target.value)} required={f.required} />;
-      case "phone": return <Input type="tel" value={val ?? ""} onChange={(e) => set(e.target.value)} required={f.required} />;
-      case "number": return <Input type="number" value={val ?? ""} onChange={(e) => set(e.target.value)} required={f.required} />;
-      case "date": return <Input type="date" value={val ?? ""} onChange={(e) => set(e.target.value)} required={f.required} />;
-      case "single_choice":
-        return <RadioGroup value={val ?? ""} onValueChange={set} className="space-y-1">
-          {(f.options ?? []).map((o: string) => <label key={o} className="flex items-center gap-2 text-sm"><RadioGroupItem value={o} />{o}</label>)}
-        </RadioGroup>;
-      case "multiple_choice":
-        return <div className="space-y-1">{(f.options ?? []).map((o: string) => {
-          const arr = Array.isArray(val) ? val : [];
-          return <label key={o} className="flex items-center gap-2 text-sm">
-            <Checkbox checked={arr.includes(o)} onCheckedChange={(c) => set(c ? [...arr, o] : arr.filter((x: string) => x !== o))} />{o}
-          </label>;
-        })}</div>;
-      default: return <Input value={val ?? ""} onChange={(e) => set(e.target.value)} required={f.required} />;
-    }
-  };
+  if (isLoading)
+    return (
+      <div className="flex min-h-screen items-center justify-center text-muted-foreground">
+        Chargement...
+      </div>
+    );
+  if (!cohort)
+    return (
+      <div className="flex min-h-screen items-center justify-center text-muted-foreground">
+        Cohorte introuvable.
+      </div>
+    );
 
   return (
     <div className="min-h-screen bg-secondary/30 py-10">
       <div className="container mx-auto max-w-2xl px-4">
-        <div className="mb-8 text-center"><Logo /></div>
+        <div className="mb-8 text-center">
+          <Logo />
+        </div>
         <Card className="p-8 shadow-premium">
-          {cohort.formations?.cover_image_url && <img src={cohort.formations.cover_image_url} alt="" className="mb-4 h-40 w-full rounded object-cover" />}
-          <div className="text-xs uppercase tracking-wide text-muted-foreground">{cohort.formations?.title}</div>
-          <h1 className="mt-1 text-2xl font-bold">Inscription — {cohort.name}</h1>
-          {cohort.formations?.description && <p className="mt-2 text-sm text-muted-foreground">{cohort.formations.description}</p>}
-          <form onSubmit={onSubmit} className="mt-6 space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label>Prénom *</Label><Input value={base.firstName} onChange={(e) => setBase({ ...base, firstName: e.target.value })} required /></div>
-              <div><Label>Nom *</Label><Input value={base.lastName} onChange={(e) => setBase({ ...base, lastName: e.target.value })} required /></div>
-            </div>
-            <div><Label>Email *</Label><Input type="email" value={base.email} onChange={(e) => setBase({ ...base, email: e.target.value })} required /></div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label>WhatsApp *</Label><Input value={base.whatsapp} onChange={(e) => setBase({ ...base, whatsapp: e.target.value })} required /></div>
-              <div><Label>Pays *</Label><Input value={base.country} onChange={(e) => setBase({ ...base, country: e.target.value })} required /></div>
-            </div>
-            <div><Label>Mot de passe *</Label><Input type="password" value={base.password} onChange={(e) => setBase({ ...base, password: e.target.value })} required /></div>
+          {(cohort as any).formations?.cover_image_url && (
+            <img
+              src={(cohort as any).formations.cover_image_url}
+              alt=""
+              className="mb-4 h-40 w-full rounded object-cover"
+            />
+          )}
+          <div className="text-xs uppercase tracking-wide text-muted-foreground">
+            {(cohort as any).formations?.title}
+          </div>
+          <h1 className="mt-1 text-2xl font-bold">
+            Inscription — {cohort.name}
+          </h1>
+          {(cohort as any).formations?.description && (
+            <p className="mt-2 text-sm text-muted-foreground">
+              {(cohort as any).formations.description}
+            </p>
+          )}
 
-            {customFields.length > 0 && (
-              <div className="space-y-4 rounded-lg border bg-secondary/20 p-4">
-                {(customFields as any[]).map((f) => (
-                  <div key={f.id}>
-                    <Label>{f.label}{f.required && " *"}</Label>
-                    <div className="mt-1">{renderField(f)}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div>
-              <Label>Mode de paiement *</Label>
-              <RadioGroup value={base.paymentMode} onValueChange={(v) => setBase({ ...base, paymentMode: v as any })} className="mt-2 grid grid-cols-2 gap-2">
-                <label className="flex cursor-pointer items-center gap-2 rounded-lg border p-3">
-                  <RadioGroupItem value="full" id="full" />
-                  <div><div className="text-sm font-medium">En une fois</div><div className="text-xs text-muted-foreground">{Number(cohort.price_full ?? 0).toLocaleString()} {cohort.formations?.currency ?? "XOF"}</div></div>
-                </label>
-                <label className="flex cursor-pointer items-center gap-2 rounded-lg border p-3">
-                  <RadioGroupItem value="installments_2" id="install" />
-                  <div><div className="text-sm font-medium">En 2 fois</div><div className="text-xs text-muted-foreground">{Number(cohort.price_installment ?? 0).toLocaleString()} {cohort.formations?.currency ?? "XOF"}</div></div>
-                </label>
-              </RadioGroup>
-            </div>
-            <div>
-              <Label>Preuve de paiement (1ère tranche) *</Label>
-              <Input type="file" accept="image/*,application/pdf" onChange={(e) => setProof(e.target.files?.[0] ?? null)} required />
-            </div>
-            <Button type="submit" disabled={loading} className="w-full bg-gold text-primary hover:bg-gold/90">
-              {loading ? "Inscription..." : "Finaliser mon inscription"}
-            </Button>
-          </form>
+          {saleId || claimToken ? (
+            <PostPaymentStep
+              cohort={cohort}
+              saleId={saleId}
+              claimToken={claimToken}
+              slug={slug}
+            />
+          ) : (
+            <CheckoutStep cohort={cohort} />
+          )}
         </Card>
       </div>
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Étape 1 : choix mode + form minimal → redirection Chariow
+// ─────────────────────────────────────────────────────────────────────────────
+function CheckoutStep({ cohort }: { cohort: any }) {
+  const [loading, setLoading] = useState(false);
+  const [form, setForm] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
+    mode: "full" as "full" | "installments_2",
+  });
+  const startCheckout = useServerFn(startChariowCheckout);
+
+  const canFull = !!cohort.chariow_product_id_full;
+  const canInst = !!cohort.chariow_product_id_installment_1;
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!form.firstName || !form.lastName || !form.email || !form.phone) {
+      toast.error("Tous les champs sont requis");
+      return;
+    }
+    if (form.mode === "full" && !canFull) {
+      toast.error("Paiement 1x non disponible pour cette cohorte");
+      return;
+    }
+    if (form.mode === "installments_2" && !canInst) {
+      toast.error("Paiement 2x non disponible pour cette cohorte");
+      return;
+    }
+    setLoading(true);
+    try {
+      const r = await startCheckout({
+        data: {
+          cohort_id: cohort.id,
+          mode: form.mode,
+          installment_position: 1,
+          email: form.email.trim().toLowerCase(),
+          first_name: form.firstName.trim(),
+          last_name: form.lastName.trim(),
+          phone: form.phone.trim(),
+        },
+      });
+      window.location.href = r.checkout_url;
+    } catch (e: any) {
+      setLoading(false);
+      toast.error(e?.message ?? "Erreur lors de la création du paiement");
+    }
+  };
+
+  return (
+    <form onSubmit={submit} className="mt-6 space-y-4">
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <Label>Prénom *</Label>
+          <Input
+            value={form.firstName}
+            onChange={(e) => setForm({ ...form, firstName: e.target.value })}
+            required
+          />
+        </div>
+        <div>
+          <Label>Nom *</Label>
+          <Input
+            value={form.lastName}
+            onChange={(e) => setForm({ ...form, lastName: e.target.value })}
+            required
+          />
+        </div>
+      </div>
+      <div>
+        <Label>Email *</Label>
+        <Input
+          type="email"
+          value={form.email}
+          onChange={(e) => setForm({ ...form, email: e.target.value })}
+          required
+        />
+      </div>
+      <div>
+        <Label>WhatsApp *</Label>
+        <Input
+          value={form.phone}
+          onChange={(e) => setForm({ ...form, phone: e.target.value })}
+          required
+        />
+      </div>
+
+      <div>
+        <Label>Mode de paiement *</Label>
+        <RadioGroup
+          value={form.mode}
+          onValueChange={(v) => setForm({ ...form, mode: v as any })}
+          className="mt-2 grid grid-cols-2 gap-2"
+        >
+          <label
+            className={`flex cursor-pointer items-center gap-2 rounded-lg border p-3 ${!canFull ? "opacity-50" : ""}`}
+          >
+            <RadioGroupItem value="full" id="full" disabled={!canFull} />
+            <div>
+              <div className="text-sm font-medium">En une fois</div>
+              <div className="text-xs text-muted-foreground">
+                {Number(cohort.price_full ?? 0).toLocaleString()}{" "}
+                {(cohort as any).formations?.currency ?? "XOF"}
+              </div>
+            </div>
+          </label>
+          <label
+            className={`flex cursor-pointer items-center gap-2 rounded-lg border p-3 ${!canInst ? "opacity-50" : ""}`}
+          >
+            <RadioGroupItem
+              value="installments_2"
+              id="install"
+              disabled={!canInst}
+            />
+            <div>
+              <div className="text-sm font-medium">En 2 fois</div>
+              <div className="text-xs text-muted-foreground">
+                {Number(cohort.price_installment ?? 0).toLocaleString()}{" "}
+                {(cohort as any).formations?.currency ?? "XOF"} / tranche
+              </div>
+            </div>
+          </label>
+        </RadioGroup>
+        {!canFull && !canInst && (
+          <p className="mt-2 text-xs text-destructive">
+            Cette cohorte n'est pas encore configurée pour accepter des
+            paiements. Contactez l'équipe.
+          </p>
+        )}
+      </div>
+
+      <Button
+        type="submit"
+        disabled={loading || (!canFull && !canInst)}
+        className="w-full bg-gold text-primary hover:bg-gold/90"
+      >
+        {loading ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Redirection vers
+            le paiement...
+          </>
+        ) : (
+          "Payer via Chariow"
+        )}
+      </Button>
+      <p className="text-xs text-muted-foreground text-center">
+        Vous serez redirigé vers la plateforme de paiement sécurisée Chariow.
+      </p>
+    </form>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Étape 2 : retour après paiement — formulaire complet + signup
+// ─────────────────────────────────────────────────────────────────────────────
+function PostPaymentStep({
+  cohort,
+  saleId,
+  claimToken,
+  slug,
+}: {
+  cohort: any;
+  saleId?: string;
+  claimToken?: string;
+  slug: string;
+}) {
+  const navigate = useNavigate();
+  const fetchStatus = useServerFn(fetchSaleStatus);
+  const claim = useServerFn(claimPendingEnrollment);
+
+  const [verifying, setVerifying] = useState(!!saleId);
+  const [verified, setVerified] = useState(!saleId); // claim flow doesn't need re-verify
+  const [paid, setPaid] = useState(false);
+
+  useEffect(() => {
+    if (!saleId) {
+      setVerified(true);
+      setPaid(true);
+      return;
+    }
+    fetchStatus({ data: { sale_id: saleId } })
+      .then((r) => {
+        setPaid(r.paid);
+        setVerified(true);
+      })
+      .catch(() => setVerified(true))
+      .finally(() => setVerifying(false));
+  }, [saleId, fetchStatus]);
+
+  const { data: customFields = [] } = useQuery({
+    queryKey: ["cohort-form-fields", cohort?.id],
+    enabled: !!cohort?.id,
+    queryFn: async () =>
+      (
+        await supabase
+          .from("form_fields")
+          .select("*")
+          .eq("cohort_id", cohort.id)
+          .order("position")
+      ).data ?? [],
+  });
+
+  const [form, setForm] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    whatsapp: "",
+    country: "",
+    password: "",
+  });
+  const [answers, setAnswers] = useState<Record<string, any>>({});
+  const [loading, setLoading] = useState(false);
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (
+      !form.firstName ||
+      !form.lastName ||
+      !form.email ||
+      !form.whatsapp ||
+      !form.country
+    ) {
+      toast.error("Tous les champs sont requis");
+      return;
+    }
+    if (!form.password || form.password.length < 8) {
+      toast.error("Mot de passe : 8 caractères min");
+      return;
+    }
+    for (const f of customFields as any[]) {
+      if (f.required && !answers[f.label]) {
+        toast.error(`Champ requis : ${f.label}`);
+        return;
+      }
+    }
+    setLoading(true);
+
+    const { data: signed, error: suErr } = await supabase.auth.signUp({
+      email: form.email.trim().toLowerCase(),
+      password: form.password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/etudiant`,
+        data: {
+          first_name: form.firstName,
+          last_name: form.lastName,
+          whatsapp: form.whatsapp,
+          country: form.country,
+        },
+      },
+    });
+    if (suErr || !signed.user) {
+      setLoading(false);
+      toast.error(suErr?.message ?? "Erreur lors de la création du compte");
+      return;
+    }
+
+    // Wait briefly for the session to settle, then claim
+    if (claimToken) {
+      try {
+        await claim({ data: { claim_token: claimToken } });
+      } catch (e: any) {
+        // Non-blocking — user can claim after email confirm
+        console.error(e);
+      }
+    } else {
+      // saleId flow: link existing pending row if any (best effort via email lookup happens server-side)
+      // The webhook already linked by email if profile existed before. Here, profile is just created.
+      // We'll defer the link to the next auth.uid()-aware flow.
+    }
+
+    if (customFields.length > 0) {
+      await supabase.from("form_responses").insert({
+        cohort_id: cohort.id,
+        student_id: signed.user.id,
+        answers,
+      });
+    }
+
+    setLoading(false);
+    toast.success(
+      "Compte créé ! Vérifiez votre email puis connectez-vous pour accéder à votre espace.",
+    );
+    navigate({ to: "/login" });
+  };
+
+  const renderField = (f: any) => {
+    const val = answers[f.label];
+    const set = (v: any) => setAnswers({ ...answers, [f.label]: v });
+    switch (f.field_type) {
+      case "long_text":
+        return (
+          <Textarea
+            value={val ?? ""}
+            onChange={(e) => set(e.target.value)}
+            required={f.required}
+          />
+        );
+      case "email":
+        return (
+          <Input
+            type="email"
+            value={val ?? ""}
+            onChange={(e) => set(e.target.value)}
+            required={f.required}
+          />
+        );
+      case "phone":
+        return (
+          <Input
+            type="tel"
+            value={val ?? ""}
+            onChange={(e) => set(e.target.value)}
+            required={f.required}
+          />
+        );
+      case "number":
+        return (
+          <Input
+            type="number"
+            value={val ?? ""}
+            onChange={(e) => set(e.target.value)}
+            required={f.required}
+          />
+        );
+      case "date":
+        return (
+          <Input
+            type="date"
+            value={val ?? ""}
+            onChange={(e) => set(e.target.value)}
+            required={f.required}
+          />
+        );
+      case "single_choice":
+        return (
+          <RadioGroup
+            value={val ?? ""}
+            onValueChange={set}
+            className="space-y-1"
+          >
+            {(f.options ?? []).map((o: string) => (
+              <label key={o} className="flex items-center gap-2 text-sm">
+                <RadioGroupItem value={o} />
+                {o}
+              </label>
+            ))}
+          </RadioGroup>
+        );
+      case "multiple_choice":
+        return (
+          <div className="space-y-1">
+            {(f.options ?? []).map((o: string) => {
+              const arr = Array.isArray(val) ? val : [];
+              return (
+                <label key={o} className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={arr.includes(o)}
+                    onCheckedChange={(c) =>
+                      set(c ? [...arr, o] : arr.filter((x: string) => x !== o))
+                    }
+                  />
+                  {o}
+                </label>
+              );
+            })}
+          </div>
+        );
+      default:
+        return (
+          <Input
+            value={val ?? ""}
+            onChange={(e) => set(e.target.value)}
+            required={f.required}
+          />
+        );
+    }
+  };
+
+  if (verifying) {
+    return (
+      <div className="mt-8 flex items-center justify-center gap-2 text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" /> Vérification du paiement...
+      </div>
+    );
+  }
+
+  if (verified && !paid && saleId) {
+    return (
+      <div className="mt-6 space-y-3">
+        <Card className="p-4 border-amber-500/40 bg-amber-500/5">
+          <p className="text-sm">
+            Nous n'avons pas encore reçu la confirmation de votre paiement.
+            Recharger cette page dans quelques instants — si le problème
+            persiste, contactez-nous.
+          </p>
+        </Card>
+        <Button
+          onClick={() => navigate({ to: "/inscription/$slug", params: { slug } })}
+          variant="outline"
+          className="w-full"
+        >
+          Retour
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={submit} className="mt-6 space-y-4">
+      <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/5 p-3 flex items-center gap-2">
+        <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+        <div>
+          <p className="text-sm font-medium">Paiement confirmé</p>
+          <p className="text-xs text-muted-foreground">
+            Créez votre compte pour accéder à votre espace étudiant.
+          </p>
+        </div>
+        <Badge variant="outline" className="ml-auto">
+          Chariow
+        </Badge>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <Label>Prénom *</Label>
+          <Input
+            value={form.firstName}
+            onChange={(e) => setForm({ ...form, firstName: e.target.value })}
+            required
+          />
+        </div>
+        <div>
+          <Label>Nom *</Label>
+          <Input
+            value={form.lastName}
+            onChange={(e) => setForm({ ...form, lastName: e.target.value })}
+            required
+          />
+        </div>
+      </div>
+      <div>
+        <Label>Email *</Label>
+        <Input
+          type="email"
+          value={form.email}
+          onChange={(e) => setForm({ ...form, email: e.target.value })}
+          required
+        />
+        <p className="mt-1 text-xs text-muted-foreground">
+          Utilisez la même adresse que celle du paiement pour lier
+          automatiquement votre compte.
+        </p>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <Label>WhatsApp *</Label>
+          <Input
+            value={form.whatsapp}
+            onChange={(e) => setForm({ ...form, whatsapp: e.target.value })}
+            required
+          />
+        </div>
+        <div>
+          <Label>Pays *</Label>
+          <Input
+            value={form.country}
+            onChange={(e) => setForm({ ...form, country: e.target.value })}
+            required
+          />
+        </div>
+      </div>
+      <div>
+        <Label>Mot de passe *</Label>
+        <Input
+          type="password"
+          value={form.password}
+          onChange={(e) => setForm({ ...form, password: e.target.value })}
+          required
+        />
+      </div>
+
+      {customFields.length > 0 && (
+        <div className="space-y-4 rounded-lg border bg-secondary/20 p-4">
+          {(customFields as any[]).map((f) => (
+            <div key={f.id}>
+              <Label>
+                {f.label}
+                {f.required && " *"}
+              </Label>
+              <div className="mt-1">{renderField(f)}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <Button
+        type="submit"
+        disabled={loading}
+        className="w-full bg-gold text-primary hover:bg-gold/90"
+      >
+        {loading ? "Création du compte..." : "Créer mon compte"}
+      </Button>
+    </form>
   );
 }

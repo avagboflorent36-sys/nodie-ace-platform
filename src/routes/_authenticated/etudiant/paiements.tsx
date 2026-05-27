@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Upload, AlertCircle, CheckCircle2, Clock, Wallet } from "lucide-react";
+import { Upload, AlertCircle, CheckCircle2, Clock, Wallet, CreditCard } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { startChariowCheckout } from "@/lib/chariow.functions";
 
 export const Route = createFileRoute("/_authenticated/etudiant/paiements")({
   component: StudentPayments,
@@ -19,6 +21,8 @@ function StudentPayments() {
   const { user } = useAuth();
   const qc = useQueryClient();
   const [uploading, setUploading] = useState<string | null>(null);
+  const [paying, setPaying] = useState<string | null>(null);
+  const startCheckout = useServerFn(startChariowCheckout);
 
   const { data: payments = [], isLoading } = useQuery({
     queryKey: ["student-payments", user?.id],
@@ -26,7 +30,7 @@ function StudentPayments() {
     queryFn: async () => {
       const { data } = await supabase
         .from("payments")
-        .select("id, mode, status, amount_total, amount_paid, currency, final_deadline, cohort_id, cohortes(name, formations(title)), payment_installments(id, position, amount, status, due_date, submitted_at, validated_at, proof_path, rejection_reason)")
+        .select("id, mode, status, source, amount_total, amount_paid, currency, final_deadline, cohort_id, cohortes(name, formations(title)), payment_installments(id, position, amount, status, due_date, submitted_at, validated_at, proof_path, rejection_reason, chariow_sale_id)")
         .eq("student_id", user!.id)
         .order("created_at", { ascending: false });
       return data ?? [];
@@ -91,6 +95,11 @@ function StudentPayments() {
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <Badge variant="outline" className="mb-1">{p.cohortes?.formations?.title ?? "—"}</Badge>
+                  {p.source === "chariow" && (
+                    <Badge variant="outline" className="ml-1 mb-1 border-emerald-500/40 text-emerald-700 dark:text-emerald-400">
+                      <CheckCircle2 className="mr-1 h-3 w-3" /> Payé via Chariow
+                    </Badge>
+                  )}
                   <h2 className="text-lg font-semibold">{p.cohortes?.name}</h2>
                   <p className="text-sm text-muted-foreground mt-1">
                     Mode : {p.mode === "full" ? "Paiement intégral" : "2 tranches"} —
@@ -125,7 +134,24 @@ function StudentPayments() {
                         )}
                       </div>
                       <StatusBadge status={i.status} />
-                      {i.status !== "validated" && (
+                      {i.status !== "validated" && p.source === "chariow" && i.position === 2 ? (
+                        <Button
+                          size="sm"
+                          className="bg-gold text-primary hover:bg-gold/90"
+                          disabled={paying === i.id}
+                          onClick={async () => {
+                            setPaying(i.id);
+                            try {
+                              const { data: prof } = await supabase.from("profiles").select("first_name, last_name, email, whatsapp").eq("id", user!.id).maybeSingle();
+                              const r = await startCheckout({ data: {
+                                cohort_id: p.cohort_id, mode: "installments_2", installment_position: 2,
+                                email: prof?.email ?? "", first_name: prof?.first_name ?? "", last_name: prof?.last_name ?? "", phone: prof?.whatsapp ?? "",
+                              }});
+                              window.location.href = r.checkout_url;
+                            } catch (e: any) { toast.error(e?.message ?? "Erreur"); setPaying(null); }
+                          }}
+                        ><CreditCard className="mr-1 h-3 w-3" /> Payer tranche 2</Button>
+                      ) : i.status !== "validated" && (
                         <label className="cursor-pointer">
                           <input
                             type="file"
