@@ -84,7 +84,7 @@ export const Route = createFileRoute("/api/public/hooks/chariow/$secret")({
           // Duplicate → already processed
           return new Response("Already processed", { status: 200 });
         }
-        const eventRowId = eventRow?.id;
+        const eventRowId = eventRow?.id ?? "";
 
         // 4. Only process successful sale events
         const lower = eventType.toLowerCase();
