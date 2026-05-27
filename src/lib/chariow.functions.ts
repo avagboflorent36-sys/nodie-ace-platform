@@ -49,22 +49,51 @@ export const startChariowCheckout = createServerFn({ method: "POST" })
 
     const redirect = `${SITE_URL}/inscription/${cohort.slug}?sale={sale_id}`;
 
-    // Chariow expects phone as an array of { number, country_code }
-    // Parse "+221 77 123 45 67" → country_code "221", number "771234567"
+    // Chariow expects phone as { number, country_code } where country_code
+    // is the ISO 3166-1 alpha-2 country code (e.g. "SN", "FR", "US"),
+    // and number is digits only WITHOUT the dial code.
+    // Defaults to Senegal ("SN") for local numbers.
     const rawPhone = (data.phone || "").trim();
-    const digits = rawPhone.replace(/[^\d]/g, "");
-    let countryCode = "221";
-    let number = digits;
-    if (rawPhone.startsWith("+") && digits.length > 3) {
-      // Heuristic: take first 1-3 digits as country code
-      const m = rawPhone.match(/^\+(\d{1,3})\s*(.*)$/);
-      if (m) {
-        countryCode = m[1];
-        number = m[2].replace(/[^\d]/g, "") || digits.slice(countryCode.length);
+    const digitsOnly = rawPhone.replace(/[^\d]/g, "");
+    // Map common dial codes → ISO country code (extend as needed)
+    const DIAL_TO_ISO: Record<string, string> = {
+      "221": "SN", // Sénégal
+      "225": "CI", // Côte d'Ivoire
+      "229": "BJ", // Bénin
+      "228": "TG", // Togo
+      "226": "BF", // Burkina Faso
+      "237": "CM", // Cameroun
+      "33": "FR",
+      "32": "BE",
+      "1": "US",
+      "44": "GB",
+    };
+    let isoCountry = "SN";
+    let numberOnly = digitsOnly;
+    if (rawPhone.startsWith("+")) {
+      // Try longest dial code match (3, 2, then 1 digit)
+      for (const len of [3, 2, 1]) {
+        const dial = digitsOnly.slice(0, len);
+        if (DIAL_TO_ISO[dial]) {
+          isoCountry = DIAL_TO_ISO[dial];
+          numberOnly = digitsOnly.slice(len);
+          break;
+        }
       }
-    } else if (digits.length > 9) {
-      countryCode = digits.slice(0, digits.length - 9);
-      number = digits.slice(-9);
+    } else if (digitsOnly.length > 9) {
+      // Heuristic: digits like 221771234567 → country part + local
+      for (const len of [3, 2, 1]) {
+        const dial = digitsOnly.slice(0, len);
+        if (DIAL_TO_ISO[dial] && digitsOnly.length - len >= 7) {
+          isoCountry = DIAL_TO_ISO[dial];
+          numberOnly = digitsOnly.slice(len);
+          break;
+        }
+      }
+    }
+
+    if (!numberOnly || numberOnly.length < 6) {
+      throw new Error("Numéro de téléphone invalide.");
     }
 
     const checkout = await initCheckout({
@@ -72,7 +101,7 @@ export const startChariowCheckout = createServerFn({ method: "POST" })
       email: data.email,
       first_name: data.first_name,
       last_name: data.last_name,
-      phone: [{ number, country_code: countryCode }],
+      phone: { number: numberOnly, country_code: isoCountry },
       redirect_url: redirect,
       custom_metadata: {
         cohort_id: cohort.id,
