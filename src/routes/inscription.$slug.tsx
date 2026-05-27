@@ -150,7 +150,12 @@ function CheckoutStep({ cohort }: { cohort: any }) {
           phone: form.phone.trim(),
         },
       });
-      window.location.href = r.checkout_url;
+      if (r.checkout_url) {
+        window.location.href = r.checkout_url;
+        return;
+      }
+      toast.error(r.message ?? "Impossible de créer le paiement Chariow");
+      setLoading(false);
     } catch (e: any) {
       setLoading(false);
       toast.error(e?.message ?? "Erreur lors de la création du paiement");
