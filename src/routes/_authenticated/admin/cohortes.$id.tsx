@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -16,6 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
+import { setCohortChariowProducts } from "@/lib/chariow.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/cohortes/$id")({
   component: CohortDetail,
@@ -420,6 +422,7 @@ function SettingsTab({ cohort, onSaved }: { cohort: any; onSaved: () => void }) 
 }
 
 function ChariowSection({ cohort, onSaved }: { cohort: any; onSaved: () => void }) {
+  const saveChariowProducts = useServerFn(setCohortChariowProducts);
   const [form, setForm] = useState({
     full: cohort.chariow_product_id_full ?? "",
     inst1: cohort.chariow_product_id_installment_1 ?? "",
@@ -427,13 +430,19 @@ function ChariowSection({ cohort, onSaved }: { cohort: any; onSaved: () => void 
   });
   const webhookUrl = `${window.location.origin}/api/public/hooks/chariow/<VOTRE_SECRET>`;
   const save = async () => {
-    const { error } = await supabase.from("cohortes").update({
-      chariow_product_id_full: form.full.trim() || null,
-      chariow_product_id_installment_1: form.inst1.trim() || null,
-      chariow_product_id_installment_2: form.inst2.trim() || null,
-    } as any).eq("id", cohort.id);
-    if (error) { toast.error(error.message); return; }
-    toast.success("Configuration Chariow enregistrée"); onSaved();
+    try {
+      await saveChariowProducts({
+        data: {
+          cohort_id: cohort.id,
+          chariow_product_id_full: form.full,
+          chariow_product_id_installment_1: form.inst1,
+          chariow_product_id_installment_2: form.inst2,
+        },
+      });
+      toast.success("Configuration Chariow enregistrée"); onSaved();
+    } catch (error: any) {
+      toast.error(error?.message ?? "Impossible d'enregistrer Chariow");
+    }
   };
   return (
     <div className="space-y-3">
