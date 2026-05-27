@@ -1,142 +1,177 @@
+# Plan d'intégration Chariow ↔ Nodie IA Academy (révisé selon la doc officielle)
 
-# Plan d'intégration Chariow ↔ Nodie IA Academy
+## Doc Chariow utilisée
+- Auth : `Authorization: Bearer <API_KEY>` (clé créée dans Settings → API Keys)
+- Checkout : `POST https://api.chariow.com/v1/checkout`
+  → champs clés : `product_id`, `email`, `first_name`, `last_name`, `phone.{number,country_code}`, `custom_metadata` (10 clés × 255 chars), `redirect_url` (supporte `{sale_id}`)
+  → réponse : `{ step: "payment", payment: { checkout_url, transaction_id }, purchase: { id, amount } }`
+- Pulses (webhooks) : POST JSON vers notre URL HTTPS — **PAS de signature HMAC**
+  → events : `successful.sale`, `abandoned.sale`, `failed.sale`
+  → payload : `{ event, sale: { id, amount, status, custom_metadata }, product, customer, store, checkout }`
+- Sales : `GET /v1/sales/{id}` pour re-vérifier toute donnée critique
 
-## Vue d'ensemble du flux
+## Flux retenu (Paiement d'abord)
 
 ```
-1. Admin crée 3 liens Chariow par cohorte (intégral, tranche 1, tranche 2)
-   et les enregistre dans la plateforme.
-
-2. Prospect clique "S'inscrire" sur Nodie
+1. Prospect arrive sur /inscription/{slug-cohorte}
+   → choisit son mode (1x ou 2x → tranche 1)
         ↓
-   Choisit son mode (1x ou 2x) → redirigé vers Chariow
-
-3. Paiement sur Chariow
+2. Nodie appelle createChariowCheckout (server fn)
+   → POST Chariow /v1/checkout avec custom_metadata = {
+        cohort_id, mode: "full"|"installments_2",
+        installment_position: 1|2,
+        nodie_ref: <uuid>
+     }
+   → redirect_url = https://.../inscription/{slug}?sale={sale_id}
         ↓
-   ┌────────────────────────────────┐
-   │ a) Webhook serveur (instantané)│   ← source de vérité
-   │ b) Redirection navigateur     │   ← UX
-   └────────────────────────────────┘
+3. Prospect redirigé vers checkout_url Chariow → paie
         ↓
-4. Webhook Chariow → /api/public/hooks/chariow
-   - Vérifie signature HMAC
-   - Crée/MAJ payment + installment (status: validated)
-   - Génère un "claim_token" unique
+4. Webhook successful.sale arrive sur /api/public/hooks/chariow/<URL_SECRET>
+   - Vérifie token d'URL secret
+   - GET /v1/sales/{id} pour re-vérifier le payload
+   - Idempotent (table chariow_webhook_events sur sale.id+event)
+   - Crée/MAJ payments + installments (status=validated, source=chariow)
+   - Lie via custom_metadata.cohort_id + customer.email
+   - Si user n'existe pas → crée un "pending profile" (claim par email)
    - Envoie email "Finalisez votre inscription" avec lien
-     /inscription/{cohorte}?claim={token}
-
-5. Prospect arrive sur le formulaire
-   - claim_token vérifié → email & paiement déjà liés
-   - Remplit infos perso + crée son compte
-   - Compte automatiquement rattaché au payment existant
-
-6. Accès débloqué + dashboard à jour
+        ↓
+5. Prospect redirigé vers /inscription/{slug}?sale=sal_xxx
+   - Server fn fetchSaleStatus(sale_id) → confirme paiement
+   - Affiche formulaire pré-rempli (email/nom/prénom de Chariow)
+   - Création compte Supabase → lie au payment existant (par email)
+        ↓
+6. Accès débloqué automatiquement
 ```
 
 ## Modifications base de données
 
-### Nouvelles tables / colonnes
+### `cohortes` — colonnes ajoutées
+- `chariow_product_id_full` (text) — ID produit Chariow pour paiement 1x
+- `chariow_product_id_installment_1` (text) — ID produit Chariow pour tranche 1
+- `chariow_product_id_installment_2` (text) — ID produit Chariow pour tranche 2
 
-**`cohortes`** — 3 colonnes ajoutées :
-- `chariow_link_full` (text) — URL paiement intégral
-- `chariow_link_installment_1` (text) — URL tranche 1
-- `chariow_link_installment_2` (text) — URL tranche 2
+(On garde les IDs de produits Chariow plutôt que les URLs : permet d'utiliser l'API Checkout pour pré-remplir l'email/nom et passer du `custom_metadata`.)
 
-**`payments`** — colonnes ajoutées :
-- `chariow_transaction_id` (text, unique)
-- `claim_token` (text, unique) — token sécurisé pour lier formulaire ↔ paiement
-- `claim_email` (text) — email saisi sur Chariow
-- `claimed_at` (timestamptz) — quand le prospect a rempli le formulaire
+### `payments` — colonnes ajoutées
+- `chariow_sale_id` (text, unique nullable)
+- `chariow_customer_email` (text)
 - `source` (text, default 'manual') — 'chariow' | 'manual'
 
-**`payment_installments`** — colonnes ajoutées :
-- `chariow_transaction_id` (text, unique)
-- `chariow_raw_payload` (jsonb) — copie du webhook pour audit
+### `payment_installments` — colonnes ajoutées
+- `chariow_sale_id` (text, unique nullable)
+- `chariow_raw_payload` (jsonb)
 
-**Nouvelle table `chariow_webhook_events`** (idempotence + audit) :
-- `id`, `event_id` (unique), `received_at`, `payload` (jsonb), `processed` (bool), `error` (text)
+### Nouvelle table `chariow_webhook_events` (idempotence + audit)
+- `id`, `event_type`, `sale_id`, `received_at`, `payload` (jsonb), `processed_at`, `error`, UNIQUE(event_type, sale_id)
 
-## Backend (TanStack server functions + route)
+### Nouvelle table `pending_enrollments` (paiement reçu sans compte existant)
+- `id`, `cohort_id`, `email`, `first_name`, `last_name`, `phone`, `chariow_sale_id`, `mode`, `installment_position`, `claim_token`, `created_at`, `claimed_at`
+- Permet de lier le paiement à l'étudiant quand il crée son compte
 
-### 1. Webhook public — `src/routes/api/public/hooks/chariow.ts`
-- POST, signature HMAC vérifiée (secret `CHARIOW_WEBHOOK_SECRET`)
-- Idempotent (vérifie `event_id` dans `chariow_webhook_events`)
-- Parse le payload Chariow → identifie cohorte (via le lien/produit), mode, montant, email
-- Crée ou met à jour `payments` + `payment_installments` (status `validated`)
-- Génère `claim_token` si paiement orphelin (pas de `student_id`)
-- Déclenche email transactionnel "Finalisez votre inscription"
+## Backend
 
-### 2. Server function `claimPaymentByToken` — `src/lib/chariow.functions.ts`
-- Appelée depuis `/inscription/{slug}?claim=xxx`
-- Retourne les infos du paiement (montant, mode, cohorte) sans révéler de données sensibles
-- À la soumission du formulaire + création de compte : rattache `payments.student_id` au nouveau profil
+### 1. Webhook public — `src/routes/api/public/hooks/chariow.$secret.ts`
+- Path inclut un secret (équivalent au secret du webhook) : `/api/public/hooks/chariow/<CHARIOW_WEBHOOK_URL_SECRET>`
+- POST handler :
+  1. Vérifie `params.secret === process.env.CHARIOW_WEBHOOK_URL_SECRET` (constant-time)
+  2. Parse + valide payload Zod
+  3. Insert dans `chariow_webhook_events` (UNIQUE → idempotent)
+  4. Si `event === "successful.sale"` :
+     - `GET /v1/sales/{sale.id}` avec `CHARIOW_API_KEY` pour re-vérifier
+     - Lit `sale.custom_metadata.cohort_id` + `installment_position`
+     - Cherche le profile par email → si existe : crée/MAJ payment+installment lié au student_id
+     - Sinon : crée une `pending_enrollments` + génère email avec lien `claim`
+  5. Retourne 200 rapidement (traitement synchrone court ; pour > 30 s on passerait async)
 
-### 3. Server function admin `syncChariowTransaction` (filet de sécurité)
-- Permet à un admin de saisir un `transaction_id` Chariow pour forcer la resynchronisation via API REST Chariow
-- Utile si un webhook est perdu
+### 2. `src/lib/chariow.server.ts` (helpers serveur)
+- `chariowFetch(path, init)` — wrapper fetch avec auth Bearer + base URL
+- `verifySale(saleId)` — `GET /v1/sales/{id}` retourne sale vérifiée
+- `initCheckout({ productId, email, firstName, lastName, phone, customMetadata, redirectUrl })` — `POST /v1/checkout`
 
-### 4. Email "Finalisez votre inscription"
-- Ajout d'un template dans `src/lib/email.server.ts`
-- Envoyé par le webhook après création du paiement
+### 3. `src/lib/chariow.functions.ts` (server functions)
+- `startChariowCheckout({ cohortId, mode, installmentPosition, email, firstName, lastName, phone })`
+  → choisit le bon `chariow_product_id_*` selon mode/position
+  → appelle `initCheckout` avec `custom_metadata = { cohort_id, mode, installment_position, nodie_ref }`
+  → `redirect_url = ${SITE_URL}/inscription/${slug}?sale={sale_id}`
+  → retourne `{ checkout_url }`
+- `fetchSaleStatus({ saleId })` (public, mais avec rate limit léger) — vérifie un sale_id côté serveur pour la page de retour
+- `claimPendingEnrollment({ claimToken })` — appelée à la création de compte pour lier `pending_enrollments` au nouveau profile
+- `syncChariowSale({ saleId })` (admin only) — resync manuel d'un sale manqué
+- `setCohortChariowProducts({ cohortId, productIdFull, productIdInst1, productIdInst2 })` (admin only)
+
+### 4. Email transactionnel — `src/lib/email.server.ts`
+- Template `chariowPaymentReceived(to, { firstName, amount, currency, cohortName, claimUrl })`
 
 ## Frontend
 
-### 1. Page admin cohorte — `admin/cohortes.$id.tsx`
-- Nouvelle section "Liens de paiement Chariow" : 3 champs URL + boutons "Copier"
-- Affichage de l'URL webhook à coller dans Chariow + secret
+### 1. `admin/cohortes.$id.tsx` — section "Intégration Chariow"
+- 3 champs : Product ID 1x / Tranche 1 / Tranche 2
+- Affichage URL webhook à coller dans Chariow Dashboard :
+  `https://<site>/api/public/hooks/chariow/<CHARIOW_WEBHOOK_URL_SECRET>` (avec bouton "Copier")
+- Note : "Configurez aussi les events successful.sale, abandoned.sale, failed.sale"
+- Bouton "Tester la connexion API" → appelle un endpoint qui fait un GET /v1/store pour valider la clé
 
-### 2. Page publique d'inscription — `inscription.$slug.tsx`
-- **Mode A (sans `?claim=`)** : affiche les options de paiement (boutons "Payer 1x" / "Payer 2x") qui redirigent vers Chariow
-- **Mode B (avec `?claim=xxx`)** : pré-remplit l'email, affiche le récap paiement reçu ("Paiement de 50 000 XOF validé"), puis le formulaire d'inscription complet
-- À la soumission : crée le compte Supabase + lie le payment
+### 2. `inscription.$slug.tsx` — refonte
+- **Étape 1 (par défaut)** : choix du mode (1x / 2x) + formulaire minimal (email, prénom, nom, téléphone, pays)
+  → bouton "Payer maintenant" → appelle `startChariowCheckout` → redirige vers `checkout_url`
+- **Étape 2 (URL contient `?sale=sal_xxx`)** : retour de Chariow
+  → loader serveur appelle `fetchSaleStatus(saleId)`
+  → si paid : affiche "Paiement reçu ✓" + formulaire complet (champs `form_fields` cohorte) + création de compte (signup avec email pré-rempli)
+  → si pending : message "Paiement en cours de validation..."
+- **Étape 3 (URL contient `?claim=xxx`)** : si l'utilisateur a cliqué sur le lien email
+  → idem étape 2 mais via `claim_token` au lieu de `sale_id`
 
-### 3. Espace étudiant `/etudiant/paiements`
-- Affiche un badge "Payé via Chariow ✓" pour les paiements automatisés
-- Pour les tranches 2x non encore payées via Chariow, propose le bouton "Payer la tranche 2" → lien Chariow
+### 3. `/etudiant/paiements` — petites améliorations
+- Badge "Payé via Chariow ✓" quand `source === 'chariow'`
+- Pour 2x avec tranche 2 non payée : bouton "Payer la tranche 2" → `startChariowCheckout({ mode: 'installments_2', installment_position: 2 })`
 
-### 4. Espace admin `/admin/paiements`
-- Filtre supplémentaire "Source : Chariow / Manuel"
-- Bouton "Resynchroniser via Chariow" (saisie `transaction_id`)
-- Onglet "Webhooks Chariow" → log des événements reçus (table `chariow_webhook_events`)
+### 4. `/admin/paiements`
+- Colonne "Source" (Chariow / Manuel)
+- Bouton "Resynchroniser" (saisie `sale_id` Chariow) → `syncChariowSale`
+- Onglet "Webhooks Chariow" → liste des `chariow_webhook_events`
 
-## Secrets à configurer
+## Secrets requis
 
-À ajouter via `secrets--add_secret` :
-- `CHARIOW_WEBHOOK_SECRET` — secret HMAC fourni par Chariow pour vérifier les webhooks
-- `CHARIOW_API_KEY` — clé API REST Chariow (pour resync manuelle)
-- `CHARIOW_API_BASE_URL` — URL base de l'API Chariow (ex: `https://api.chariow.com/v1`)
+À configurer maintenant via `secrets--add_secret` :
+- `CHARIOW_API_KEY` — Bearer API key Chariow
+- `CHARIOW_WEBHOOK_URL_SECRET` — chaîne aléatoire qu'on génère, incluse dans l'URL webhook (sert de "secret partagé")
+- `SITE_URL` — déjà optionnel mais à confirmer (utilisé pour `redirect_url`)
 
-## URL à fournir à Chariow
-
-Une fois publié :
-```
-https://project--66439da9-0337-4213-a275-40cffeef22c6.lovable.app/api/public/hooks/chariow
-```
+(Pas besoin de "CHARIOW_WEBHOOK_SECRET" HMAC : la doc Chariow ne mentionne pas de signature. La sécurité repose sur : URL secrète + re-vérification API.)
 
 ## Sécurité
 
-- Webhook : signature HMAC obligatoire + idempotence par `event_id`
-- `claim_token` : 32 octets aléatoires, expire après 7 jours, usage unique
-- L'email envoyé contient le lien `claim` — seul le destinataire peut le récupérer
-- Aucune donnée sensible exposée côté client (montants visibles uniquement après authentification ou via `claim_token`)
-- Validation Zod sur tous les payloads webhook
+- **Webhook** : URL contient un secret (32 octets hex), comparé en constant-time. Toute donnée critique est re-vérifiée via `GET /v1/sales/{id}`.
+- **Idempotence** : UNIQUE(event_type, sale_id) dans `chariow_webhook_events`.
+- **`fetchSaleStatus`** (public) : limité à retourner statut + montant + email/nom (déjà saisis par l'utilisateur sur Chariow), pas de PII supplémentaire.
+- **`claim_token`** des `pending_enrollments` : 32 octets hex, expire 30 jours, usage unique.
+- **Validation Zod** sur tous les payloads (webhook + server fns).
 
-## Ce qu'il vous faudra côté Chariow
+## URL à fournir à Chariow
 
-Avant que je puisse implémenter, vous devrez récupérer **dans le dashboard Chariow** :
+```
+https://project--66439da9-0337-4213-a275-40cffeef22c6.lovable.app/api/public/hooks/chariow/<CHARIOW_WEBHOOK_URL_SECRET>
+```
 
-1. **La documentation de leur format de webhook** : quels champs envoient-ils ? (email, montant, transaction_id, product_id, status...)
-2. **Le secret HMAC** pour vérifier les webhooks (souvent nommé "Signing secret" ou "Webhook secret")
-3. **Comment configurer la signature** : en-tête utilisé (`X-Chariow-Signature`?), algorithme (sha256?)
-4. **Une clé API REST** pour la resynchronisation
-5. **L'URL de redirection après paiement** configurable et la possibilité d'y passer des query params
+Events à activer dans le dashboard Chariow :
+- `successful.sale` (obligatoire)
+- `abandoned.sale` (optionnel — logs uniquement)
+- `failed.sale` (optionnel — logs uniquement)
 
-## Plan de livraison en étapes
+## Plan de livraison
 
-1. **Étape 1 (cette session si vous validez)** : migration BDD + webhook + secrets + page admin pour saisir les liens Chariow + UI inscription avec `?claim=`
-2. **Étape 2 (après tests réels avec Chariow)** : ajustement du parser de payload selon le format exact reçu + email template peaufiné
-3. **Étape 3** : resync manuelle via API REST + log webhooks dans admin
+**Étape 1 — Cette session** :
+1. Demander les 2 secrets Chariow
+2. Migration BDD (colonnes + 2 nouvelles tables)
+3. Helpers serveur `chariow.server.ts`
+4. Webhook `/api/public/hooks/chariow/$secret`
+5. Server fns `chariow.functions.ts` (startCheckout, fetchSaleStatus, claim, sync)
+6. Refonte page `/inscription/$slug` avec les 3 étapes
+7. UI admin cohorte (saisie Product IDs + URL webhook affichée)
+8. Email template
+9. Badge "Chariow" + bouton "Payer tranche 2" dans espace étudiant
+10. Onglet "Webhooks" + colonne "Source" admin paiements
 
----
-
-**Pour démarrer l'étape 1, je n'ai besoin que de votre validation.** Le format exact du payload Chariow sera ajusté à l'étape 2 quand vous m'aurez transmis un exemple de webhook reçu (vous pourrez le voir dans les logs admin après le premier paiement test).
+**Étape 2 — Après premier test réel** :
+- Ajustement parser webhook si Chariow ajoute des champs imprévus (visibles dans `chariow_webhook_events.payload`)
+- Polishing email
