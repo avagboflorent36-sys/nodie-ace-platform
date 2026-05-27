@@ -119,10 +119,12 @@ export const claimPendingEnrollment = createServerFn({ method: "POST" })
       throw new Error("Ce lien a expiré.");
 
     // Lie le payment à cet utilisateur
-    await supabaseAdmin
-      .from("payments")
-      .update({ student_id: userId })
-      .eq("chariow_sale_id", pending.chariow_sale_id);
+    if (pending.chariow_sale_id) {
+      await supabaseAdmin
+        .from("payments")
+        .update({ student_id: userId })
+        .eq("chariow_sale_id", pending.chariow_sale_id);
+    }
 
     // Crée l'inscription cohorte
     await supabaseAdmin
