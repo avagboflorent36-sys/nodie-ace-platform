@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Upload, AlertCircle, CheckCircle2, Clock, Wallet, CreditCard } from "lucide-react";
+import { Upload, AlertCircle, CheckCircle2, Clock, Wallet, CreditCard, Copy } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
