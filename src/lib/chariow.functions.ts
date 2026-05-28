@@ -239,9 +239,12 @@ export const startChariowCheckout = createServerFn({ method: "POST" })
       return {
         checkout_url: null,
         status: "ownership_confirmed",
-        message: message ?? "Ce produit est déjà associé à cette adresse email sur Chariow.",
+        message:
+          message ??
+          `Chariow indique que cette adresse a déjà acheté le produit ${productId}. Reprise de votre inscription…`,
         attempt_token: attemptToken,
         redirect_url: `${origin}/inscription/${cohort.slug}?attempt=${attemptToken}`,
+        product_id: productId,
       };
     }
 
@@ -254,14 +257,16 @@ export const startChariowCheckout = createServerFn({ method: "POST" })
         .from("chariow_payment_attempts")
         .update({
           status: "failed",
-          last_error: "Chariow n'a pas renvoyé d'URL de paiement",
+          last_error: message ?? "Chariow n'a pas renvoyé d'URL de paiement",
           chariow_raw_response: checkout as any,
         })
         .eq("id", attempt.id);
       return {
         checkout_url: null,
         status: "missing_checkout_url",
-        message: "Chariow n'a pas renvoyé d'URL de paiement.",
+        message:
+          message ?? `Chariow n'a pas renvoyé d'URL de paiement pour le produit ${productId}.`,
+        product_id: productId,
       };
     }
 
@@ -282,6 +287,7 @@ export const startChariowCheckout = createServerFn({ method: "POST" })
       status: "checkout_created",
       message: null,
       attempt_token: attemptToken,
+      product_id: productId,
     };
   });
 

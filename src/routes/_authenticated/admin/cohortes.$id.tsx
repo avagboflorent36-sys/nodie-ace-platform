@@ -598,7 +598,65 @@ function ChariowSection({ cohort, onSaved }: { cohort: any; onSaved: () => void 
         <p className="text-xs text-muted-foreground break-all mt-1">{webhookUrl}</p>
         <p className="text-[11px] text-muted-foreground mt-2">Remplacez <code>&lt;VOTRE_SECRET&gt;</code> par la valeur du secret <code>CHARIOW_WEBHOOK_URL_SECRET</code> configuré côté serveur.</p>
       </Card>
+      <RecentChariowAttempts cohortId={cohortId} />
     </div>
+  );
+}
+
+function RecentChariowAttempts({ cohortId }: { cohortId: string }) {
+  const { data: attempts = [], refetch, isLoading } = useQuery({
+    queryKey: ["chariow-attempts", cohortId],
+    queryFn: async () => {
+      const { data } = await (supabase as any)
+        .from("chariow_payment_attempts")
+        .select("created_at, email, mode, installment_position, chariow_product_id, status, last_error")
+        .eq("cohort_id", cohortId)
+        .order("created_at", { ascending: false })
+        .limit(10);
+      return data ?? [];
+    },
+  });
+  return (
+    <Card className="p-3 mt-3">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs font-medium">Dernières tentatives Chariow (10)</p>
+        <Button size="sm" variant="ghost" onClick={() => refetch()}>Rafraîchir</Button>
+      </div>
+      {isLoading ? (
+        <p className="text-xs text-muted-foreground">Chargement…</p>
+      ) : attempts.length === 0 ? (
+        <p className="text-xs text-muted-foreground">Aucune tentative enregistrée.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-[11px]">
+            <thead className="text-left text-muted-foreground">
+              <tr>
+                <th className="py-1 pr-2">Date</th>
+                <th className="py-1 pr-2">Email</th>
+                <th className="py-1 pr-2">Mode</th>
+                <th className="py-1 pr-2">Pos.</th>
+                <th className="py-1 pr-2">Product ID</th>
+                <th className="py-1 pr-2">Statut</th>
+                <th className="py-1 pr-2">Erreur</th>
+              </tr>
+            </thead>
+            <tbody>
+              {attempts.map((a: any, i: number) => (
+                <tr key={i} className="border-t border-border/40 align-top">
+                  <td className="py-1 pr-2 whitespace-nowrap">{new Date(a.created_at).toLocaleString()}</td>
+                  <td className="py-1 pr-2 break-all">{a.email}</td>
+                  <td className="py-1 pr-2">{a.mode}</td>
+                  <td className="py-1 pr-2">{a.installment_position}</td>
+                  <td className="py-1 pr-2 font-mono">{a.chariow_product_id}</td>
+                  <td className="py-1 pr-2">{a.status}</td>
+                  <td className="py-1 pr-2 text-destructive">{a.last_error ?? ""}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Card>
   );
 }
 
