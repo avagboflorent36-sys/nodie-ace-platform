@@ -390,7 +390,17 @@ export async function processChariowSale(
     }
   }
 
-  return { ok: true, status: "processed", pending_enrollment_id: pendingId };
+  if (attempt) {
+    await supabaseAdmin.from("chariow_payment_attempts").update({
+      status: "processed",
+      chariow_sale_id: saleId,
+      processed_at: new Date().toISOString(),
+      chariow_raw_response: (rawPayload ?? verified) as any,
+      last_error: null,
+    }).eq("id", attempt.id);
+  }
+
+  return { ok: true, status: "processed", pending_enrollment_id: pendingId, attempt_id: attempt?.id };
 }
 
 export { extractEventType };
