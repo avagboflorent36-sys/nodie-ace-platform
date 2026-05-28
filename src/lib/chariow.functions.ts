@@ -923,11 +923,12 @@ export const claimAttemptByToken = createServerFn({ method: "POST" })
       .maybeSingle();
     if (!cohort) throw new Error("Cohorte introuvable.");
 
+    const installmentAmount = Number(cohort.price_installment ?? attempt.amount_expected ?? 0);
     const total =
       mode === "full"
         ? Number(cohort.price_full ?? attempt.amount_expected ?? 0)
-        : Number(cohort.price_installment ?? attempt.amount_expected ?? 0);
-    const instAmount = mode === "full" ? total : Math.round(total / 2);
+        : installmentAmount * 2;
+    const instAmount = mode === "full" ? total : installmentAmount;
 
     // Récupérer/créer le payment de cet utilisateur sur cette cohorte
     let { data: payment } = await supabaseAdmin
