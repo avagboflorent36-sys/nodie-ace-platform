@@ -26,13 +26,14 @@ function TrancheDeuxPage() {
       const { data } = await supabase
         .from("cohortes")
         .select(
-          "id, name, slug, status, price_installment, chariow_product_id_installment_2, formations(title, currency, cover_image_url)",
+          "id, name, slug, status, price_installment, chariow_product_id_full, chariow_product_id_installment_1, chariow_product_id_installment_2, formations(title, currency, cover_image_url)",
         )
         .eq("slug", slug)
         .maybeSingle();
       return data;
     },
   });
+
 
   if (cohortLoading || authLoading) {
     return (
@@ -210,6 +211,11 @@ function FinalizeStep({ cohort, userId }: { cohort: any; userId: string }) {
     }
   };
 
+  const t2Id = cohort.chariow_product_id_installment_2;
+  const t1Id = cohort.chariow_product_id_installment_1;
+  const fullId = cohort.chariow_product_id_full;
+  const collision = t2Id && ((t1Id && t2Id === t1Id) || (fullId && t2Id === fullId));
+
   return (
     <div className="space-y-4">
       <Card className="p-4 bg-secondary/40">
@@ -221,24 +227,34 @@ function FinalizeStep({ cohort, userId }: { cohort: any; userId: string }) {
           </span>
         </p>
       </Card>
-      <Button
-        onClick={handlePay}
-        disabled={loading || !cohort.chariow_product_id_installment_2}
-        className="w-full bg-gold text-primary hover:bg-gold/90"
-        size="lg"
-      >
-        {loading ? (
-          <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-        ) : (
-          <CreditCard className="mr-1 h-4 w-4" />
-        )}
-        Finaliser ma tranche 2
-      </Button>
-      {!cohort.chariow_product_id_installment_2 && (
-        <p className="text-xs text-destructive">
-          Le paiement en ligne pour la tranche 2 n'est pas configuré sur cette
-          cohorte.
-        </p>
+      {collision ? (
+        <Card className="p-4 border-destructive/40 bg-destructive/5">
+          <p className="text-sm font-medium text-destructive">Paiement tranche 2 indisponible</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Le Product ID Chariow de la tranche 2 est identique à un autre mode de paiement sur cette cohorte. Contactez l'administrateur pour configurer un produit Chariow distinct pour la tranche 2.
+          </p>
+        </Card>
+      ) : !t2Id ? (
+        <Card className="p-4 border-destructive/40 bg-destructive/5">
+          <p className="text-sm font-medium text-destructive">Paiement tranche 2 non configuré</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Le Product ID Chariow pour la tranche 2 n'a pas encore été défini. Contactez l'administrateur.
+          </p>
+        </Card>
+      ) : (
+        <Button
+          onClick={handlePay}
+          disabled={loading}
+          className="w-full bg-gold text-primary hover:bg-gold/90"
+          size="lg"
+        >
+          {loading ? (
+            <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+          ) : (
+            <CreditCard className="mr-1 h-4 w-4" />
+          )}
+          Finaliser ma tranche 2
+        </Button>
       )}
     </div>
   );

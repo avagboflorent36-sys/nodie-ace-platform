@@ -678,16 +678,34 @@ export const setCohortChariowProducts = createServerFn({ method: "POST" })
     if (!roles?.some((r) => r.role === "admin" || r.role === "super_admin"))
       throw new Error("Admin only");
 
+    const full = normalizeChariowProductId(data.chariow_product_id_full);
+    const inst1 = normalizeChariowProductId(data.chariow_product_id_installment_1);
+    const inst2 = normalizeChariowProductId(data.chariow_product_id_installment_2);
+
+    // Validation : la tranche 2 DOIT être un produit Chariow distinct de la tranche 1
+    // et du paiement intégral — sinon Chariow ouvre le même checkout/produit pour tout.
+    if (inst1 && inst2 && inst1 === inst2) {
+      throw new Error(
+        "Le Product ID 'Tranche 2' doit être différent du Product ID 'Tranche 1'. Créez un produit Chariow dédié à la tranche 2.",
+      );
+    }
+    if (full && inst2 && full === inst2) {
+      throw new Error(
+        "Le Product ID 'Tranche 2' doit être différent du Product ID 'Paiement intégral'.",
+      );
+    }
+    if (full && inst1 && full === inst1) {
+      throw new Error(
+        "Le Product ID 'Tranche 1' doit être différent du Product ID 'Paiement intégral'.",
+      );
+    }
+
     const { error } = await supabaseAdmin
       .from("cohortes")
       .update({
-        chariow_product_id_full: normalizeChariowProductId(data.chariow_product_id_full),
-        chariow_product_id_installment_1: normalizeChariowProductId(
-          data.chariow_product_id_installment_1,
-        ),
-        chariow_product_id_installment_2: normalizeChariowProductId(
-          data.chariow_product_id_installment_2,
-        ),
+        chariow_product_id_full: full,
+        chariow_product_id_installment_1: inst1,
+        chariow_product_id_installment_2: inst2,
       })
       .eq("id", data.cohort_id);
     if (error) throw new Error(error.message);

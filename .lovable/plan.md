@@ -1,48 +1,51 @@
-## Objectif
-Exposer un **second lien d'inscription** dédié au paiement de la **tranche 2**, à la fois côté admin (sous le lien principal) et côté étudiant (page Paiements) pour que les étudiants en paiement partiel finalisent en un clic.
+Voici le plan pour corriger définitivement les deux problèmes.
 
-## URL du second lien
-Format : `/inscription/<slug>/tranche-2`
+## Constats vérifiés
 
-Différence avec le lien principal :
-- Le lien principal ouvre le formulaire d'inscription (collecte des infos + paiement initial).
-- Le lien tranche-2 saute le formulaire et envoie l'utilisateur directement vers la suite de paiement (Chariow) puisque l'étudiant est déjà inscrit.
+- Le lien applicatif tranche 2 existe bien (`/inscription/<slug>/tranche-2`), mais la cohorte actuelle utilise le même Product ID Chariow pour le paiement intégral, la tranche 1 et la tranche 2 : `prd_hmels6`. Résultat : même si l’URL est différente, Chariow ouvre le même produit/paiement.
+- Les campagnes email échouent car l’envoi passe par une configuration de test qui refuse d’envoyer à d’autres destinataires que l’adresse autorisée. Le journal montre une erreur de domaine d’envoi non vérifié.
+- Un cron d’automatisation existe, mais il appelle l’URL publiée. En preview/test, cela peut exécuter une ancienne version ou rien si l’app publiée n’a pas encore les dernières routes. Il faut une exécution centralisée et contrôlable depuis l’admin.
 
-## Changements
+## Plan de correction
 
-### 1. Nouvelle route publique — `src/routes/inscription.$slug.tranche-2.tsx`
+1. Corriger et sécuriser le paiement tranche 2
+   - Garder un lien visible et clairement distinct : `/inscription/<slug>/tranche-2`.
+   - Ajouter une alerte admin si le Product ID “Tranche 2” est identique à “Tranche 1” ou au paiement intégral.
+   - Bloquer l’enregistrement d’une configuration Chariow invalide côté serveur si Tranche 1 et Tranche 2 utilisent le même Product ID.
+   - Sur la page tranche 2, afficher une erreur explicite si la tranche 2 n’a pas son propre Product ID au lieu de laisser l’étudiant lancer un paiement ambigu.
 
-Comportement :
-- Charger la cohorte par `slug`.
-- Si l'utilisateur **n'est pas connecté** → afficher un écran "Connectez-vous pour finaliser" avec bouton vers `/login?next=/inscription/<slug>/tranche-2`.
-- Si **connecté** : rechercher dans `payments` la ligne de l'utilisateur pour cette cohorte.
-  - `status = "partial"` et tranche 2 non validée → bouton **"Finaliser ma tranche 2"** qui appelle `startChariowCheckout({ cohort_id, mode: "installments_2", installment_position: 2, ... })` puis redirige vers `checkout_url`.
-  - `status = "paid"` ou tranche 2 déjà validée → message "Déjà payé" + lien vers `/etudiant/paiements`.
-  - Aucun paiement trouvé → message "Aucune inscription trouvée" + lien vers le formulaire principal `/inscription/<slug>`.
-- UI cohérente avec la page d'inscription existante (mêmes couleurs/Card, header cohorte + formation).
+2. Fiabiliser les relances et règles d’accès
+   - Centraliser toute la logique d’automatisation dans une seule fonction serveur réutilisable : relances email, blocage d’accès, campagnes programmées.
+   - Faire utiliser cette logique par :
+     - le cron public sécurisé,
+     - un bouton admin “Exécuter maintenant” dans l’onglet Automatisations,
+     - les futures relances programmées.
+   - Corriger le calcul J-7 / J+7 pour que les relances avant/après échéance ciblent les bonnes dates.
+   - Ajouter des logs détaillés visibles en base : nombre de relances envoyées, blocages, campagnes envoyées, erreurs.
 
-### 2. Page admin cohorte — `src/routes/_authenticated/admin/cohortes.$id.tsx`
+3. Corriger les campagnes email
+   - Remplacer les envois dispersés par le même service email centralisé.
+   - Ne plus marquer une campagne comme “envoyée” si tous les emails échouent.
+   - Afficher le nombre réel d’emails envoyés/échoués dans l’admin.
+   - Tant qu’aucun domaine d’envoi n’est configuré, afficher une erreur claire au lieu d’un échec silencieux.
 
-A. **Header** (zone du bouton "Copier le lien d'inscription", ~ligne 63)
-- Calculer `tranche2Url = `${origin}/inscription/${slug}/tranche-2``.
-- Ajouter sous le bouton existant un second bouton "Copier le lien tranche 2" (variant `outline`, icône `Copy`), avec `toast.success("Lien tranche 2 copié")`.
+4. Configurer l’infrastructure email proprement
+   - Le projet n’a actuellement aucun domaine email configuré. Pour que les emails partent vers tous les étudiants, il faudra configurer un domaine d’envoi dans Lovable Cloud.
+   - Après configuration du domaine, je brancherai les campagnes et relances dessus pour éviter les limites de test actuelles.
 
-B. **`FormBuilderTab`** (~ligne 320-335) — afficher également le second lien sous le lien principal, avec copie + aperçu URL en `text-xs text-muted-foreground`.
+5. Corriger le cron d’automatisation
+   - Mettre à jour le job planifié pour appeler la bonne route d’automatisation avec l’authentification attendue.
+   - Garder une exécution toutes les 15 minutes.
+   - Ajouter un bouton admin de test pour ne pas dépendre uniquement du cron pendant les vérifications.
 
-### 3. Page étudiant paiements — `src/routes/_authenticated/etudiant/paiements.tsx`
+6. Nettoyage UI admin
+   - Supprimer le doublon actuel de la section Chariow dans les paramètres.
+   - Dans l’onglet Automatisations, ajouter un bloc “État du système” avec dernière exécution, erreurs récentes et bouton d’exécution manuelle.
 
-Pour chaque `payment` dont `status === "partial"` :
-- Sous le bouton "Payer tranche 2" existant (ou en complément à côté), afficher un petit bloc "Lien direct de finalisation" avec :
-  - L'URL `${origin}/inscription/<slug-cohorte>/tranche-2`
-  - Un bouton "Copier" (clipboard + toast)
-- Cela nécessite de récupérer le `slug` de la cohorte : étendre la query Supabase pour inclure `cohortes(slug)` (déjà sélectionne `cohortes(name, formations(title))`).
+## Validation prévue
 
-## Hors périmètre
-- Aucun changement de schéma DB.
-- Aucune modification de la logique Chariow / server functions existantes.
-- Pas de modification du flux d'inscription initial.
-
-## Résultat attendu
-- Admin : deux liens visibles, le principal pour la nouvelle inscription, et celui de tranche 2 à partager aux étudiants en retard.
-- Étudiant en paiement partiel : voit le bouton "Payer tranche 2" + un lien partageable pour finaliser depuis n'importe où.
-- Cliquer le lien tranche-2 (connecté + partiel) ouvre directement le checkout Chariow, sans repasser par le formulaire.
+- Vérifier en base que la cohorte ne peut plus sauvegarder deux tranches avec le même Product ID.
+- Tester la page `/inscription/<slug>/tranche-2` avec une cohorte bien configurée.
+- Lancer manuellement les automatisations depuis l’admin et vérifier les logs.
+- Vérifier que les campagnes ne passent en “envoyé” que si au moins un email part réellement.
+- Vérifier que le cron existe et pointe vers la bonne route.

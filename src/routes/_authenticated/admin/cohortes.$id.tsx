@@ -18,7 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { setCohortChariowProducts } from "@/lib/chariow.functions";
-import { sendCampaignNow, previewCampaignAudience } from "@/lib/automation.functions";
+import { sendCampaignNow, previewCampaignAudience, runAutomationsNow, listAutomationRuns } from "@/lib/automation.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/cohortes/$id")({
   component: CohortDetail,
@@ -46,6 +46,14 @@ function CohortDetail() {
   const inscriptionUrl = `${window.location.origin}/inscription/${cohort.slug}`;
   const tranche2Url = `${window.location.origin}/inscription/${cohort.slug}/tranche-2`;
 
+  const inst1 = cohort.chariow_product_id_installment_1;
+  const inst2 = cohort.chariow_product_id_installment_2;
+  const full = cohort.chariow_product_id_full;
+  const productCollision =
+    (inst1 && inst2 && inst1 === inst2) ||
+    (full && inst2 && full === inst2) ||
+    (full && inst1 && full === inst1);
+
   return (
     <div className="mx-auto max-w-7xl space-y-6 animate-fade-up">
       <div>
@@ -71,6 +79,19 @@ function CohortDetail() {
           </div>
         </div>
       </div>
+
+      {productCollision && (
+        <Card className="p-4 border-destructive/40 bg-destructive/5 flex items-start gap-3">
+          <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+          <div className="text-sm">
+            <p className="font-medium text-destructive">Configuration Chariow invalide</p>
+            <p className="text-muted-foreground mt-1">
+              Plusieurs modes de paiement utilisent le même Product ID Chariow. La page tranche 2 ouvrira le même produit que la tranche 1 / paiement intégral. Allez dans <strong>Paramètres → Intégration Chariow</strong> et assignez un Product ID distinct à chaque mode.
+            </p>
+          </div>
+        </Card>
+      )}
+
 
 
       <Tabs value={tab} onValueChange={setTab}>
@@ -102,14 +123,84 @@ function CohortDetail() {
 }
 
 function AutomationsTab({ cohortId }: { cohortId: string }) {
+  const qc = useQueryClient();
+  const runNow = useServerFn(runAutomationsNow);
+  const fetchRuns = useServerFn(listAutomationRuns);
+  const [running, setRunning] = useState(false);
+
+  const { data: runs } = useQuery({
+    queryKey: ["automation-runs"],
+    queryFn: async () => (await fetchRuns({ data: undefined as any })).runs,
+  });
+
+  const execute = async () => {
+    setRunning(true);
+    try {
+      const r = await runNow({ data: undefined as any });
+      toast.success(
+        `Exécuté — ${r.reminders} relance(s), ${r.restricted} accès bloqué(s), ${r.campaigns} campagne(s) (${r.campaign_recipients} destinataire(s))${r.errors.length ? `, ${r.errors.length} erreur(s)` : ""}`,
+      );
+      qc.invalidateQueries({ queryKey: ["automation-runs"] });
+    } catch (e: any) {
+      toast.error(e?.message ?? "Échec");
+    } finally {
+      setRunning(false);
+    }
+  };
+
   return (
     <Card className="p-6 space-y-6">
-      <div>
-        <h2 className="text-lg font-semibold">Automatisations</h2>
-        <p className="text-sm text-muted-foreground">
-          Programmez les règles d'accès, blocages et relances automatiques pour cette cohorte.
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold">Automatisations</h2>
+          <p className="text-sm text-muted-foreground">
+            Programmez les règles d'accès, blocages et relances automatiques. Le moteur tourne automatiquement toutes les 15 minutes.
+          </p>
+        </div>
+        <Button size="sm" disabled={running} onClick={execute} className="bg-gold text-primary hover:bg-gold/90">
+          {running ? "Exécution…" : "Exécuter maintenant"}
+        </Button>
       </div>
+
+      <Card className="p-4 bg-secondary/30">
+        <p className="text-sm font-medium mb-2">Dernières exécutions</p>
+        {!runs || runs.length === 0 ? (
+          <p className="text-xs text-muted-foreground">Aucune exécution enregistrée pour le moment.</p>
+        ) : (
+          <div className="space-y-1.5 max-h-64 overflow-y-auto">
+            {runs.map((r: any) => (
+              <div key={r.id} className="text-xs flex items-start gap-2 border-b pb-1.5 last:border-b-0">
+                <Badge
+                  variant="outline"
+                  className={
+                    r.status === "ok"
+                      ? "border-emerald-500/40 text-emerald-700 dark:text-emerald-400"
+                      : r.status === "error"
+                        ? "border-destructive/40 text-destructive"
+                        : "border-amber-500/40 text-amber-700 dark:text-amber-400"
+                  }
+                >
+                  {r.status}
+                </Badge>
+                <div className="flex-1 min-w-0">
+                  <div className="font-mono text-[11px] text-muted-foreground">
+                    {new Date(r.run_at).toLocaleString("fr-FR")} — {r.job_type}
+                  </div>
+                  {r.payload && (
+                    <div className="text-[11px] text-muted-foreground truncate">
+                      {JSON.stringify(r.payload)}
+                    </div>
+                  )}
+                  {r.error && (
+                    <div className="text-[11px] text-destructive truncate">{r.error}</div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
       <ReminderRulesEditor cohortId={cohortId} />
       <div className="pt-6 border-t">
         <AccessRulesEditor cohortId={cohortId} />
@@ -463,10 +554,6 @@ function SettingsTab({ cohort, onSaved }: { cohort: any; onSaved: () => void }) 
       <div className="pt-6 border-t">
         <ChariowSection cohort={cohort} onSaved={onSaved} />
       </div>
-
-      <div className="pt-6 border-t">
-        <ChariowSection cohort={cohort} onSaved={onSaved} />
-      </div>
     </Card>
   );
 }
@@ -701,11 +788,19 @@ function EmailCampaignsEditor({ cohortId }: { cohortId: string }) {
     if (status === "send_now") {
       try {
         const r = await sendNow({ data: { campaign_id: data.id } });
-        toast.success(`Envoyé à ${r.sent} destinataire(s)${r.failed ? `, ${r.failed} échec` : ""}`);
+        if (r.sent === 0) {
+          toast.error(
+            `Aucun email envoyé (${r.failed} échec(s))${r.lastError ? ` — ${r.lastError.slice(0, 140)}` : ""}`,
+            { duration: 8000 },
+          );
+        } else {
+          toast.success(`Envoyé à ${r.sent} destinataire(s)${r.failed ? `, ${r.failed} échec(s)` : ""}`);
+        }
       } catch (e: any) { toast.error(e.message); }
     } else {
       toast.success(status === "scheduled" ? "Programmé" : "Brouillon enregistré");
     }
+
     setDraft({ subject: "", body_html: "", audience: "all", scheduled_at: "" });
     setAudCount(null);
     refetch(); qc.invalidateQueries({ queryKey: ["cohort-email-campaigns", cohortId] });
