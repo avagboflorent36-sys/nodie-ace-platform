@@ -44,7 +44,7 @@ function CohortDetail() {
   if (!cohort) return <div className="p-8 text-muted-foreground">Chargement...</div>;
 
   const inscriptionUrl = `${window.location.origin}/inscription/${cohort.slug}`;
-  const tranche2Url = `${window.location.origin}/inscription/${cohort.slug}/tranche-2`;
+  // Les liens tranche 2 sont désormais personnalisés par étudiant (jeton unique sur payments.tranche2_token) — voir l'onglet Étudiants.
 
   const inst1 = cohort.chariow_product_id_installment_1;
   const inst2 = cohort.chariow_product_id_installment_2;
@@ -73,9 +73,9 @@ function CohortDetail() {
             <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(inscriptionUrl); toast.success("Lien copié"); }}>
               <Copy className="mr-1 h-3 w-3" /> Copier le lien d'inscription
             </Button>
-            <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(tranche2Url); toast.success("Lien tranche 2 copié"); }}>
-              <Copy className="mr-1 h-3 w-3" /> Copier le lien tranche 2
-            </Button>
+            <span className="text-[11px] text-muted-foreground text-right max-w-[220px]">
+              Le lien tranche 2 est personnalisé par étudiant — voir l'onglet « Étudiants ».
+            </span>
           </div>
         </div>
       </div>
@@ -108,7 +108,7 @@ function CohortDetail() {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4 pt-4"><OverviewTab cohortId={id} /></TabsContent>
-        <TabsContent value="students" className="space-y-4 pt-4"><StudentsTab cohortId={id} /></TabsContent>
+        <TabsContent value="students" className="space-y-4 pt-4"><StudentsTab cohortId={id} cohortSlug={cohort.slug} /></TabsContent>
         <TabsContent value="content" className="space-y-4 pt-4"><ContentTab cohortId={id} /></TabsContent>
         <TabsContent value="annonces" className="space-y-4 pt-4"><AnnoncesTab cohortId={id} /></TabsContent>
         <TabsContent value="live" className="space-y-4 pt-4"><LiveTab cohortId={id} /></TabsContent>
@@ -243,7 +243,7 @@ function OverviewTab({ cohortId }: { cohortId: string }) {
   );
 }
 
-function StudentsTab({ cohortId }: { cohortId: string }) {
+function StudentsTab({ cohortId, cohortSlug }: { cohortId: string; cohortSlug: string }) {
   const qc = useQueryClient();
   const { data: rows = [] } = useQuery({
     queryKey: ["cohort-students", cohortId],
@@ -253,7 +253,7 @@ function StudentsTab({ cohortId }: { cohortId: string }) {
       if (ids.length === 0) return [];
       const [{ data: profiles }, { data: payments }] = await Promise.all([
         supabase.from("profiles").select("id, first_name, last_name, email").in("id", ids),
-        supabase.from("payments").select("id, student_id, status, amount_total, amount_paid").eq("cohort_id", cohortId).in("student_id", ids),
+        supabase.from("payments").select("id, student_id, status, mode, amount_total, amount_paid, tranche2_token").eq("cohort_id", cohortId).in("student_id", ids),
       ]);
       const pmap = new Map((profiles ?? []).map((p) => [p.id, p]));
       const paymap = new Map((payments ?? []).map((p) => [p.student_id, p]));
@@ -272,22 +272,36 @@ function StudentsTab({ cohortId }: { cohortId: string }) {
   return (
     <Card>
       <Table>
-        <TableHeader><TableRow><TableHead>Étudiant</TableHead><TableHead>Email</TableHead><TableHead>Paiement</TableHead><TableHead>Accès</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
+        <TableHeader><TableRow><TableHead>Étudiant</TableHead><TableHead>Email</TableHead><TableHead>Paiement</TableHead><TableHead>Lien tranche 2</TableHead><TableHead>Accès</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
         <TableBody>
-          {rows.length === 0 ? <TableRow><TableCell colSpan={5} className="py-12 text-center text-muted-foreground">Aucun étudiant inscrit.</TableCell></TableRow> :
-            rows.map((r: any) => (
-              <TableRow key={r.id}>
-                <TableCell>{r.profile ? `${r.profile.first_name} ${r.profile.last_name}` : "—"}</TableCell>
-                <TableCell>{r.profile?.email ?? "—"}</TableCell>
-                <TableCell><Badge variant="outline">{r.payment?.status ?? "—"}</Badge>{r.payment ? ` ${Number(r.payment.amount_paid).toLocaleString()}/${Number(r.payment.amount_total).toLocaleString()}` : ""}</TableCell>
-                <TableCell><Badge variant={r.status === "restricted" ? "destructive" : "default"}>{r.status}</Badge></TableCell>
-                <TableCell>
-                  <Button size="sm" variant={r.status === "restricted" ? "default" : "outline"} onClick={() => toggleAccess(r.id, r.status)}>
-                    {r.status === "restricted" ? "Rétablir" : "Restreindre"}
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
+          {rows.length === 0 ? <TableRow><TableCell colSpan={6} className="py-12 text-center text-muted-foreground">Aucun étudiant inscrit.</TableCell></TableRow> :
+            rows.map((r: any) => {
+              const needsT2 = r.payment?.mode === "installments_2" && r.payment?.status !== "paid" && r.payment?.tranche2_token;
+              return (
+                <TableRow key={r.id}>
+                  <TableCell>{r.profile ? `${r.profile.first_name} ${r.profile.last_name}` : "—"}</TableCell>
+                  <TableCell>{r.profile?.email ?? "—"}</TableCell>
+                  <TableCell><Badge variant="outline">{r.payment?.status ?? "—"}</Badge>{r.payment ? ` ${Number(r.payment.amount_paid).toLocaleString()}/${Number(r.payment.amount_total).toLocaleString()}` : ""}</TableCell>
+                  <TableCell>
+                    {needsT2 ? (
+                      <Button size="sm" variant="outline" onClick={() => {
+                        const url = `${window.location.origin}/inscription/${cohortSlug}/tranche-2?t=${r.payment.tranche2_token}`;
+                        navigator.clipboard.writeText(url);
+                        toast.success("Lien tranche 2 copié");
+                      }}>
+                        <Copy className="mr-1 h-3 w-3" /> Copier
+                      </Button>
+                    ) : <span className="text-xs text-muted-foreground">—</span>}
+                  </TableCell>
+                  <TableCell><Badge variant={r.status === "restricted" ? "destructive" : "default"}>{r.status}</Badge></TableCell>
+                  <TableCell>
+                    <Button size="sm" variant={r.status === "restricted" ? "default" : "outline"} onClick={() => toggleAccess(r.id, r.status)}>
+                      {r.status === "restricted" ? "Rétablir" : "Restreindre"}
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
         </TableBody>
       </Table>
     </Card>
@@ -430,15 +444,11 @@ function FormBuilderTab({ cohortId, inscriptionUrl }: { cohortId: string; inscri
             <Copy className="mr-1 h-3 w-3" /> Copier
           </Button>
         </div>
-        <div className="flex items-center justify-between gap-3 pt-3 border-t">
-          <div className="min-w-0">
-            <p className="text-sm font-medium">Lien finalisation tranche 2</p>
-            <p className="text-xs text-muted-foreground break-all">{`${inscriptionUrl}/tranche-2`}</p>
-            <p className="text-[11px] text-muted-foreground mt-1">À envoyer aux étudiants qui ont déjà payé la tranche 1 — ouvre directement le checkout sans repasser par le formulaire.</p>
-          </div>
-          <Button size="sm" variant="outline" onClick={() => { navigator.clipboard.writeText(`${inscriptionUrl}/tranche-2`); toast.success("Lien tranche 2 copié"); }}>
-            <Copy className="mr-1 h-3 w-3" /> Copier
-          </Button>
+        <div className="pt-3 border-t">
+          <p className="text-sm font-medium">Lien finalisation tranche 2</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Chaque étudiant inscrit en 2 tranches a son propre lien personnalisé (jeton unique). Allez dans l'onglet <strong>Étudiants</strong> et cliquez sur « Copier » à côté de l'étudiant concerné pour récupérer son lien tranche 2 — il ouvre directement le checkout Chariow.
+          </p>
         </div>
       </Card>
 
