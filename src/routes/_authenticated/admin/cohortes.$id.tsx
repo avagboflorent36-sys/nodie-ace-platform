@@ -196,8 +196,15 @@ function ContentTab({ cohortId }: { cohortId: string }) {
     refetch();
   };
   const createRessource = async (moduleId: string) => {
-    if (!rForm.title.trim()) return;
-    const { error } = await supabase.from("ressources").insert({ module_id: moduleId, title: rForm.title.trim(), type: rForm.type as any, url: rForm.url.trim() || null, description: rForm.description.trim() || null });
+    if (!rForm.title.trim()) { toast.error("Le titre est requis."); return; }
+    const url = rForm.url.trim();
+    const needsUrl = rForm.type === "video" || rForm.type === "document" || rForm.type === "link";
+    if (needsUrl && !url) { toast.error("Une URL est requise pour ce type de contenu."); return; }
+    if (url) { try { new URL(url); } catch { toast.error("URL invalide."); return; } }
+    if (rForm.type === "exercise" && !url && !rForm.description.trim()) {
+      toast.error("Ajoutez une consigne ou une URL pour l'exercice."); return;
+    }
+    const { error } = await supabase.from("ressources").insert({ module_id: moduleId, title: rForm.title.trim(), type: rForm.type as any, url: url || null, description: rForm.description.trim() || null });
     if (error) { toast.error(error.message); return; }
     toast.success("Ressource ajoutée"); setResOpenFor(null); setRForm({ title: "", type: "document", url: "", description: "" }); refetch();
   };
