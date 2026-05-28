@@ -35,7 +35,7 @@ function LoginPage() {
   const [existingSessionClaimDone, setExistingSessionClaimDone] = useState(false);
 
   useEffect(() => {
-    if (!user || !rolesLoaded || !search.attempt) return;
+    if (!user || !rolesLoaded || !search.attempt || existingSessionClaimDone) return;
     let cancelled = false;
     setClaimingExistingSession(true);
     (async () => {
@@ -54,7 +54,7 @@ function LoginPage() {
     return () => {
       cancelled = true;
     };
-  }, [user, rolesLoaded, search.attempt, claimAttempt]);
+  }, [user, rolesLoaded, search.attempt, existingSessionClaimDone, claimAttempt]);
 
   if (
     !authLoading &&
