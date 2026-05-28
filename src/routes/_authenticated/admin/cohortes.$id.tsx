@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { setCohortChariowProducts } from "@/lib/chariow.functions";
+import { sendCampaignNow, previewCampaignAudience } from "@/lib/automation.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/cohortes/$id")({
   component: CohortDetail,
