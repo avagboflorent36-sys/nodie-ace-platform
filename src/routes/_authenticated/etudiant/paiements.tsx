@@ -167,26 +167,14 @@ function StudentPayments() {
                         )}
                       </div>
                       <StatusBadge status={i.status} />
-                      {i.status !== "validated" && p.source === "chariow" && i.position === 2 ? (
+                      {i.status !== "validated" && p.source === "chariow" && i.position === 2 && p.tranche2_token && p.cohortes?.slug ? (
                         <Button
                           size="sm"
                           className="bg-gold text-primary hover:bg-gold/90"
                           disabled={paying === i.id}
-                          onClick={async () => {
+                          onClick={() => {
                             setPaying(i.id);
-                            try {
-                              const { data: prof } = await supabase.from("profiles").select("first_name, last_name, email, whatsapp").eq("id", user!.id).maybeSingle();
-                              const r = await startCheckout({ data: {
-                                cohort_id: p.cohort_id, mode: "installments_2", installment_position: 2,
-                                email: prof?.email ?? "", first_name: prof?.first_name ?? "", last_name: prof?.last_name ?? "", phone: prof?.whatsapp ?? "",
-                              }});
-                              if (r.checkout_url) {
-                                window.location.href = r.checkout_url;
-                                return;
-                              }
-                              toast.error(r.message ?? "Impossible de créer le paiement Chariow");
-                              setPaying(null);
-                            } catch (e: any) { toast.error(e?.message ?? "Erreur"); setPaying(null); }
+                            window.location.href = `${window.location.origin}/inscription/${p.cohortes.slug}/tranche-2?t=${p.tranche2_token}`;
                           }}
                         ><CreditCard className="mr-1 h-3 w-3" /> Payer tranche 2</Button>
                       ) : i.status !== "validated" && (
