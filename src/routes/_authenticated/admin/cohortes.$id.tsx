@@ -724,47 +724,95 @@ function ReminderRulesEditor({ cohortId }: { cohortId: string }) {
 
   const add = async () => {
     await (supabase as any).from("cohort_reminder_rules").insert({
-      cohort_id: cohortId, offset_days: -7, channel: "email", template_key: "reminder_before", enabled: true,
+      cohort_id: cohortId, offset_days: -7, channel: "email", template_key: "reminder_before",
+      enabled: true, trigger_mode: "relative", time_of_day: "09:00",
     });
     refetch();
   };
   const update = async (id: string, patch: any) => { await (supabase as any).from("cohort_reminder_rules").update(patch).eq("id", id); refetch(); };
   const del = async (id: string) => { await (supabase as any).from("cohort_reminder_rules").delete().eq("id", id); refetch(); };
 
+  const toLocal = (iso: string | null) => {
+    if (!iso) return "";
+    const d = new Date(iso);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <div>
           <h3 className="font-semibold">Relances automatiques</h3>
-          <p className="text-xs text-muted-foreground">J négatif = avant échéance, J positif = après. Canal et modèle au choix.</p>
+          <p className="text-xs text-muted-foreground">Relatif : J± par rapport à l'échéance + heure. Absolu : date et heure exactes (une seule exécution).</p>
         </div>
         <Button size="sm" variant="outline" onClick={add}><Plus className="mr-1 h-3 w-3" /> Règle</Button>
       </div>
       {rows.length === 0 ? <p className="text-sm text-muted-foreground">Aucune règle. Ajoutez J-7 / J-3 / J+1 pour relancer automatiquement.</p> :
         rows.map((r: any) => (
-          <div key={r.id} className="grid grid-cols-12 gap-2 items-center">
-            <div className="col-span-2 flex items-center gap-2">
-              <Switch checked={r.enabled} onCheckedChange={(v) => update(r.id, { enabled: v })} />
-              <span className="text-xs">{r.enabled ? "Actif" : "Off"}</span>
+          <Card key={r.id} className="p-3 bg-secondary/20">
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="flex items-center gap-2">
+                <Switch checked={r.enabled} onCheckedChange={(v) => update(r.id, { enabled: v })} />
+                <span className="text-xs">{r.enabled ? "Actif" : "Off"}</span>
+              </div>
+              <div className="min-w-[180px]">
+                <Label className="text-[11px]">Déclencheur</Label>
+                <Select value={r.trigger_mode ?? "relative"} onValueChange={(v) => update(r.id, { trigger_mode: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="relative">Relatif à l'échéance</SelectItem>
+                    <SelectItem value="absolute">Date & heure exactes</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {(r.trigger_mode ?? "relative") === "relative" ? (
+                <>
+                  <div className="w-[110px]">
+                    <Label className="text-[11px]">Jours (J±)</Label>
+                    <Input type="number" defaultValue={r.offset_days} onBlur={(e) => update(r.id, { offset_days: Number(e.target.value) })} placeholder="ex -7" />
+                  </div>
+                  <div className="w-[120px]">
+                    <Label className="text-[11px]">Heure</Label>
+                    <Input type="time" defaultValue={(r.time_of_day ?? "09:00").slice(0, 5)} onBlur={(e) => update(r.id, { time_of_day: e.target.value })} />
+                  </div>
+                </>
+              ) : (
+                <div className="min-w-[220px]">
+                  <Label className="text-[11px]">Date & heure</Label>
+                  <Input type="datetime-local" defaultValue={toLocal(r.run_at)} onBlur={(e) => update(r.id, { run_at: e.target.value ? new Date(e.target.value).toISOString() : null, last_run_at: null })} />
+                </div>
+              )}
+              <div className="min-w-[150px]">
+                <Label className="text-[11px]">Canal</Label>
+                <Select value={r.channel} onValueChange={(v) => update(r.id, { channel: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="email">Email</SelectItem>
+                    <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="min-w-[200px]">
+                <Label className="text-[11px]">Modèle</Label>
+                <Select value={r.template_key} onValueChange={(v) => update(r.id, { template_key: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="reminder_before">Avant échéance</SelectItem>
+                    <SelectItem value="reminder_due">Le jour J</SelectItem>
+                    <SelectItem value="reminder_overdue">Après échéance (retard)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button size="icon" variant="ghost" onClick={() => del(r.id)}><Trash2 className="h-3 w-3 text-destructive" /></Button>
             </div>
-            <Input className="col-span-2" type="number" defaultValue={r.offset_days} onBlur={(e) => update(r.id, { offset_days: Number(e.target.value) })} placeholder="ex -7" />
-            <Select value={r.channel} onValueChange={(v) => update(r.id, { channel: v })}>
-              <SelectTrigger className="col-span-3"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="email">Email</SelectItem>
-                <SelectItem value="whatsapp">WhatsApp</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={r.template_key} onValueChange={(v) => update(r.id, { template_key: v })}>
-              <SelectTrigger className="col-span-4"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="reminder_before">Avant échéance</SelectItem>
-                <SelectItem value="reminder_due">Le jour J</SelectItem>
-                <SelectItem value="reminder_overdue">Après échéance (retard)</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button size="icon" variant="ghost" className="col-span-1" onClick={() => del(r.id)}><Trash2 className="h-3 w-3 text-destructive" /></Button>
-          </div>
+            {r.trigger_mode === "absolute" && r.last_run_at && (
+              <div className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground">
+                <span>Exécutée le {new Date(r.last_run_at).toLocaleString("fr-FR")}</span>
+                <Button size="sm" variant="outline" className="h-6 text-[11px]" onClick={() => update(r.id, { last_run_at: null })}>Réinitialiser</Button>
+              </div>
+            )}
+          </Card>
         ))}
     </div>
   );
@@ -778,12 +826,20 @@ function AccessRulesEditor({ cohortId }: { cohortId: string }) {
   const add = async () => {
     await (supabase as any).from("cohort_access_rules").insert({
       cohort_id: cohortId, trigger_type: "installment_overdue",
-      installment_position: 2, offset_days: 7, action: "restrict_access", enabled: true,
+      installment_position: 2, offset_days: 7, action: "restrict_access",
+      enabled: true, trigger_mode: "relative", time_of_day: "09:00",
     });
     refetch();
   };
   const update = async (id: string, patch: any) => { await (supabase as any).from("cohort_access_rules").update(patch).eq("id", id); refetch(); };
   const del = async (id: string) => { await (supabase as any).from("cohort_access_rules").delete().eq("id", id); refetch(); };
+
+  const toLocal = (iso: string | null) => {
+    if (!iso) return "";
+    const d = new Date(iso);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
 
   return (
     <div className="space-y-3">
@@ -796,37 +852,74 @@ function AccessRulesEditor({ cohortId }: { cohortId: string }) {
       </div>
       {rows.length === 0 ? <p className="text-sm text-muted-foreground">Aucune règle. Exemple : Tranche 2 — J+7 → bloquer.</p> :
         rows.map((r: any) => (
-          <div key={r.id} className="grid grid-cols-12 gap-2 items-center">
-            <div className="col-span-2 flex items-center gap-2">
-              <Switch checked={r.enabled} onCheckedChange={(v) => update(r.id, { enabled: v })} />
-              <span className="text-xs">{r.enabled ? "Actif" : "Off"}</span>
+          <Card key={r.id} className="p-3 bg-secondary/20">
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="flex items-center gap-2">
+                <Switch checked={r.enabled} onCheckedChange={(v) => update(r.id, { enabled: v })} />
+                <span className="text-xs">{r.enabled ? "Actif" : "Off"}</span>
+              </div>
+              <div className="min-w-[160px]">
+                <Label className="text-[11px]">Tranche</Label>
+                <Select value={String(r.installment_position ?? "any")} onValueChange={(v) => update(r.id, { installment_position: v === "any" ? null : Number(v) })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="any">Toute tranche</SelectItem>
+                    <SelectItem value="1">Tranche 1</SelectItem>
+                    <SelectItem value="2">Tranche 2</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="min-w-[180px]">
+                <Label className="text-[11px]">Déclencheur</Label>
+                <Select value={r.trigger_mode ?? "relative"} onValueChange={(v) => update(r.id, { trigger_mode: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="relative">Relatif (J+ après échéance)</SelectItem>
+                    <SelectItem value="absolute">Date & heure exactes</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {(r.trigger_mode ?? "relative") === "relative" ? (
+                <>
+                  <div className="w-[110px]">
+                    <Label className="text-[11px]">J+ (jours)</Label>
+                    <Input type="number" defaultValue={r.offset_days} onBlur={(e) => update(r.id, { offset_days: Number(e.target.value) })} />
+                  </div>
+                  <div className="w-[120px]">
+                    <Label className="text-[11px]">Heure</Label>
+                    <Input type="time" defaultValue={(r.time_of_day ?? "09:00").slice(0, 5)} onBlur={(e) => update(r.id, { time_of_day: e.target.value })} />
+                  </div>
+                </>
+              ) : (
+                <div className="min-w-[220px]">
+                  <Label className="text-[11px]">Date & heure</Label>
+                  <Input type="datetime-local" defaultValue={toLocal(r.run_at)} onBlur={(e) => update(r.id, { run_at: e.target.value ? new Date(e.target.value).toISOString() : null, last_run_at: null })} />
+                </div>
+              )}
+              <div className="min-w-[180px]">
+                <Label className="text-[11px]">Action</Label>
+                <Select value={r.action} onValueChange={(v) => update(r.id, { action: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="restrict_access">Bloquer l'accès</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button size="icon" variant="ghost" onClick={() => del(r.id)}><Trash2 className="h-3 w-3 text-destructive" /></Button>
             </div>
-            <Select value={String(r.installment_position ?? "any")} onValueChange={(v) => update(r.id, { installment_position: v === "any" ? null : Number(v) })}>
-              <SelectTrigger className="col-span-3"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="any">Toute tranche</SelectItem>
-                <SelectItem value="1">Tranche 1</SelectItem>
-                <SelectItem value="2">Tranche 2</SelectItem>
-              </SelectContent>
-            </Select>
-            <div className="col-span-3 flex items-center gap-1">
-              <span className="text-xs">J+</span>
-              <Input type="number" defaultValue={r.offset_days} onBlur={(e) => update(r.id, { offset_days: Number(e.target.value) })} />
-              <span className="text-xs whitespace-nowrap">jours après</span>
-            </div>
-            <Select value={r.action} onValueChange={(v) => update(r.id, { action: v })}>
-              <SelectTrigger className="col-span-3"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="restrict_access">Bloquer l'accès</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button size="icon" variant="ghost" className="col-span-1" onClick={() => del(r.id)}><Trash2 className="h-3 w-3 text-destructive" /></Button>
-          </div>
+            {r.trigger_mode === "absolute" && r.last_run_at && (
+              <div className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground">
+                <span>Exécutée le {new Date(r.last_run_at).toLocaleString("fr-FR")}</span>
+                <Button size="sm" variant="outline" className="h-6 text-[11px]" onClick={() => update(r.id, { last_run_at: null })}>Réinitialiser</Button>
+              </div>
+            )}
+          </Card>
         ))}
-      <p className="text-[11px] text-muted-foreground">Déblocage automatique : dès qu'un étudiant règle sa tranche manquante, son accès est rétabli instantanément (sans attendre le prochain cycle).</p>
+      <p className="text-[11px] text-muted-foreground">Déblocage automatique : dès qu'un étudiant règle sa tranche manquante, son accès est rétabli instantanément.</p>
     </div>
   );
 }
+
 
 function EmailCampaignsEditor({ cohortId }: { cohortId: string }) {
   const qc = useQueryClient();
