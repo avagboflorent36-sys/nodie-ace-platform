@@ -299,8 +299,19 @@ export async function processChariowSale(
         { onConflict: "student_id,cohort_id" } as any,
       );
 
-    return { ok: true, status: "processed", payment_id: payment?.id };
+    if (attempt) {
+      await supabaseAdmin.from("chariow_payment_attempts").update({
+        status: "processed",
+        chariow_sale_id: saleId,
+        processed_at: new Date().toISOString(),
+        chariow_raw_response: (rawPayload ?? verified) as any,
+        last_error: null,
+      }).eq("id", attempt.id);
+    }
+
+    return { ok: true, status: "processed", payment_id: payment?.id, attempt_id: attempt?.id };
   }
+
 
   // No profile → pending_enrollment + claim email
   // Reuse existing pending_enrollment if one already exists for the sale
