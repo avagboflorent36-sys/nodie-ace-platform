@@ -294,13 +294,35 @@ function PostPaymentStep({
       setPaid(true);
       return;
     }
-    fetchStatus({ data: { sale_id: saleId } })
-      .then((r) => {
-        setPaid(r.paid);
+    let cancelled = false;
+    let attempts = 0;
+    const MAX_ATTEMPTS = 12; // ~36s total
+    const poll = async () => {
+      while (!cancelled && attempts < MAX_ATTEMPTS) {
+        attempts++;
+        try {
+          const r = await fetchStatus({ data: { sale_id: saleId } });
+          if (cancelled) return;
+          if (r.paid) {
+            setPaid(true);
+            setVerified(true);
+            setVerifying(false);
+            return;
+          }
+        } catch {
+          // ignore, keep polling
+        }
+        await new Promise((res) => setTimeout(res, 3000));
+      }
+      if (!cancelled) {
         setVerified(true);
-      })
-      .catch(() => setVerified(true))
-      .finally(() => setVerifying(false));
+        setVerifying(false);
+      }
+    };
+    poll();
+    return () => {
+      cancelled = true;
+    };
   }, [saleId, fetchStatus]);
 
   const { data: customFields = [] } = useQuery({
