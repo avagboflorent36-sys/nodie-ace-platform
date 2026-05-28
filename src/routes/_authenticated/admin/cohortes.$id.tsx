@@ -329,9 +329,9 @@ function FormBuilderTab({ cohortId, inscriptionUrl }: { cohortId: string; inscri
 
   return (
     <div className="space-y-4">
-      <Card className="p-4 bg-secondary/30">
-        <div className="flex items-center justify-between">
-          <div>
+      <Card className="p-4 bg-secondary/30 space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
             <p className="text-sm font-medium">Lien d'inscription public</p>
             <p className="text-xs text-muted-foreground break-all">{inscriptionUrl}</p>
           </div>
@@ -339,7 +339,18 @@ function FormBuilderTab({ cohortId, inscriptionUrl }: { cohortId: string; inscri
             <Copy className="mr-1 h-3 w-3" /> Copier
           </Button>
         </div>
+        <div className="flex items-center justify-between gap-3 pt-3 border-t">
+          <div className="min-w-0">
+            <p className="text-sm font-medium">Lien finalisation tranche 2</p>
+            <p className="text-xs text-muted-foreground break-all">{`${window.location.origin}/inscription/${(inscriptionUrl.split("/inscription/")[1] ?? "")}/tranche-2`}</p>
+            <p className="text-[11px] text-muted-foreground mt-1">À envoyer aux étudiants qui ont déjà payé la tranche 1 — ouvre directement le checkout sans repasser par le formulaire.</p>
+          </div>
+          <Button size="sm" variant="outline" onClick={() => { navigator.clipboard.writeText(`${inscriptionUrl}/tranche-2`); toast.success("Lien tranche 2 copié"); }}>
+            <Copy className="mr-1 h-3 w-3" /> Copier
+          </Button>
+        </div>
       </Card>
+
       <p className="text-sm text-muted-foreground">Champs imposés : Prénom, Nom, Email, WhatsApp, Pays, Mode de paiement.</p>
       <div className="space-y-2">
         {fields.map((f: any) => (
