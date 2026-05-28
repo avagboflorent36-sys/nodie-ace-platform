@@ -427,19 +427,27 @@ export const claimAttemptByToken = createServerFn({ method: "POST" })
     if (!attempt) throw new Error("Tentative introuvable.");
     if (!attempt.cohort_id) throw new Error("Cohorte manquante sur la tentative.");
 
-    // Re-vérifier la vente côté Chariow si on a un sale_id, sinon refuser.
-    let paid = attempt.status === "processed";
+    // Re-vérifier la vente côté Chariow si on a un sale_id. Pour les retours
+    // "already purchased", Chariow a déjà confirmé que cet email possède ce
+    // produit; on permet alors seulement au détenteur de cet email de réclamer
+    // l'accès à la cohorte correspondante.
+    const attemptEmail = String(attempt.email ?? "").trim().toLowerCase();
+    const userEmail = String(context.claims?.email ?? "").trim().toLowerCase();
+    let paid = TRUSTED_ATTEMPT_PAID_STATUSES.has(attempt.status);
     if (!paid && attempt.chariow_sale_id) {
       try {
         const sale: any = await verifySale(attempt.chariow_sale_id);
         const s = sale?.sale ?? sale?.data ?? sale ?? {};
-        paid = ["paid", "success", "successful", "completed", "validated"].includes(
-          String(s.status ?? "").toLowerCase(),
-        );
+        paid = isPaidChariowStatus(s.status) || isPaidChariowStatus(s.payment?.status);
       } catch {}
     }
     if (!paid) {
       throw new Error("Paiement non confirmé — accès non débloqué.");
+    }
+    if (!attempt.chariow_sale_id && (!attemptEmail || attemptEmail !== userEmail)) {
+      throw new Error(
+        "Utilisez la même adresse email que celle confirmée par Chariow pour débloquer l'accès.",
+      );
     }
 
     const cohortId = attempt.cohort_id as string;
