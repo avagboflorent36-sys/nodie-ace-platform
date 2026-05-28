@@ -130,24 +130,25 @@ function StudentPayments() {
                 <div className="h-full bg-gold transition-all" style={{ width: `${ratio}%` }} />
               </div>
 
-              {p.status === "partial" && p.cohortes?.slug && (
-                <Card className="p-3 bg-secondary/40 border-dashed flex flex-wrap items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-xs font-medium">Lien direct de finalisation</p>
-                    <p className="text-[11px] text-muted-foreground break-all">{`${window.location.origin}/inscription/${p.cohortes.slug}/tranche-2`}</p>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      navigator.clipboard.writeText(`${window.location.origin}/inscription/${p.cohortes.slug}/tranche-2`);
-                      toast.success("Lien copié");
-                    }}
-                  >
-                    <Copy className="mr-1 h-3 w-3" /> Copier
-                  </Button>
-                </Card>
-              )}
+              {p.status === "partial" && p.cohortes?.slug && p.tranche2_token && (() => {
+                const t2Url = `${window.location.origin}/inscription/${p.cohortes.slug}/tranche-2?t=${p.tranche2_token}`;
+                return (
+                  <Card className="p-3 bg-secondary/40 border-dashed flex flex-wrap items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium">Lien direct de finalisation</p>
+                      <p className="text-[11px] text-muted-foreground break-all">{t2Url}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" onClick={() => { navigator.clipboard.writeText(t2Url); toast.success("Lien copié"); }}>
+                        <Copy className="mr-1 h-3 w-3" /> Copier
+                      </Button>
+                      <Button size="sm" className="bg-gold text-primary hover:bg-gold/90" onClick={() => { window.location.href = t2Url; }}>
+                        <CreditCard className="mr-1 h-3 w-3" /> Payer
+                      </Button>
+                    </div>
+                  </Card>
+                );
+              })()}
 
 
               <div className="space-y-2">
