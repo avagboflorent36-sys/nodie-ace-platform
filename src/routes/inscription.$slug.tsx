@@ -21,12 +21,13 @@ import {
   claimPendingEnrollment,
 } from "@/lib/chariow.functions";
 
-type SearchParams = { sale?: string; claim?: string };
+type SearchParams = { sale?: string; claim?: string; attempt?: string };
 
 export const Route = createFileRoute("/inscription/$slug")({
   validateSearch: (s: Record<string, unknown>): SearchParams => ({
     sale: typeof s.sale === "string" ? s.sale : undefined,
     claim: typeof s.claim === "string" ? s.claim : undefined,
+    attempt: typeof s.attempt === "string" ? s.attempt : undefined,
   }),
   component: InscriptionPage,
 });
@@ -36,6 +37,7 @@ function InscriptionPage() {
   const search = useSearch({ from: "/inscription/$slug" }) as SearchParams;
   const saleId = search.sale;
   const claimToken = search.claim;
+  const attemptToken = search.attempt;
 
   const { data: cohort, isLoading } = useQuery({
     queryKey: ["cohort-by-slug", slug],
