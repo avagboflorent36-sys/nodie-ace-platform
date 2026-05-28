@@ -89,11 +89,11 @@ export function AppShell({ items, children }: { items: NavItem[]; children: Reac
             </Button>
           </SidebarFooter>
         </Sidebar>
-        <div className="flex flex-1 flex-col">
+        <div className="flex flex-1 flex-col min-w-0">
           <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b bg-background/80 px-4 backdrop-blur">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 min-w-0">
               <SidebarTrigger />
-              <span className="text-sm text-muted-foreground">{user?.email}</span>
+              <span className="text-sm text-muted-foreground truncate">{user?.email}</span>
             </div>
             <Button variant="ghost" size="icon" className="relative">
               <Bell className="h-5 w-5" />
@@ -104,7 +104,7 @@ export function AppShell({ items, children }: { items: NavItem[]; children: Reac
               )}
             </Button>
           </header>
-          <main className="flex-1 p-6 md:p-8">{children}</main>
+          <main className="flex-1 min-w-0 overflow-x-hidden p-4 md:p-6 lg:p-8">{children}</main>
         </div>
       </div>
     </SidebarProvider>

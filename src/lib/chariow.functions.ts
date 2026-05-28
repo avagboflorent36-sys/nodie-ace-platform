@@ -513,6 +513,181 @@ export const startChariowCheckoutForTranche2Token = createServerFn({ method: "PO
   });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// 1-ter. Démarrer un checkout Chariow pour la TRANCHE 2 — flux étudiant connecté.
+// L'étudiant clique « Payer la tranche 2 » dans /etudiant/paiements et reçoit
+// directement une URL checkout. Plus fiable que le lien tokenisé partagé.
+// ─────────────────────────────────────────────────────────────────────────────
+export const startMyTranche2Checkout = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z
+      .object({
+        payment_id: z.string().uuid(),
+        return_origin: z.string().url().max(255).optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const userId = context.userId;
+
+    const { data: payment, error: payErr } = await supabaseAdmin
+      .from("payments")
+      .select(
+        "id, status, mode, cohort_id, student_id, chariow_customer_email, currency, amount_total, payment_installments(id, position, status)",
+      )
+      .eq("id", data.payment_id)
+      .maybeSingle();
+    if (payErr || !payment) {
+      return { checkout_url: null, status: "not_found", message: "Paiement introuvable." };
+    }
+    if (payment.student_id !== userId) {
+      return { checkout_url: null, status: "forbidden", message: "Ce paiement ne vous appartient pas." };
+    }
+    if (payment.mode !== "installments_2") {
+      return { checkout_url: null, status: "wrong_mode", message: "Ce paiement n'est pas en 2 tranches." };
+    }
+    const t2 = (payment.payment_installments ?? []).find((i: any) => i.position === 2);
+    if (payment.status === "paid" || t2?.status === "validated") {
+      return { checkout_url: null, status: "already_paid", message: "La tranche 2 est déjà réglée." };
+    }
+
+    const { data: cohort } = await supabaseAdmin
+      .from("cohortes")
+      .select("id, slug, name, price_installment, chariow_product_id_installment_2")
+      .eq("id", payment.cohort_id)
+      .maybeSingle();
+    if (!cohort) {
+      return { checkout_url: null, status: "no_cohort", message: "Cohorte introuvable." };
+    }
+    const productId = normalizeChariowProductId(cohort.chariow_product_id_installment_2);
+    if (!productId) {
+      return {
+        checkout_url: null,
+        status: "no_product",
+        message: "Le Product ID Chariow de la tranche 2 n'est pas configuré pour cette cohorte. Demandez à l'administrateur de l'ajouter.",
+      };
+    }
+
+    const { data: prof } = await supabaseAdmin
+      .from("profiles")
+      .select("email, first_name, last_name, whatsapp")
+      .eq("id", userId)
+      .maybeSingle();
+    const email = prof?.email || payment.chariow_customer_email || "";
+    const firstName = prof?.first_name || "";
+    const lastName = prof?.last_name || "";
+    const phone = prof?.whatsapp || "";
+    if (!email) {
+      return { checkout_url: null, status: "missing_profile", message: "Email étudiant manquant — mettez à jour votre profil." };
+    }
+
+    let phoneE164: { number: string; country_code: string };
+    try {
+      phoneE164 = formatPhoneForChariow(phone);
+    } catch {
+      return {
+        checkout_url: null,
+        status: "invalid_phone",
+        message: "Numéro WhatsApp invalide. Corrigez-le dans votre profil avant de payer.",
+      };
+    }
+
+    const origin = (data.return_origin ?? SITE_URL).replace(/\/+$/, "");
+    const attemptToken =
+      crypto.randomUUID().replace(/-/g, "") + crypto.randomUUID().replace(/-/g, "").slice(0, 16);
+    const amountExpected = Number(cohort.price_installment ?? 0);
+
+    const { data: attempt } = await supabaseAdmin
+      .from("chariow_payment_attempts")
+      .insert({
+        token: attemptToken,
+        cohort_id: cohort.id,
+        email,
+        first_name: firstName,
+        last_name: lastName,
+        phone,
+        mode: "installments_2",
+        installment_position: 2,
+        chariow_product_id: productId,
+        amount_expected: amountExpected,
+        status: "created",
+      })
+      .select("id")
+      .single();
+
+    const redirect = `${origin}/etudiant/paiements?paid=2&sale={sale_id}`;
+    const checkout: any = await initCheckout({
+      product_id: productId,
+      email,
+      first_name: firstName || "Etudiant",
+      last_name: lastName || "Etudiant",
+      phone: phoneE164,
+      redirect_url: redirect,
+      custom_metadata: {
+        cohort_id: cohort.id,
+        cohort_slug: cohort.slug,
+        mode: "installments_2",
+        installment_position: "2",
+        attempt_token: attemptToken,
+        payment_id: payment.id,
+      },
+    });
+
+    function isCheckoutUrl(value: string, key = "") {
+      if (!/^https?:\/\//i.test(value)) return false;
+      try {
+        const url = new URL(value);
+        const host = url.hostname.toLowerCase();
+        const path = url.pathname.toLowerCase();
+        const search = url.search.toLowerCase();
+        if (/(^|\/)products?(\/|$)|(^|\/)catalog(\/|$)|(^|\/)customer(\/|$)|(^|\/)portal(\/|$)|(^|\/)purchases?(\/|$)/i.test(path)) return false;
+        const haystack = `${host} ${path} ${search}`;
+        if (/(checkout|payment|invoice|transaction|\/pay(\/|$|\?))/.test(haystack)) return true;
+        return /(checkout|payment|pay)/i.test(key) && host.includes("chariow");
+      } catch { return false; }
+    }
+    function findCheckoutUrl(node: any, depth = 0): string | undefined {
+      if (!node || depth > 6) return undefined;
+      if (typeof node === "string") return isCheckoutUrl(node) ? node : undefined;
+      if (typeof node !== "object") return undefined;
+      for (const key of ["checkout_url","checkoutUrl","payment_url","paymentUrl","payment_link","paymentLink","url","link"]) {
+        const v = (node as any)[key];
+        if (typeof v === "string" && isCheckoutUrl(v, key)) return v;
+      }
+      for (const v of Object.values(node)) {
+        const found = findCheckoutUrl(v, depth + 1);
+        if (found) return found;
+      }
+      return undefined;
+    }
+
+    const responseData = checkout?.data ?? checkout;
+    const step = typeof responseData?.step === "string" ? responseData.step : null;
+    const message = typeof responseData?.message === "string" ? responseData.message : null;
+    const url = findCheckoutUrl(checkout);
+
+    if (!url && step === "already_purchased") {
+      await supabaseAdmin.from("chariow_payment_attempts")
+        .update({ status: "ownership_confirmed", chariow_raw_response: checkout })
+        .eq("id", attempt!.id);
+      return { checkout_url: null, status: "ownership_confirmed", message: message ?? "Chariow indique que cette adresse a déjà acheté la tranche 2. Contactez le support pour validation manuelle." };
+    }
+    if (!url) {
+      await supabaseAdmin.from("chariow_payment_attempts")
+        .update({ status: "failed", last_error: message ?? "Pas d'URL Chariow", chariow_raw_response: checkout })
+        .eq("id", attempt!.id);
+      return { checkout_url: null, status: "missing_checkout_url", message: message ?? `Chariow n'a pas renvoyé d'URL de paiement pour ${productId}.` };
+    }
+
+    const initialSaleId = extractSaleId(checkout);
+    await supabaseAdmin.from("chariow_payment_attempts")
+      .update({ status: "redirected", checkout_url: url, chariow_sale_id: initialSaleId || null, chariow_raw_response: checkout })
+      .eq("id", attempt!.id);
+
+    return { checkout_url: url, status: "checkout_created", message: null };
+  });
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Vérifier une tentative interne par token (public) — utilisé au retour de paiement
 // ─────────────────────────────────────────────────────────────────────────────
 export const checkAttemptByToken = createServerFn({ method: "POST" })
