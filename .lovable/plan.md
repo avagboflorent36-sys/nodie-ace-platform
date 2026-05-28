@@ -1,90 +1,116 @@
-## Diagnostic confirmé
+## Réponse courte
 
-### 1. Page Automatisations trop large / mauvaise prévisualisation
-- La capture montre un débordement horizontal global : le contenu admin dépasse la largeur utile, ce qui force une barre de scroll horizontale.
-- La cause n’est pas seulement l’onglet Automatisations : le shell admin laisse le `<main>` s’étirer avec des enfants trop larges, et certains blocs internes ont des largeurs minimales cumulées.
-- La barre latérale reste ouverte dans une largeur de preview intermédiaire, ce qui réduit fortement l’espace réel et amplifie le débordement.
+Non, le problème ne semble pas être qu’il faut créer une nouvelle webhook Chariow.
 
-### 2. Tranche 2 non fonctionnelle
-- La cohorte a bien deux Product IDs différents :
-  - tranche 1 : `prd_fied8f`
-  - tranche 2 : `prd_wdheah`
-- Pourtant, aucune tentative de paiement tranche 2 n’existe en base : le flux actuel ne démarre pas réellement le checkout tranche 2.
-- Le modèle actuel est trop fragile : il dépend d’un lien tokenisé copié/collé (`/inscription/.../tranche-2?t=...`) puis d’une redirection automatique. Cela masque les erreurs et donne l’impression que le lien ne fonctionne pas.
-- Autre incohérence détectée : lors d’un paiement en 2 tranches, le système ne crée pas systématiquement la ligne “tranche 2 à payer” dès la première tranche. Cela rend l’interface étudiant ambiguë.
+Le backend reçoit déjà des webhooks Chariow avec des événements `successful.sale`, donc l’URL webhook actuelle fonctionne. Le vrai problème visible dans les données est plutôt ceci : aucune tentative de paiement Tranche 2 n’a encore été créée (`0` tentative avec `installment_position = 2`). Donc le flux Tranche 2 ne démarre probablement pas correctement depuis l’espace étudiant, ou il est bloqué avant d’appeler Chariow.
 
-## Approche définitive proposée
+## Diagnostic observé
 
-### A. Stabiliser l’affichage admin une fois pour toutes
-1. Corriger le layout global `AppShell` :
-   - empêcher le contenu principal de dépasser la largeur de l’écran avec `min-w-0`, `overflow-x-hidden` et conteneur responsive.
-   - faire en sorte que la page admin reste lisible même quand la sidebar est ouverte.
-2. Remplacer l’affichage Automatisations par un layout vertical stable :
-   - journal d’exécution dans un bloc qui coupe proprement les longs messages au lieu d’élargir la page.
-   - règles de relance, règles d’accès et campagnes dans des sections séparées, avec champs empilés sur petits écrans.
-3. Supprimer les causes de “page qui disparaît/réapparaît” :
-   - garder les données précédentes pendant le refetch.
-   - éviter les remounts visuels de l’onglet.
-   - retirer l’animation globale qui accentue l’effet de flash sur cette page.
+- Le webhook Chariow reçoit bien des événements récents et les traite.
+- La cohorte `test 1` a bien des IDs produits différents :
+  - Paiement intégral : `prd_hmels6`
+  - Tranche 1 : `prd_fied8f`
+  - Tranche 2 : `prd_wdheah`
+- Le paiement étudiant existant est en `partial`, avec :
+  - Tranche 1 validée
+  - Tranche 2 en attente
+- Mais il n’existe aucune tentative Chariow Tranche 2 en base.
 
-### B. Remplacer le lien tranche 2 par un bouton de paiement fiable
-Au lieu de demander aux étudiants/admins de copier un lien technique, créer un vrai flux :
+Conclusion : créer une nouvelle webhook ne réglera probablement pas le lien Tranche 2. Il faut rendre le flux Tranche 2 impossible à confondre avec la Tranche 1 et visible de bout en bout.
+
+## Plan d’implémentation définitif
+
+### 1. Remplacer le lien Tranche 2 par une page de paiement dédiée
+
+Créer un flux dédié :
 
 ```text
-Espace étudiant > Mes paiements > Payer la tranche 2
-        ↓
-server function sécurisée
-        ↓
-création tentative Chariow avec product_id tranche 2
-        ↓
-redirection checkout
-        ↓
-webhook/retour paiement
-        ↓
-validation tranche 2 + accès rétabli
+Étudiant connecté
+→ /etudiant/paiements
+→ bouton “Payer la tranche 2”
+→ page dédiée /etudiant/paiements/tranche-2/$paymentId
+→ vérification des données
+→ création checkout Chariow avec product_id tranche 2 uniquement
+→ redirection Chariow
+→ retour espace étudiant
 ```
 
-Concrètement :
-1. Ajouter une server function authentifiée `startMyTranche2Checkout`.
-   - Elle prend seulement `payment_id`.
-   - Elle vérifie que le paiement appartient à l’étudiant connecté.
-   - Elle lit directement le Product ID tranche 2 depuis la cohorte.
-   - Elle démarre Chariow avec `installment_position = 2`.
-   - Elle retourne l’URL checkout ou une erreur claire.
-2. Modifier `/etudiant/paiements` :
-   - bouton principal : `Payer la tranche 2`.
-   - plus de redirection vers une page tokenisée intermédiaire.
-   - afficher clairement : montant restant, statut tranche 1, statut tranche 2.
-3. Garder le lien tokenisé uniquement comme solution de secours admin :
-   - dans l’onglet Étudiants, afficher “Copier lien de secours tranche 2”.
-   - le bouton normal étudiant devient la méthode officielle.
+Objectif : ne plus dépendre d’un lien partagé ambigu ou d’un ancien token qui peut pointer vers le mauvais produit.
 
-### C. Corriger le modèle des tranches
-1. À la validation de la tranche 1, garantir que deux lignes existent :
-   - tranche 1 : validée.
-   - tranche 2 : pending, avec montant et échéance.
-2. Corriger la logique de montant :
-   - si `price_installment` représente le prix par tranche, alors `payments.amount_total = price_installment * 2`.
-   - `amount_paid` doit additionner les tranches validées.
-3. Ajouter une migration de réparation des paiements existants :
-   - créer les lignes tranche 2 manquantes pour les paiements en 2 tranches.
-   - corriger `amount_total` des paiements partiels incohérents.
-   - conserver les tokens tranche 2 déjà générés.
+### 2. Ajouter un diagnostic affiché avant redirection
 
-### D. Rendre les erreurs paiement visibles
-1. Sur la page étudiant, afficher une erreur claire si :
-   - Product ID tranche 2 absent.
-   - téléphone invalide.
-   - Chariow ne renvoie pas d’URL.
-   - paiement déjà validé.
-2. Dans l’admin, ajouter dans l’onglet Étudiants :
-   - Product ID utilisé pour la tranche 2.
-   - dernier statut tentative Chariow.
-   - bouton copier lien de secours.
+Sur la page dédiée Tranche 2, afficher clairement avant redirection :
 
-### E. Vérifications finales
-- Tester la page Automatisations à la largeur actuelle de preview : `1185x632`.
-- Vérifier qu’il n’y a plus de scroll horizontal global.
-- Tester un paiement tranche 2 depuis `/etudiant/paiements`.
-- Confirmer en base qu’une tentative Chariow est créée avec `installment_position = 2` et `chariow_product_id = prd_wdheah`.
-- Confirmer que la tranche 2 passe à validée après webhook/retour paiement.
+- Cohorte concernée
+- Montant Tranche 2
+- Product ID Chariow utilisé
+- Statut actuel de la Tranche 2
+- Erreur claire si téléphone, email ou Product ID manque
+
+Cela permet de vérifier immédiatement si `prd_wdheah` est bien utilisé avant d’envoyer l’étudiant chez Chariow.
+
+### 3. Corriger le traitement backend Tranche 2
+
+Dans le traitement webhook/réconciliation :
+
+- Pour `installments_2`, `amount_total` doit représenter les deux tranches.
+- La Tranche 2 doit valider uniquement `payment_installments.position = 2`.
+- Le paiement parent doit passer à `paid` seulement quand Tranche 1 + Tranche 2 sont validées.
+- Le traitement doit utiliser en priorité la tentative interne créée avant le checkout, pas uniquement les métadonnées envoyées par Chariow.
+
+### 4. Enregistrer plus d’informations de debug par tentative
+
+Pour chaque tentative Chariow, enregistrer :
+
+- `payment_id`
+- `installment_id`
+- `installment_position`
+- `chariow_product_id`
+- `checkout_url`
+- `chariow_sale_id`
+- dernier message d’erreur
+
+But : pouvoir dire exactement si le blocage vient du bouton, du checkout Chariow, du retour, ou du webhook.
+
+### 5. Ajouter un bouton admin “Tester Tranche 2”
+
+Dans l’admin cohorte/étudiants ou page webhook :
+
+- afficher pour chaque étudiant en paiement partiel :
+  - Product ID attendu Tranche 2
+  - statut tentative Tranche 2
+  - dernier checkout généré
+- ajouter une action “Créer/Recréer checkout Tranche 2” pour un paiement précis.
+
+Cela donne une alternative fiable si l’étudiant n’arrive pas à déclencher le paiement depuis son espace.
+
+### 6. Garder une seule webhook Chariow, mais vérifier la bonne URL
+
+Ne pas créer plusieurs webhooks sauf si Chariow sépare obligatoirement les webhooks par produit.
+
+À faire côté Chariow :
+
+- Utiliser l’URL production affichée dans `/admin/webhook-secret`.
+- L’appliquer au niveau compte/boutique Chariow si possible, pas seulement sur un produit.
+- Si Chariow impose un webhook par produit, alors ajouter la même URL webhook sur les 3 produits : intégral, Tranche 1, Tranche 2.
+
+## Approche alternative plus simple pour les étudiants
+
+La solution la plus robuste serait de ne plus faire circuler de “lien Tranche 2” externe. L’étudiant se connecte, voit son solde, clique sur “Payer maintenant”, et l’app génère un checkout frais à chaque clic avec le bon produit Chariow.
+
+Cela évite :
+
+- les anciens liens réutilisés,
+- les mauvais IDs produits,
+- les tokens expirés/confondus,
+- les problèmes de copier-coller admin.
+
+## Validation après implémentation
+
+Je validerai avec ces contrôles :
+
+- Une tentative Tranche 2 est créée avec `installment_position = 2`.
+- La tentative utilise `prd_wdheah`.
+- Le checkout Chariow obtenu n’est pas celui de la Tranche 1.
+- Le webhook `successful.sale` met à jour la Tranche 2, pas la Tranche 1.
+- Le paiement parent passe à `paid` uniquement après validation des deux tranches.

@@ -35,6 +35,7 @@ import { Route as AuthenticatedAdminEtudiantsIndexRouteImport } from './routes/_
 import { Route as AuthenticatedAdminCohortesIndexRouteImport } from './routes/_authenticated/admin/cohortes.index'
 import { Route as ApiPublicHooksPaymentRemindersRouteImport } from './routes/api/public/hooks/payment-reminders'
 import { Route as ApiPublicHooksAutomationTickRouteImport } from './routes/api/public/hooks/automation-tick'
+import { Route as AuthenticatedEtudiantTranche2PaymentIdRouteImport } from './routes/_authenticated/etudiant/tranche-2.$paymentId'
 import { Route as AuthenticatedAdminEtudiantsIdRouteImport } from './routes/_authenticated/admin/etudiants.$id'
 import { Route as AuthenticatedAdminCohortesIdRouteImport } from './routes/_authenticated/admin/cohortes.$id'
 import { Route as ApiPublicHooksChariowSecretRouteImport } from './routes/api/public/hooks/chariow.$secret'
@@ -183,6 +184,12 @@ const ApiPublicHooksAutomationTickRoute =
     path: '/api/public/hooks/automation-tick',
     getParentRoute: () => rootRouteImport,
   } as any)
+const AuthenticatedEtudiantTranche2PaymentIdRoute =
+  AuthenticatedEtudiantTranche2PaymentIdRouteImport.update({
+    id: '/tranche-2/$paymentId',
+    path: '/tranche-2/$paymentId',
+    getParentRoute: () => AuthenticatedEtudiantRoute,
+  } as any)
 const AuthenticatedAdminEtudiantsIdRoute =
   AuthenticatedAdminEtudiantsIdRouteImport.update({
     id: '/etudiants/$id',
@@ -226,6 +233,7 @@ export interface FileRoutesByFullPath {
   '/etudiant/': typeof AuthenticatedEtudiantIndexRoute
   '/admin/cohortes/$id': typeof AuthenticatedAdminCohortesIdRoute
   '/admin/etudiants/$id': typeof AuthenticatedAdminEtudiantsIdRoute
+  '/etudiant/tranche-2/$paymentId': typeof AuthenticatedEtudiantTranche2PaymentIdRoute
   '/api/public/hooks/automation-tick': typeof ApiPublicHooksAutomationTickRoute
   '/api/public/hooks/payment-reminders': typeof ApiPublicHooksPaymentRemindersRoute
   '/admin/cohortes/': typeof AuthenticatedAdminCohortesIndexRoute
@@ -254,6 +262,7 @@ export interface FileRoutesByTo {
   '/etudiant': typeof AuthenticatedEtudiantIndexRoute
   '/admin/cohortes/$id': typeof AuthenticatedAdminCohortesIdRoute
   '/admin/etudiants/$id': typeof AuthenticatedAdminEtudiantsIdRoute
+  '/etudiant/tranche-2/$paymentId': typeof AuthenticatedEtudiantTranche2PaymentIdRoute
   '/api/public/hooks/automation-tick': typeof ApiPublicHooksAutomationTickRoute
   '/api/public/hooks/payment-reminders': typeof ApiPublicHooksPaymentRemindersRoute
   '/admin/cohortes': typeof AuthenticatedAdminCohortesIndexRoute
@@ -286,6 +295,7 @@ export interface FileRoutesById {
   '/_authenticated/etudiant/': typeof AuthenticatedEtudiantIndexRoute
   '/_authenticated/admin/cohortes/$id': typeof AuthenticatedAdminCohortesIdRoute
   '/_authenticated/admin/etudiants/$id': typeof AuthenticatedAdminEtudiantsIdRoute
+  '/_authenticated/etudiant/tranche-2/$paymentId': typeof AuthenticatedEtudiantTranche2PaymentIdRoute
   '/api/public/hooks/automation-tick': typeof ApiPublicHooksAutomationTickRoute
   '/api/public/hooks/payment-reminders': typeof ApiPublicHooksPaymentRemindersRoute
   '/_authenticated/admin/cohortes/': typeof AuthenticatedAdminCohortesIndexRoute
@@ -318,6 +328,7 @@ export interface FileRouteTypes {
     | '/etudiant/'
     | '/admin/cohortes/$id'
     | '/admin/etudiants/$id'
+    | '/etudiant/tranche-2/$paymentId'
     | '/api/public/hooks/automation-tick'
     | '/api/public/hooks/payment-reminders'
     | '/admin/cohortes/'
@@ -346,6 +357,7 @@ export interface FileRouteTypes {
     | '/etudiant'
     | '/admin/cohortes/$id'
     | '/admin/etudiants/$id'
+    | '/etudiant/tranche-2/$paymentId'
     | '/api/public/hooks/automation-tick'
     | '/api/public/hooks/payment-reminders'
     | '/admin/cohortes'
@@ -377,6 +389,7 @@ export interface FileRouteTypes {
     | '/_authenticated/etudiant/'
     | '/_authenticated/admin/cohortes/$id'
     | '/_authenticated/admin/etudiants/$id'
+    | '/_authenticated/etudiant/tranche-2/$paymentId'
     | '/api/public/hooks/automation-tick'
     | '/api/public/hooks/payment-reminders'
     | '/_authenticated/admin/cohortes/'
@@ -581,6 +594,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksAutomationTickRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/etudiant/tranche-2/$paymentId': {
+      id: '/_authenticated/etudiant/tranche-2/$paymentId'
+      path: '/tranche-2/$paymentId'
+      fullPath: '/etudiant/tranche-2/$paymentId'
+      preLoaderRoute: typeof AuthenticatedEtudiantTranche2PaymentIdRouteImport
+      parentRoute: typeof AuthenticatedEtudiantRoute
+    }
     '/_authenticated/admin/etudiants/$id': {
       id: '/_authenticated/admin/etudiants/$id'
       path: '/etudiants/$id'
@@ -640,6 +660,7 @@ interface AuthenticatedEtudiantRouteChildren {
   AuthenticatedEtudiantProfilRoute: typeof AuthenticatedEtudiantProfilRoute
   AuthenticatedEtudiantSupportRoute: typeof AuthenticatedEtudiantSupportRoute
   AuthenticatedEtudiantIndexRoute: typeof AuthenticatedEtudiantIndexRoute
+  AuthenticatedEtudiantTranche2PaymentIdRoute: typeof AuthenticatedEtudiantTranche2PaymentIdRoute
 }
 
 const AuthenticatedEtudiantRouteChildren: AuthenticatedEtudiantRouteChildren = {
@@ -650,6 +671,8 @@ const AuthenticatedEtudiantRouteChildren: AuthenticatedEtudiantRouteChildren = {
   AuthenticatedEtudiantProfilRoute: AuthenticatedEtudiantProfilRoute,
   AuthenticatedEtudiantSupportRoute: AuthenticatedEtudiantSupportRoute,
   AuthenticatedEtudiantIndexRoute: AuthenticatedEtudiantIndexRoute,
+  AuthenticatedEtudiantTranche2PaymentIdRoute:
+    AuthenticatedEtudiantTranche2PaymentIdRoute,
 }
 
 const AuthenticatedEtudiantRouteWithChildren =
@@ -698,3 +721,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

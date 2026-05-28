@@ -1,16 +1,14 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useServerFn } from "@tanstack/react-start";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Upload, AlertCircle, CheckCircle2, Clock, Wallet, CreditCard, Loader2 } from "lucide-react";
+import { Upload, AlertCircle, CheckCircle2, Clock, Wallet, CreditCard } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { startMyTranche2Checkout } from "@/lib/chariow.functions";
 
 export const Route = createFileRoute("/_authenticated/etudiant/paiements")({
   component: StudentPayments,
@@ -20,8 +18,6 @@ function StudentPayments() {
   const { user } = useAuth();
   const qc = useQueryClient();
   const [uploading, setUploading] = useState<string | null>(null);
-  const [paying, setPaying] = useState<string | null>(null);
-  const startT2 = useServerFn(startMyTranche2Checkout);
 
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -46,22 +42,6 @@ function StudentPayments() {
       return data ?? [];
     },
   });
-
-  const payTranche2 = async (paymentId: string) => {
-    setPaying(paymentId);
-    try {
-      const r = await startT2({ data: { payment_id: paymentId, return_origin: window.location.origin } });
-      if (r.checkout_url) {
-        window.location.href = r.checkout_url;
-        return;
-      }
-      toast.error(r.message ?? "Impossible de démarrer le paiement de la tranche 2.", { duration: 8000 });
-    } catch (e: any) {
-      toast.error(e?.message ?? "Erreur inattendue lors du démarrage du paiement.");
-    } finally {
-      setPaying(null);
-    }
-  };
 
   const uploadProof = async (installmentId: string, file: File) => {
     if (!user) return;
@@ -157,13 +137,14 @@ function StudentPayments() {
                     </p>
                   </div>
                   <Button
+                    asChild
                     size="sm"
                     className="bg-gold text-primary hover:bg-gold/90"
-                    disabled={paying === p.id}
-                    onClick={() => payTranche2(p.id)}
                   >
-                    {paying === p.id ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <CreditCard className="mr-1 h-3 w-3" />}
-                    {paying === p.id ? "Redirection…" : "Payer la tranche 2"}
+                    <Link to="/etudiant/tranche-2/$paymentId" params={{ paymentId: p.id }}>
+                      <CreditCard className="mr-1 h-3 w-3" />
+                      Payer la tranche 2
+                    </Link>
                   </Button>
                 </Card>
               )}
@@ -186,13 +167,14 @@ function StudentPayments() {
                       <StatusBadge status={i.status} />
                       {i.status !== "validated" && i.position === 2 && p.mode === "installments_2" ? (
                         <Button
+                          asChild
                           size="sm"
                           className="bg-gold text-primary hover:bg-gold/90"
-                          disabled={paying === p.id}
-                          onClick={() => payTranche2(p.id)}
                         >
-                          {paying === p.id ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <CreditCard className="mr-1 h-3 w-3" />}
-                          Payer
+                          <Link to="/etudiant/tranche-2/$paymentId" params={{ paymentId: p.id }}>
+                            <CreditCard className="mr-1 h-3 w-3" />
+                            Payer
+                          </Link>
                         </Button>
                       ) : i.status !== "validated" && (
                         <label className="cursor-pointer">

@@ -303,7 +303,7 @@ export const startChariowCheckoutForTranche2Token = createServerFn({ method: "PO
     const { data: payment, error: payErr } = await supabaseAdmin
       .from("payments")
       .select(
-        "id, status, mode, cohort_id, student_id, chariow_customer_email, currency, amount_total, payment_installments(id, position, status)",
+        "id, status, mode, cohort_id, student_id, chariow_customer_email, currency, amount_total, payment_installments(id, position, status, amount)",
       )
       .eq("tranche2_token", data.token)
       .maybeSingle();
@@ -318,6 +318,13 @@ export const startChariowCheckoutForTranche2Token = createServerFn({ method: "PO
       };
     }
     const t2 = (payment.payment_installments ?? []).find((i: any) => i.position === 2);
+    if (!t2) {
+      return {
+        checkout_url: null,
+        status: "no_installment",
+        message: "La ligne de tranche 2 est introuvable pour ce paiement.",
+      };
+    }
     if (payment.status === "paid" || t2?.status === "validated") {
       return {
         checkout_url: null,
@@ -387,8 +394,10 @@ export const startChariowCheckoutForTranche2Token = createServerFn({ method: "PO
         installment_position: 2,
         chariow_product_id: productId,
         amount_expected: amountExpected,
+        payment_id: payment.id,
+        installment_id: t2?.id ?? null,
         status: "created",
-      })
+      } as any)
       .select("id")
       .single();
 
@@ -419,6 +428,7 @@ export const startChariowCheckoutForTranche2Token = createServerFn({ method: "PO
         installment_position: "2",
         attempt_token: attemptToken,
         payment_id: payment.id,
+        installment_id: t2?.id ?? "",
       },
     });
 
@@ -517,6 +527,41 @@ export const startChariowCheckoutForTranche2Token = createServerFn({ method: "PO
 // L'étudiant clique « Payer la tranche 2 » dans /etudiant/paiements et reçoit
 // directement une URL checkout. Plus fiable que le lien tokenisé partagé.
 // ─────────────────────────────────────────────────────────────────────────────
+export const getMyTranche2CheckoutSummary = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({ payment_id: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const { data: payment } = await supabaseAdmin
+      .from("payments")
+      .select("id, status, mode, cohort_id, student_id, currency, amount_total, amount_paid, payment_installments(id, position, status, amount, due_date)")
+      .eq("id", data.payment_id)
+      .maybeSingle();
+    if (!payment || payment.student_id !== context.userId) {
+      return { ok: false, status: "not_found", message: "Paiement introuvable." };
+    }
+
+    const { data: cohort } = await supabaseAdmin
+      .from("cohortes")
+      .select("id, name, price_installment, chariow_product_id_installment_2")
+      .eq("id", payment.cohort_id)
+      .maybeSingle();
+    const t2 = (payment.payment_installments ?? []).find((i: any) => i.position === 2);
+    const productId = normalizeChariowProductId(cohort?.chariow_product_id_installment_2);
+    const ready = payment.mode === "installments_2" && payment.status !== "paid" && !!t2 && t2.status !== "validated" && !!productId;
+
+    return {
+      ok: ready,
+      status: ready ? "ready" : payment.status === "paid" || t2?.status === "validated" ? "already_paid" : !productId ? "no_product" : "not_payable",
+      message: ready ? null : !t2 ? "La ligne de tranche 2 est introuvable pour ce paiement." : !productId ? "Le Product ID Chariow de la tranche 2 n'est pas configuré." : "Cette tranche 2 n'est pas payable.",
+      cohort_name: cohort?.name ?? "Cohorte",
+      product_id: productId,
+      currency: payment.currency,
+      amount_total: Number(payment.amount_total ?? 0),
+      amount_paid: Number(payment.amount_paid ?? 0),
+      tranche2: t2 ? { id: t2.id, status: t2.status, amount: Number(t2.amount ?? cohort?.price_installment ?? 0), due_date: t2.due_date } : null,
+    };
+  });
+
 export const startMyTranche2Checkout = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
@@ -533,7 +578,7 @@ export const startMyTranche2Checkout = createServerFn({ method: "POST" })
     const { data: payment, error: payErr } = await supabaseAdmin
       .from("payments")
       .select(
-        "id, status, mode, cohort_id, student_id, chariow_customer_email, currency, amount_total, payment_installments(id, position, status)",
+        "id, status, mode, cohort_id, student_id, chariow_customer_email, currency, amount_total, payment_installments(id, position, status, amount)",
       )
       .eq("id", data.payment_id)
       .maybeSingle();
@@ -547,6 +592,9 @@ export const startMyTranche2Checkout = createServerFn({ method: "POST" })
       return { checkout_url: null, status: "wrong_mode", message: "Ce paiement n'est pas en 2 tranches." };
     }
     const t2 = (payment.payment_installments ?? []).find((i: any) => i.position === 2);
+    if (!t2) {
+      return { checkout_url: null, status: "no_installment", message: "La ligne de tranche 2 est introuvable pour ce paiement." };
+    }
     if (payment.status === "paid" || t2?.status === "validated") {
       return { checkout_url: null, status: "already_paid", message: "La tranche 2 est déjà réglée." };
     }
@@ -610,8 +658,10 @@ export const startMyTranche2Checkout = createServerFn({ method: "POST" })
         installment_position: 2,
         chariow_product_id: productId,
         amount_expected: amountExpected,
+        payment_id: payment.id,
+        installment_id: t2?.id ?? null,
         status: "created",
-      })
+      } as any)
       .select("id")
       .single();
 
@@ -630,6 +680,7 @@ export const startMyTranche2Checkout = createServerFn({ method: "POST" })
         installment_position: "2",
         attempt_token: attemptToken,
         payment_id: payment.id,
+        installment_id: t2?.id ?? "",
       },
     });
 
@@ -884,11 +935,12 @@ export const claimAttemptByToken = createServerFn({ method: "POST" })
       .maybeSingle();
     if (!cohort) throw new Error("Cohorte introuvable.");
 
+    const installmentAmount = Number(cohort.price_installment ?? attempt.amount_expected ?? 0);
     const total =
       mode === "full"
         ? Number(cohort.price_full ?? attempt.amount_expected ?? 0)
-        : Number(cohort.price_installment ?? attempt.amount_expected ?? 0);
-    const instAmount = mode === "full" ? total : Math.round(total / 2);
+        : installmentAmount * 2;
+    const instAmount = mode === "full" ? total : installmentAmount;
 
     // Récupérer/créer le payment de cet utilisateur sur cette cohorte
     let { data: payment } = await supabaseAdmin
@@ -1130,7 +1182,7 @@ export const listChariowAttempts = createServerFn({ method: "POST" })
     const { data } = await supabaseAdmin
       .from("chariow_payment_attempts")
       .select(
-        "id, token, cohort_id, email, first_name, last_name, mode, installment_position, chariow_product_id, amount_expected, currency, chariow_sale_id, status, last_error, created_at, processed_at, cohortes(name, slug)",
+        "id, token, cohort_id, payment_id, installment_id, email, first_name, last_name, mode, installment_position, chariow_product_id, amount_expected, currency, chariow_sale_id, checkout_url, status, last_error, created_at, processed_at, cohortes(name, slug)",
       )
       .order("created_at", { ascending: false })
       .limit(50);

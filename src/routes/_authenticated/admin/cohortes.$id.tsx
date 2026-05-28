@@ -44,7 +44,7 @@ function CohortDetail() {
   if (!cohort) return <div className="p-8 text-muted-foreground">Chargement...</div>;
 
   const inscriptionUrl = `${window.location.origin}/inscription/${cohort.slug}`;
-  // Les liens tranche 2 sont désormais personnalisés par étudiant (jeton unique sur payments.tranche2_token) — voir l'onglet Étudiants.
+  // Les liens tranche 2 sont désormais des liens sécurisés vers l'espace étudiant.
 
   const inst1 = cohort.chariow_product_id_installment_1;
   const inst2 = cohort.chariow_product_id_installment_2;
@@ -108,7 +108,7 @@ function CohortDetail() {
         </div>
 
         <TabsContent value="overview" className="space-y-4 pt-4"><OverviewTab cohortId={id} /></TabsContent>
-        <TabsContent value="students" className="space-y-4 pt-4"><StudentsTab cohortId={id} cohortSlug={cohort.slug} /></TabsContent>
+        <TabsContent value="students" className="space-y-4 pt-4"><StudentsTab cohortId={id} tranche2ProductId={cohort.chariow_product_id_installment_2} /></TabsContent>
         <TabsContent value="content" className="space-y-4 pt-4"><ContentTab cohortId={id} /></TabsContent>
         <TabsContent value="annonces" className="space-y-4 pt-4"><AnnoncesTab cohortId={id} /></TabsContent>
         <TabsContent value="live" className="space-y-4 pt-4"><LiveTab cohortId={id} /></TabsContent>
@@ -245,7 +245,7 @@ function OverviewTab({ cohortId }: { cohortId: string }) {
   );
 }
 
-function StudentsTab({ cohortId, cohortSlug }: { cohortId: string; cohortSlug: string }) {
+function StudentsTab({ cohortId, tranche2ProductId }: { cohortId: string; tranche2ProductId?: string | null }) {
   const qc = useQueryClient();
   const { data: rows = [] } = useQuery({
     queryKey: ["cohort-students", cohortId],
@@ -255,10 +255,15 @@ function StudentsTab({ cohortId, cohortSlug }: { cohortId: string; cohortSlug: s
       if (ids.length === 0) return [];
       const [{ data: profiles }, { data: payments }] = await Promise.all([
         supabase.from("profiles").select("id, first_name, last_name, email").in("id", ids),
-        supabase.from("payments").select("id, student_id, status, mode, amount_total, amount_paid, tranche2_token").eq("cohort_id", cohortId).in("student_id", ids),
+        supabase.from("payments").select("id, student_id, status, mode, amount_total, amount_paid, payment_installments(id, position, status)").eq("cohort_id", cohortId).in("student_id", ids),
       ]);
+      const paymentIds = (payments ?? []).map((p) => p.id);
+      const { data: attempts } = paymentIds.length
+        ? await supabase.from("chariow_payment_attempts").select("id, payment_id, status, chariow_product_id, checkout_url, created_at").in("payment_id", paymentIds).eq("installment_position", 2).order("created_at", { ascending: false })
+        : { data: [] as any[] };
       const pmap = new Map((profiles ?? []).map((p) => [p.id, p]));
-      const paymap = new Map((payments ?? []).map((p) => [p.student_id, p]));
+      const amap = new Map((attempts ?? []).map((a) => [a.payment_id, a]));
+      const paymap = new Map((payments ?? []).map((p) => [p.student_id, { ...p, lastT2Attempt: amap.get(p.id) }]));
       return (enrollments ?? []).map((e) => ({ ...e, profile: pmap.get(e.student_id), payment: paymap.get(e.student_id) }));
     },
   });
@@ -278,21 +283,29 @@ function StudentsTab({ cohortId, cohortSlug }: { cohortId: string; cohortSlug: s
         <TableBody>
           {rows.length === 0 ? <TableRow><TableCell colSpan={6} className="py-12 text-center text-muted-foreground">Aucun étudiant inscrit.</TableCell></TableRow> :
             rows.map((r: any) => {
-              const needsT2 = r.payment?.mode === "installments_2" && r.payment?.status !== "paid" && r.payment?.tranche2_token;
+              const needsT2 = r.payment?.mode === "installments_2" && r.payment?.status !== "paid";
+              const t2 = (r.payment?.payment_installments ?? []).find((i: any) => i.position === 2);
               return (
                 <TableRow key={r.id}>
                   <TableCell>{r.profile ? `${r.profile.first_name} ${r.profile.last_name}` : "—"}</TableCell>
                   <TableCell>{r.profile?.email ?? "—"}</TableCell>
-                  <TableCell><Badge variant="outline">{r.payment?.status ?? "—"}</Badge>{r.payment ? ` ${Number(r.payment.amount_paid).toLocaleString()}/${Number(r.payment.amount_total).toLocaleString()}` : ""}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline">{r.payment?.status ?? "—"}</Badge>{r.payment ? ` ${Number(r.payment.amount_paid).toLocaleString()}/${Number(r.payment.amount_total).toLocaleString()}` : ""}
+                    {t2 && <div className="mt-1 text-[11px] text-muted-foreground">T2: {t2.status}</div>}
+                    {r.payment?.lastT2Attempt && <div className="mt-1 text-[11px] text-muted-foreground">Dernier essai: {r.payment.lastT2Attempt.status}</div>}
+                  </TableCell>
                   <TableCell>
                     {needsT2 ? (
-                      <Button size="sm" variant="outline" onClick={() => {
-                        const url = `${window.location.origin}/inscription/${cohortSlug}/tranche-2?t=${r.payment.tranche2_token}`;
-                        navigator.clipboard.writeText(url);
-                        toast.success("Lien tranche 2 copié");
-                      }}>
-                        <Copy className="mr-1 h-3 w-3" /> Copier
-                      </Button>
+                      <div className="space-y-2">
+                        <Button size="sm" variant="outline" onClick={() => {
+                          const url = `${window.location.origin}/etudiant/tranche-2/${r.payment.id}`;
+                          navigator.clipboard.writeText(url);
+                          toast.success("Lien sécurisé tranche 2 copié");
+                        }}>
+                          <Copy className="mr-1 h-3 w-3" /> Copier
+                        </Button>
+                        <div className="font-mono text-[11px] text-muted-foreground">Produit T2: {tranche2ProductId ?? "—"}</div>
+                      </div>
                     ) : <span className="text-xs text-muted-foreground">—</span>}
                   </TableCell>
                   <TableCell><Badge variant={r.status === "restricted" ? "destructive" : "default"}>{r.status}</Badge></TableCell>
