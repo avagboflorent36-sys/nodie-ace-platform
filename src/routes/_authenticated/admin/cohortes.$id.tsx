@@ -123,14 +123,84 @@ function CohortDetail() {
 }
 
 function AutomationsTab({ cohortId }: { cohortId: string }) {
+  const qc = useQueryClient();
+  const runNow = useServerFn(runAutomationsNow);
+  const fetchRuns = useServerFn(listAutomationRuns);
+  const [running, setRunning] = useState(false);
+
+  const { data: runs } = useQuery({
+    queryKey: ["automation-runs"],
+    queryFn: async () => (await fetchRuns({ data: undefined as any })).runs,
+  });
+
+  const execute = async () => {
+    setRunning(true);
+    try {
+      const r = await runNow({ data: undefined as any });
+      toast.success(
+        `Exécuté — ${r.reminders} relance(s), ${r.restricted} accès bloqué(s), ${r.campaigns} campagne(s) (${r.campaign_recipients} destinataire(s))${r.errors.length ? `, ${r.errors.length} erreur(s)` : ""}`,
+      );
+      qc.invalidateQueries({ queryKey: ["automation-runs"] });
+    } catch (e: any) {
+      toast.error(e?.message ?? "Échec");
+    } finally {
+      setRunning(false);
+    }
+  };
+
   return (
     <Card className="p-6 space-y-6">
-      <div>
-        <h2 className="text-lg font-semibold">Automatisations</h2>
-        <p className="text-sm text-muted-foreground">
-          Programmez les règles d'accès, blocages et relances automatiques pour cette cohorte.
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold">Automatisations</h2>
+          <p className="text-sm text-muted-foreground">
+            Programmez les règles d'accès, blocages et relances automatiques. Le moteur tourne automatiquement toutes les 15 minutes.
+          </p>
+        </div>
+        <Button size="sm" disabled={running} onClick={execute} className="bg-gold text-primary hover:bg-gold/90">
+          {running ? "Exécution…" : "Exécuter maintenant"}
+        </Button>
       </div>
+
+      <Card className="p-4 bg-secondary/30">
+        <p className="text-sm font-medium mb-2">Dernières exécutions</p>
+        {!runs || runs.length === 0 ? (
+          <p className="text-xs text-muted-foreground">Aucune exécution enregistrée pour le moment.</p>
+        ) : (
+          <div className="space-y-1.5 max-h-64 overflow-y-auto">
+            {runs.map((r: any) => (
+              <div key={r.id} className="text-xs flex items-start gap-2 border-b pb-1.5 last:border-b-0">
+                <Badge
+                  variant="outline"
+                  className={
+                    r.status === "ok"
+                      ? "border-emerald-500/40 text-emerald-700 dark:text-emerald-400"
+                      : r.status === "error"
+                        ? "border-destructive/40 text-destructive"
+                        : "border-amber-500/40 text-amber-700 dark:text-amber-400"
+                  }
+                >
+                  {r.status}
+                </Badge>
+                <div className="flex-1 min-w-0">
+                  <div className="font-mono text-[11px] text-muted-foreground">
+                    {new Date(r.run_at).toLocaleString("fr-FR")} — {r.job_type}
+                  </div>
+                  {r.payload && (
+                    <div className="text-[11px] text-muted-foreground truncate">
+                      {JSON.stringify(r.payload)}
+                    </div>
+                  )}
+                  {r.error && (
+                    <div className="text-[11px] text-destructive truncate">{r.error}</div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
       <ReminderRulesEditor cohortId={cohortId} />
       <div className="pt-6 border-t">
         <AccessRulesEditor cohortId={cohortId} />
