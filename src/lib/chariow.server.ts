@@ -267,7 +267,7 @@ export async function processChariowSale(
     attempt?.currency ??
     "XOF";
 
-  const [{ data: cohort }, { data: profile }] = await Promise.all([
+  const [{ data: cohort }, { data: profile }, { data: directPayment }] = await Promise.all([
     supabaseAdmin
       .from("cohortes")
       .select("id, slug, name, price_full, price_installment")
@@ -280,11 +280,18 @@ export async function processChariowSale(
           .ilike("email", email)
           .maybeSingle()
       : Promise.resolve({ data: null as any }),
+    attempt?.payment_id
+      ? supabaseAdmin
+          .from("payments")
+          .select("id, student_id, cohort_id")
+          .eq("id", attempt.payment_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null as any }),
   ]);
 
   if (!cohort) return { ok: false, status: "missing_cohort", message: "Cohorte introuvable" };
 
-  const studentId: string | null = profile?.id ?? null;
+  const studentId: string | null = directPayment?.student_id ?? profile?.id ?? null;
   const installmentAmount = Number(cohort.price_installment ?? amount);
   const total =
     mode === "full"
@@ -293,12 +300,16 @@ export async function processChariowSale(
 
   // Existing profile → payment + installment
   if (studentId) {
-    let { data: payment } = await supabaseAdmin
-      .from("payments")
-      .select("id")
-      .eq("student_id", studentId)
-      .eq("cohort_id", cohortId)
-      .maybeSingle();
+    let payment: any = directPayment ? { id: directPayment.id } : null;
+    if (!payment) {
+      const { data } = await supabaseAdmin
+        .from("payments")
+        .select("id")
+        .eq("student_id", studentId)
+        .eq("cohort_id", cohortId)
+        .maybeSingle();
+      payment = data;
+    }
 
     if (!payment) {
       const { data: created } = await supabaseAdmin
@@ -330,12 +341,25 @@ export async function processChariowSale(
     }
 
     if (payment) {
-      const { data: existingInst } = await supabaseAdmin
-        .from("payment_installments")
-        .select("id")
-        .eq("payment_id", payment.id)
-        .eq("position", position)
-        .maybeSingle();
+      let existingInst: any = null;
+      if (attempt?.installment_id) {
+        const { data } = await supabaseAdmin
+          .from("payment_installments")
+          .select("id")
+          .eq("id", attempt.installment_id)
+          .eq("payment_id", payment.id)
+          .maybeSingle();
+        existingInst = data;
+      }
+      if (!existingInst) {
+        const { data } = await supabaseAdmin
+          .from("payment_installments")
+          .select("id")
+          .eq("payment_id", payment.id)
+          .eq("position", position)
+          .maybeSingle();
+        existingInst = data;
+      }
 
       const instAmount = mode === "full" ? total : installmentAmount;
       if (existingInst) {
