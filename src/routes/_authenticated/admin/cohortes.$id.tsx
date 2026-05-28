@@ -285,7 +285,7 @@ function StudentsTab({ cohortId, cohortSlug }: { cohortId: string; cohortSlug: s
                   <TableCell>
                     {needsT2 ? (
                       <Button size="sm" variant="outline" onClick={() => {
-                        const url = `${window.location.origin}/inscription/${(window as any).__cohortSlug ?? ""}/tranche-2?t=${r.payment.tranche2_token}`;
+                        const url = `${window.location.origin}/inscription/${cohortSlug}/tranche-2?t=${r.payment.tranche2_token}`;
                         navigator.clipboard.writeText(url);
                         toast.success("Lien tranche 2 copié");
                       }}>
