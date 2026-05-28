@@ -285,10 +285,11 @@ export async function processChariowSale(
   if (!cohort) return { ok: false, status: "missing_cohort", message: "Cohorte introuvable" };
 
   const studentId: string | null = profile?.id ?? null;
+  const installmentAmount = Number(cohort.price_installment ?? amount);
   const total =
     mode === "full"
       ? Number(cohort.price_full ?? amount)
-      : Number(cohort.price_installment ?? amount);
+      : installmentAmount * 2;
 
   // Existing profile → payment + installment
   if (studentId) {
@@ -336,7 +337,7 @@ export async function processChariowSale(
         .eq("position", position)
         .maybeSingle();
 
-      const instAmount = mode === "full" ? total : Math.round(total / 2);
+      const instAmount = mode === "full" ? total : installmentAmount;
       if (existingInst) {
         await supabaseAdmin
           .from("payment_installments")
