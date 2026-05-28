@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { sendOne } from "./email.server";
+import { sendEmail } from "./email.server";
 
 const AUDIENCES = ["all", "paid_full", "paid_partial", "unpaid", "restricted"] as const;
 
