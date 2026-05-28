@@ -393,35 +393,10 @@ export const startChariowCheckoutForTranche2Token = createServerFn({ method: "PO
       .single();
 
     // Téléphone → format Chariow
-    const rawPhone = (phone || "").trim();
-    const digitsOnly = rawPhone.replace(/[^\d]/g, "");
-    const DIAL_TO_ISO: Record<string, string> = {
-      "221": "SN", "225": "CI", "229": "BJ", "228": "TG", "226": "BF",
-      "237": "CM", "33": "FR", "32": "BE", "1": "US", "44": "GB",
-    };
-    let isoCountry = "SN";
-    let numberOnly = digitsOnly;
-    if (rawPhone.startsWith("+")) {
-      for (const len of [3, 2, 1]) {
-        const dial = digitsOnly.slice(0, len);
-        if (DIAL_TO_ISO[dial]) {
-          isoCountry = DIAL_TO_ISO[dial];
-          numberOnly = digitsOnly.slice(len);
-          break;
-        }
-      }
-    } else if (digitsOnly.length > 9) {
-      for (const len of [3, 2, 1]) {
-        const dial = digitsOnly.slice(0, len);
-        if (DIAL_TO_ISO[dial] && digitsOnly.length - len >= 7) {
-          isoCountry = DIAL_TO_ISO[dial];
-          numberOnly = digitsOnly.slice(len);
-          break;
-        }
-      }
-    }
-    numberOnly = numberOnly.replace(/^0+/, "");
-    if (!numberOnly || numberOnly.length < 6) {
+    let phoneE164: { number: string; country_code: string };
+    try {
+      phoneE164 = formatPhoneForChariow(phone);
+    } catch {
       return {
         checkout_url: null,
         status: "invalid_phone",
@@ -435,7 +410,7 @@ export const startChariowCheckoutForTranche2Token = createServerFn({ method: "PO
       email,
       first_name: firstName || "Etudiant",
       last_name: lastName || "Etudiant",
-      phone: { number: numberOnly, country_code: isoCountry },
+      phone: phoneE164,
       redirect_url: redirect,
       custom_metadata: {
         cohort_id: cohort.id,
