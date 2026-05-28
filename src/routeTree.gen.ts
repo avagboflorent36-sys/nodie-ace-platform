@@ -33,6 +33,7 @@ import { Route as AuthenticatedAdminFormationsRouteImport } from './routes/_auth
 import { Route as AuthenticatedAdminEtudiantsIndexRouteImport } from './routes/_authenticated/admin/etudiants.index'
 import { Route as AuthenticatedAdminCohortesIndexRouteImport } from './routes/_authenticated/admin/cohortes.index'
 import { Route as ApiPublicHooksPaymentRemindersRouteImport } from './routes/api/public/hooks/payment-reminders'
+import { Route as ApiPublicHooksAutomationTickRouteImport } from './routes/api/public/hooks/automation-tick'
 import { Route as AuthenticatedAdminEtudiantsIdRouteImport } from './routes/_authenticated/admin/etudiants.$id'
 import { Route as AuthenticatedAdminCohortesIdRouteImport } from './routes/_authenticated/admin/cohortes.$id'
 import { Route as ApiPublicHooksChariowSecretRouteImport } from './routes/api/public/hooks/chariow.$secret'
@@ -170,6 +171,12 @@ const ApiPublicHooksPaymentRemindersRoute =
     path: '/api/public/hooks/payment-reminders',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksAutomationTickRoute =
+  ApiPublicHooksAutomationTickRouteImport.update({
+    id: '/api/public/hooks/automation-tick',
+    path: '/api/public/hooks/automation-tick',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AuthenticatedAdminEtudiantsIdRoute =
   AuthenticatedAdminEtudiantsIdRouteImport.update({
     id: '/etudiants/$id',
@@ -212,6 +219,7 @@ export interface FileRoutesByFullPath {
   '/etudiant/': typeof AuthenticatedEtudiantIndexRoute
   '/admin/cohortes/$id': typeof AuthenticatedAdminCohortesIdRoute
   '/admin/etudiants/$id': typeof AuthenticatedAdminEtudiantsIdRoute
+  '/api/public/hooks/automation-tick': typeof ApiPublicHooksAutomationTickRoute
   '/api/public/hooks/payment-reminders': typeof ApiPublicHooksPaymentRemindersRoute
   '/admin/cohortes/': typeof AuthenticatedAdminCohortesIndexRoute
   '/admin/etudiants/': typeof AuthenticatedAdminEtudiantsIndexRoute
@@ -238,6 +246,7 @@ export interface FileRoutesByTo {
   '/etudiant': typeof AuthenticatedEtudiantIndexRoute
   '/admin/cohortes/$id': typeof AuthenticatedAdminCohortesIdRoute
   '/admin/etudiants/$id': typeof AuthenticatedAdminEtudiantsIdRoute
+  '/api/public/hooks/automation-tick': typeof ApiPublicHooksAutomationTickRoute
   '/api/public/hooks/payment-reminders': typeof ApiPublicHooksPaymentRemindersRoute
   '/admin/cohortes': typeof AuthenticatedAdminCohortesIndexRoute
   '/admin/etudiants': typeof AuthenticatedAdminEtudiantsIndexRoute
@@ -268,6 +277,7 @@ export interface FileRoutesById {
   '/_authenticated/etudiant/': typeof AuthenticatedEtudiantIndexRoute
   '/_authenticated/admin/cohortes/$id': typeof AuthenticatedAdminCohortesIdRoute
   '/_authenticated/admin/etudiants/$id': typeof AuthenticatedAdminEtudiantsIdRoute
+  '/api/public/hooks/automation-tick': typeof ApiPublicHooksAutomationTickRoute
   '/api/public/hooks/payment-reminders': typeof ApiPublicHooksPaymentRemindersRoute
   '/_authenticated/admin/cohortes/': typeof AuthenticatedAdminCohortesIndexRoute
   '/_authenticated/admin/etudiants/': typeof AuthenticatedAdminEtudiantsIndexRoute
@@ -298,6 +308,7 @@ export interface FileRouteTypes {
     | '/etudiant/'
     | '/admin/cohortes/$id'
     | '/admin/etudiants/$id'
+    | '/api/public/hooks/automation-tick'
     | '/api/public/hooks/payment-reminders'
     | '/admin/cohortes/'
     | '/admin/etudiants/'
@@ -324,6 +335,7 @@ export interface FileRouteTypes {
     | '/etudiant'
     | '/admin/cohortes/$id'
     | '/admin/etudiants/$id'
+    | '/api/public/hooks/automation-tick'
     | '/api/public/hooks/payment-reminders'
     | '/admin/cohortes'
     | '/admin/etudiants'
@@ -353,6 +365,7 @@ export interface FileRouteTypes {
     | '/_authenticated/etudiant/'
     | '/_authenticated/admin/cohortes/$id'
     | '/_authenticated/admin/etudiants/$id'
+    | '/api/public/hooks/automation-tick'
     | '/api/public/hooks/payment-reminders'
     | '/_authenticated/admin/cohortes/'
     | '/_authenticated/admin/etudiants/'
@@ -367,6 +380,7 @@ export interface RootRouteChildren {
   ResetPasswordRoute: typeof ResetPasswordRoute
   SignupRoute: typeof SignupRoute
   InscriptionSlugRoute: typeof InscriptionSlugRoute
+  ApiPublicHooksAutomationTickRoute: typeof ApiPublicHooksAutomationTickRoute
   ApiPublicHooksPaymentRemindersRoute: typeof ApiPublicHooksPaymentRemindersRoute
   ApiPublicHooksChariowSecretRoute: typeof ApiPublicHooksChariowSecretRoute
 }
@@ -541,6 +555,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksPaymentRemindersRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/automation-tick': {
+      id: '/api/public/hooks/automation-tick'
+      path: '/api/public/hooks/automation-tick'
+      fullPath: '/api/public/hooks/automation-tick'
+      preLoaderRoute: typeof ApiPublicHooksAutomationTickRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/admin/etudiants/$id': {
       id: '/_authenticated/admin/etudiants/$id'
       path: '/etudiants/$id'
@@ -639,6 +660,7 @@ const rootRouteChildren: RootRouteChildren = {
   ResetPasswordRoute: ResetPasswordRoute,
   SignupRoute: SignupRoute,
   InscriptionSlugRoute: InscriptionSlugRoute,
+  ApiPublicHooksAutomationTickRoute: ApiPublicHooksAutomationTickRoute,
   ApiPublicHooksPaymentRemindersRoute: ApiPublicHooksPaymentRemindersRoute,
   ApiPublicHooksChariowSecretRoute: ApiPublicHooksChariowSecretRoute,
 }
