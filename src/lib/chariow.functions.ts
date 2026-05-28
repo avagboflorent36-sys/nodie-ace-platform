@@ -25,6 +25,11 @@ function normalizeChariowProductId(value?: string | null) {
   return withoutQuery.split("/").pop()?.trim() || null;
 }
 
+const TRUSTED_ATTEMPT_PAID_STATUSES = new Set([
+  "processed",
+  "ownership_confirmed",
+]);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. Démarrer un checkout Chariow (public — paiement avant compte)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -214,16 +219,18 @@ export const startChariowCheckout = createServerFn({ method: "POST" })
 
     if (!url && step === "already_purchased") {
       await supabaseAdmin.from("chariow_payment_attempts").update({
-        status: "already_purchased",
-        last_error: message ?? "already_purchased",
+        status: "ownership_confirmed",
+        last_error: null,
         chariow_raw_response: checkout as any,
       }).eq("id", attempt.id);
       return {
         checkout_url: null,
-        status: "already_purchased",
+        status: "ownership_confirmed",
         message:
           message ??
           "Ce produit est déjà associé à cette adresse email sur Chariow.",
+        attempt_token: attemptToken,
+        redirect_url: `${origin}/inscription/${cohort.slug}?attempt=${attemptToken}`,
       };
     }
 
