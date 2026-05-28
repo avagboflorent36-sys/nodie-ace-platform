@@ -165,7 +165,16 @@
   html {
     scroll-behavior: smooth;
   }
+
+  /* Safe-area mobile (notch iOS, Dynamic Island, Android edge-to-edge) */
+  body {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
 }
+
 
 @layer utilities {
   .text-gold {
