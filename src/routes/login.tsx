@@ -1,6 +1,6 @@
 import { createFileRoute, Link, Navigate, useNavigate, useSearch } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 
 import { Logo } from "@/components/Logo";
@@ -31,8 +31,28 @@ function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [claimingExistingSession, setClaimingExistingSession] = useState(false);
 
-  if (!authLoading && user && rolesLoaded) {
+  useEffect(() => {
+    if (!user || !rolesLoaded || !search.attempt) return;
+    let cancelled = false;
+    setClaimingExistingSession(true);
+    (async () => {
+      try {
+        await claimAttempt({ data: { token: search.attempt! } });
+        if (!cancelled) toast.success("Paiement lié à votre compte.");
+      } catch (e: any) {
+        if (!cancelled) toast.error(e?.message ?? "Le paiement n'a pas pu être lié.");
+      } finally {
+        if (!cancelled) setClaimingExistingSession(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, rolesLoaded, search.attempt, claimAttempt]);
+
+  if (!authLoading && user && rolesLoaded && !claimingExistingSession) {
     return <Navigate to={isAdmin ? "/admin" : "/etudiant"} />;
   }
 
