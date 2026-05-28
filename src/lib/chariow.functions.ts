@@ -271,30 +271,56 @@ export const checkAttemptByToken = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { data: attempt } = await supabaseAdmin
       .from("chariow_payment_attempts")
-      .select("id, status, chariow_sale_id, cohort_id, last_error")
+      .select("id, token, status, chariow_sale_id, cohort_id, last_error, chariow_raw_response")
       .eq("token", data.token)
       .maybeSingle();
     if (!attempt) return { found: false, status: "unknown" as const };
 
-    // If we have a sale id, double-check Chariow directly
+    const saleId =
+      attempt.chariow_sale_id || extractSaleId(attempt.chariow_raw_response);
+
+    if (saleId && !attempt.chariow_sale_id) {
+      await supabaseAdmin
+        .from("chariow_payment_attempts")
+        .update({ chariow_sale_id: saleId })
+        .eq("id", attempt.id);
+    }
+
+    // If we have a sale id, double-check Chariow directly and process it when paid.
     let paid = false;
     let saleStatus: string | null = null;
-    if (attempt.chariow_sale_id) {
+    if (saleId) {
       try {
-        const sale: any = await verifySale(attempt.chariow_sale_id);
-        const s = sale?.sale ?? sale?.data ?? sale ?? {};
+        const sale: any = await verifySale(saleId);
+        const s = sale?.sale ?? sale?.data?.sale ?? sale?.data?.purchase ?? sale?.purchase ?? sale?.data ?? sale ?? {};
         saleStatus = s.status ?? null;
-        paid = ["paid", "success", "successful", "completed", "validated"].includes(
-          String(s.status ?? "").toLowerCase(),
-        );
-      } catch {}
+        paid = isPaidChariowStatus(s.status ?? s.payment?.status);
+        if (paid && attempt.status !== "processed") {
+          const result = await processChariowSale(saleId, sale, {
+            attempt_token: attempt.token,
+            cohort_id_override: attempt.cohort_id,
+          });
+          paid = result.ok || result.status === "processed";
+        }
+        if (!paid) {
+          await supabaseAdmin
+            .from("chariow_payment_attempts")
+            .update({ last_error: `Paiement non confirmé côté Chariow (${saleStatus ?? "unknown"})` })
+            .eq("id", attempt.id);
+        }
+      } catch (e: any) {
+        await supabaseAdmin
+          .from("chariow_payment_attempts")
+          .update({ last_error: String(e?.message ?? e).slice(0, 500) })
+          .eq("id", attempt.id);
+      }
     }
     return {
       found: true,
       status: attempt.status,
       paid: paid || attempt.status === "processed",
       sale_status: saleStatus,
-      sale_id: attempt.chariow_sale_id,
+      sale_id: saleId || null,
       cohort_id: attempt.cohort_id,
       last_error: attempt.last_error,
     };
