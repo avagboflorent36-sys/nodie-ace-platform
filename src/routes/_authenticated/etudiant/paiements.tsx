@@ -141,7 +141,7 @@ function StudentPayments() {
                     size="sm"
                     className="bg-gold text-primary hover:bg-gold/90"
                   >
-                    <Link to="/etudiant/paiements/tranche-2/$paymentId" params={{ paymentId: p.id }}>
+                    <Link to="/etudiant/tranche-2/$paymentId" params={{ paymentId: p.id }}>
                       <CreditCard className="mr-1 h-3 w-3" />
                       Payer la tranche 2
                     </Link>
@@ -171,7 +171,7 @@ function StudentPayments() {
                           size="sm"
                           className="bg-gold text-primary hover:bg-gold/90"
                         >
-                          <Link to="/etudiant/paiements/tranche-2/$paymentId" params={{ paymentId: p.id }}>
+                          <Link to="/etudiant/tranche-2/$paymentId" params={{ paymentId: p.id }}>
                             <CreditCard className="mr-1 h-3 w-3" />
                             Payer
                           </Link>
