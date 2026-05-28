@@ -44,6 +44,7 @@ function CohortDetail() {
   if (!cohort) return <div className="p-8 text-muted-foreground">Chargement...</div>;
 
   const inscriptionUrl = `${window.location.origin}/inscription/${cohort.slug}`;
+  const tranche2Url = `${window.location.origin}/inscription/${cohort.slug}/tranche-2`;
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 animate-fade-up">
@@ -60,11 +61,17 @@ function CohortDetail() {
               <span className="text-xs text-muted-foreground">{cohort.start_date ?? "?"} → {cohort.end_date ?? "?"}</span>
             </div>
           </div>
-          <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(inscriptionUrl); toast.success("Lien copié"); }}>
-            <Copy className="mr-1 h-3 w-3" /> Copier le lien d'inscription
-          </Button>
+          <div className="flex flex-col items-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(inscriptionUrl); toast.success("Lien copié"); }}>
+              <Copy className="mr-1 h-3 w-3" /> Copier le lien d'inscription
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(tranche2Url); toast.success("Lien tranche 2 copié"); }}>
+              <Copy className="mr-1 h-3 w-3" /> Copier le lien tranche 2
+            </Button>
+          </div>
         </div>
       </div>
+
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="grid w-full grid-cols-9">
