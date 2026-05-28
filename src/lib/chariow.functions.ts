@@ -361,6 +361,169 @@ export const claimPendingEnrollment = createServerFn({ method: "POST" })
   });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// 3-bis. Réclamer une tentative par attempt_token (auth — appelé au signup
+// quand l'étudiant est arrivé via ?attempt=TOKEN après paiement Chariow).
+// Garantit que l'utilisateur nouvellement créé est bien lié au paiement,
+// à la cohorte, et reçoit un payment + installment validés.
+// ─────────────────────────────────────────────────────────────────────────────
+export const claimAttemptByToken = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z.object({ token: z.string().min(20).max(128) }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { userId } = context;
+
+    const { data: attempt } = await supabaseAdmin
+      .from("chariow_payment_attempts")
+      .select("*")
+      .eq("token", data.token)
+      .maybeSingle();
+    if (!attempt) throw new Error("Tentative introuvable.");
+    if (!attempt.cohort_id) throw new Error("Cohorte manquante sur la tentative.");
+
+    // Re-vérifier la vente côté Chariow si on a un sale_id, sinon refuser.
+    let paid = attempt.status === "processed";
+    if (!paid && attempt.chariow_sale_id) {
+      try {
+        const sale: any = await verifySale(attempt.chariow_sale_id);
+        const s = sale?.sale ?? sale?.data ?? sale ?? {};
+        paid = ["paid", "success", "successful", "completed", "validated"].includes(
+          String(s.status ?? "").toLowerCase(),
+        );
+      } catch {}
+    }
+    if (!paid) {
+      throw new Error("Paiement non confirmé — accès non débloqué.");
+    }
+
+    const cohortId = attempt.cohort_id as string;
+    const saleId = attempt.chariow_sale_id as string | null;
+    const mode = (attempt.mode === "installments_2" ? "installments_2" : "full") as
+      | "full"
+      | "installments_2";
+    const position = Number(attempt.installment_position ?? 1) || 1;
+
+    const { data: cohort } = await supabaseAdmin
+      .from("cohortes")
+      .select("id, price_full, price_installment")
+      .eq("id", cohortId)
+      .maybeSingle();
+    if (!cohort) throw new Error("Cohorte introuvable.");
+
+    const total =
+      mode === "full"
+        ? Number(cohort.price_full ?? attempt.amount_expected ?? 0)
+        : Number(cohort.price_installment ?? attempt.amount_expected ?? 0);
+    const instAmount = mode === "full" ? total : Math.round(total / 2);
+
+    // Récupérer/créer le payment de cet utilisateur sur cette cohorte
+    let { data: payment } = await supabaseAdmin
+      .from("payments")
+      .select("id")
+      .eq("student_id", userId)
+      .eq("cohort_id", cohortId)
+      .maybeSingle();
+
+    // Tenter de récupérer un "ghost payment" déjà créé par webhook (student_id null)
+    if (!payment && saleId) {
+      const { data: ghost } = await supabaseAdmin
+        .from("payments")
+        .select("id")
+        .eq("chariow_sale_id", saleId)
+        .is("student_id", null)
+        .maybeSingle();
+      if (ghost) {
+        await supabaseAdmin
+          .from("payments")
+          .update({ student_id: userId, cohort_id: cohortId })
+          .eq("id", ghost.id);
+        payment = ghost;
+      }
+    }
+
+    if (!payment) {
+      const { data: created } = await supabaseAdmin
+        .from("payments")
+        .insert({
+          student_id: userId,
+          cohort_id: cohortId,
+          amount_total: total,
+          amount_paid: 0,
+          currency: attempt.currency ?? "XOF",
+          mode,
+          status: "pending",
+          source: "chariow",
+          chariow_sale_id: mode === "full" ? saleId : null,
+          chariow_customer_email: attempt.email,
+        })
+        .select("id")
+        .single();
+      payment = created;
+    }
+
+    if (payment) {
+      const { data: existingInst } = await supabaseAdmin
+        .from("payment_installments")
+        .select("id")
+        .eq("payment_id", payment.id)
+        .eq("position", position)
+        .maybeSingle();
+      if (existingInst) {
+        await supabaseAdmin
+          .from("payment_installments")
+          .update({
+            status: "validated",
+            amount: instAmount,
+            chariow_sale_id: saleId,
+            submitted_at: new Date().toISOString(),
+            validated_at: new Date().toISOString(),
+          })
+          .eq("id", existingInst.id);
+      } else {
+        await supabaseAdmin.from("payment_installments").insert({
+          payment_id: payment.id,
+          position,
+          amount: instAmount,
+          status: "validated",
+          chariow_sale_id: saleId,
+          submitted_at: new Date().toISOString(),
+          validated_at: new Date().toISOString(),
+        });
+      }
+    }
+
+    // Inscription cohorte active
+    await supabaseAdmin
+      .from("cohort_enrollments")
+      .upsert(
+        { student_id: userId, cohort_id: cohortId, status: "active" },
+        { onConflict: "student_id,cohort_id" } as any,
+      );
+
+    // Marquer la tentative comme traitée
+    await supabaseAdmin
+      .from("chariow_payment_attempts")
+      .update({
+        status: "processed",
+        processed_at: new Date().toISOString(),
+        last_error: null,
+      })
+      .eq("id", attempt.id);
+
+    // Réclamer un éventuel pending_enrollment lié au même sale_id
+    if (saleId) {
+      await supabaseAdmin
+        .from("pending_enrollments")
+        .update({ claimed_at: new Date().toISOString(), claimed_by: userId })
+        .eq("chariow_sale_id", saleId)
+        .is("claimed_at", null);
+    }
+
+    return { ok: true, cohort_id: cohortId, payment_id: payment?.id };
+  });
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 4. Resync manuel d'une vente (admin)
 // ─────────────────────────────────────────────────────────────────────────────
 export const syncChariowSale = createServerFn({ method: "POST" })
