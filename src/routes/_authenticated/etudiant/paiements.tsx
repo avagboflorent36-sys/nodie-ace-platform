@@ -1,15 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Upload, AlertCircle, CheckCircle2, Clock, Wallet, CreditCard, Copy } from "lucide-react";
+import { Upload, AlertCircle, CheckCircle2, Clock, Wallet, CreditCard, Loader2 } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { startMyTranche2Checkout } from "@/lib/chariow.functions";
 
 export const Route = createFileRoute("/_authenticated/etudiant/paiements")({
   component: StudentPayments,
@@ -20,6 +21,7 @@ function StudentPayments() {
   const qc = useQueryClient();
   const [uploading, setUploading] = useState<string | null>(null);
   const [paying, setPaying] = useState<string | null>(null);
+  const startT2 = useServerFn(startMyTranche2Checkout);
 
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -32,19 +34,34 @@ function StudentPayments() {
     }
   }, [user, qc]);
 
-
   const { data: payments = [], isLoading } = useQuery({
     queryKey: ["student-payments", user?.id],
     enabled: !!user,
     queryFn: async () => {
       const { data } = await supabase
         .from("payments")
-        .select("id, mode, status, source, amount_total, amount_paid, currency, final_deadline, cohort_id, tranche2_token, cohortes(name, slug, formations(title)), payment_installments(id, position, amount, status, due_date, submitted_at, validated_at, proof_path, rejection_reason, chariow_sale_id)")
+        .select("id, mode, status, source, amount_total, amount_paid, currency, final_deadline, cohort_id, cohortes(name, slug, formations(title)), payment_installments(id, position, amount, status, due_date, submitted_at, validated_at, proof_path, rejection_reason, chariow_sale_id)")
         .eq("student_id", user!.id)
         .order("created_at", { ascending: false });
       return data ?? [];
     },
   });
+
+  const payTranche2 = async (paymentId: string) => {
+    setPaying(paymentId);
+    try {
+      const r = await startT2({ data: { payment_id: paymentId, return_origin: window.location.origin } });
+      if (r.checkout_url) {
+        window.location.href = r.checkout_url;
+        return;
+      }
+      toast.error(r.message ?? "Impossible de démarrer le paiement de la tranche 2.", { duration: 8000 });
+    } catch (e: any) {
+      toast.error(e?.message ?? "Erreur inattendue lors du démarrage du paiement.");
+    } finally {
+      setPaying(null);
+    }
+  };
 
   const uploadProof = async (installmentId: string, file: File) => {
     if (!user) return;
@@ -75,7 +92,7 @@ function StudentPayments() {
     .filter((i: any) => i.status !== "validated" && i.due_date && i.due_date < today).length;
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 animate-fade-up">
+    <div className="mx-auto w-full max-w-5xl min-w-0 space-y-6 animate-fade-up">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Mes paiements</h1>
         <p className="mt-1 text-muted-foreground">Suivez vos paiements et téléversez vos preuves.</p>
@@ -99,17 +116,20 @@ function StudentPayments() {
       ) : (
         payments.map((p: any) => {
           const ratio = p.amount_total > 0 ? Math.min(100, (p.amount_paid / p.amount_total) * 100) : 0;
+          const insts = (p.payment_installments ?? []).slice().sort((a: any, b: any) => a.position - b.position);
+          const t2 = insts.find((i: any) => i.position === 2);
+          const needsTranche2 = p.mode === "installments_2" && p.status !== "paid" && t2 && t2.status !== "validated";
           return (
             <Card key={p.id} className="p-6 space-y-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
+              <div className="flex flex-wrap items-start justify-between gap-3 min-w-0">
+                <div className="min-w-0">
                   <Badge variant="outline" className="mb-1">{p.cohortes?.formations?.title ?? "—"}</Badge>
                   {p.source === "chariow" && (
                     <Badge variant="outline" className="ml-1 mb-1 border-emerald-500/40 text-emerald-700 dark:text-emerald-400">
                       <CheckCircle2 className="mr-1 h-3 w-3" /> Payé via Chariow
                     </Badge>
                   )}
-                  <h2 className="text-lg font-semibold">{p.cohortes?.name}</h2>
+                  <h2 className="text-lg font-semibold truncate">{p.cohortes?.name}</h2>
                   <p className="text-sm text-muted-foreground mt-1">
                     Mode : {p.mode === "full" ? "Paiement intégral" : "2 tranches"} —
                     {" "}{Number(p.amount_paid).toLocaleString()} / {Number(p.amount_total).toLocaleString()} {p.currency}
@@ -127,32 +147,32 @@ function StudentPayments() {
                 <div className="h-full bg-gold transition-all" style={{ width: `${ratio}%` }} />
               </div>
 
-              {p.status === "partial" && p.cohortes?.slug && p.tranche2_token && (() => {
-                const t2Url = `${window.location.origin}/inscription/${p.cohortes.slug}/tranche-2?t=${p.tranche2_token}`;
-                return (
-                  <Card className="p-3 bg-secondary/40 border-dashed flex flex-wrap items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="text-xs font-medium">Lien direct de finalisation</p>
-                      <p className="text-[11px] text-muted-foreground break-all">{t2Url}</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button size="sm" variant="outline" onClick={() => { navigator.clipboard.writeText(t2Url); toast.success("Lien copié"); }}>
-                        <Copy className="mr-1 h-3 w-3" /> Copier
-                      </Button>
-                      <Button size="sm" className="bg-gold text-primary hover:bg-gold/90" onClick={() => { window.location.href = t2Url; }}>
-                        <CreditCard className="mr-1 h-3 w-3" /> Payer
-                      </Button>
-                    </div>
-                  </Card>
-                );
-              })()}
-
+              {needsTranche2 && (
+                <Card className="p-4 bg-gold/5 border-gold/30 flex flex-wrap items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">Tranche 2 à régler</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Montant restant : <strong>{Number(t2.amount).toLocaleString()} {p.currency}</strong>
+                      {t2.due_date ? ` — échéance ${t2.due_date}` : ""}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    className="bg-gold text-primary hover:bg-gold/90"
+                    disabled={paying === p.id}
+                    onClick={() => payTranche2(p.id)}
+                  >
+                    {paying === p.id ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <CreditCard className="mr-1 h-3 w-3" />}
+                    {paying === p.id ? "Redirection…" : "Payer la tranche 2"}
+                  </Button>
+                </Card>
+              )}
 
               <div className="space-y-2">
-                {(p.payment_installments ?? []).slice().sort((a: any, b: any) => a.position - b.position).map((i: any) => {
+                {insts.map((i: any) => {
                   const isLate = i.status !== "validated" && i.due_date && i.due_date < today;
                   return (
-                    <div key={i.id} className={`rounded-lg border p-3 flex flex-wrap items-center gap-3 ${isLate ? "border-destructive/40 bg-destructive/5" : ""}`}>
+                    <div key={i.id} className={`rounded-lg border p-3 flex flex-wrap items-center gap-3 min-w-0 ${isLate ? "border-destructive/40 bg-destructive/5" : ""}`}>
                       <div className="flex-1 min-w-[180px]">
                         <div className="font-medium">Tranche #{i.position} — {Number(i.amount).toLocaleString()} {p.currency}</div>
                         <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
@@ -164,16 +184,16 @@ function StudentPayments() {
                         )}
                       </div>
                       <StatusBadge status={i.status} />
-                      {i.status !== "validated" && p.source === "chariow" && i.position === 2 && p.tranche2_token && p.cohortes?.slug ? (
+                      {i.status !== "validated" && i.position === 2 && p.mode === "installments_2" ? (
                         <Button
                           size="sm"
                           className="bg-gold text-primary hover:bg-gold/90"
-                          disabled={paying === i.id}
-                          onClick={() => {
-                            setPaying(i.id);
-                            window.location.href = `${window.location.origin}/inscription/${p.cohortes.slug}/tranche-2?t=${p.tranche2_token}`;
-                          }}
-                        ><CreditCard className="mr-1 h-3 w-3" /> Payer tranche 2</Button>
+                          disabled={paying === p.id}
+                          onClick={() => payTranche2(p.id)}
+                        >
+                          {paying === p.id ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <CreditCard className="mr-1 h-3 w-3" />}
+                          Payer
+                        </Button>
                       ) : i.status !== "validated" && (
                         <label className="cursor-pointer">
                           <input
@@ -215,6 +235,3 @@ function StatusBadge({ status }: { status: string }) {
   const Icon = m.icon;
   return <span className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full border ${m.cls}`}><Icon className="h-3 w-3" />{m.label}</span>;
 }
-
-// Input is imported but not used directly — kept for future filtering.
-void Input;
