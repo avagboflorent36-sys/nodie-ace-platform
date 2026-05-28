@@ -1,13 +1,19 @@
 /**
  * Initialisation native pour Capacitor (Android/iOS).
+ * Tous les imports sont dynamiques pour éviter de toucher `window` durant le SSR.
  * Sur le web, c'est un no-op silencieux.
  */
-import { Capacitor } from "@capacitor/core";
-
-export const isNative = () => Capacitor.isNativePlatform();
-
 export async function initMobile() {
-  if (!isNative()) return;
+  if (typeof window === "undefined") return;
+
+  let isNative = false;
+  try {
+    const { Capacitor } = await import("@capacitor/core");
+    isNative = Capacitor.isNativePlatform();
+  } catch {
+    return;
+  }
+  if (!isNative) return;
 
   try {
     const { StatusBar, Style } = await import("@capacitor/status-bar");
