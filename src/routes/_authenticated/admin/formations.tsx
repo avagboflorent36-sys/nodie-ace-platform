@@ -258,12 +258,21 @@ function FormationDetail({ formationId }: { formationId: string }) {
   };
 
   const addLesson = async (moduleId: string | null) => {
-    if (!lessonForm.title.trim()) return;
+    if (!lessonForm.title.trim()) { toast.error("Le titre est requis."); return; }
+    const url = lessonForm.url.trim();
+    const needsUrl = lessonForm.type === "video" || lessonForm.type === "document" || lessonForm.type === "link";
+    if (needsUrl && !url) { toast.error("Une URL est requise pour ce type de contenu."); return; }
+    if (url) {
+      try { new URL(url); } catch { toast.error("URL invalide."); return; }
+    }
+    if (lessonForm.type === "exercise" && !url && !lessonForm.description.trim()) {
+      toast.error("Ajoutez une consigne ou une URL pour l'exercice."); return;
+    }
     const sameScope = resources.filter((r: any) => r.module_id === moduleId);
     const { error } = await supabase.from("formation_resources").insert({
       formation_id: formationId, module_id: moduleId,
       title: lessonForm.title.trim(), type: lessonForm.type as any,
-      url: lessonForm.url.trim() || null, description: lessonForm.description.trim() || null,
+      url: url || null, description: lessonForm.description.trim() || null,
       position: sameScope.length,
     });
     if (error) { toast.error(error.message); return; }

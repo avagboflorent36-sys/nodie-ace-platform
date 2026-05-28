@@ -1,51 +1,55 @@
 ## Diagnostic
 
-J'ai inspecté la base, les RLS, et les pages admin/étudiant. Le problème principal de la page **Formation** est **structurel**, pas un bug de droits :
+Le contenu est bien visible côté étudiant, mais il n’est pas réellement ouvrable de façon fiable :
 
-### Cause racine (Formation cassée)
-Il existe **deux systèmes de contenu pédagogique en parallèle**, et ils ne communiquent pas :
+- Les vidéos/PDF/liens sont rendus comme de simples liens externes.
+- Si l’URL est absente, invalide ou non cliquable, la ligne semble exister mais l’utilisateur ne peut rien ouvrir.
+- Les exercices n’ont actuellement aucun vrai comportement d’ouverture : s’il n’y a pas d’URL, ils ne mènent à rien.
+- Il n’y a pas de lecteur intégré, pas de modal de lecture, pas d’état d’erreur clair, et pas de validation forte côté admin au moment d’ajouter une ressource.
 
-| Table | Géré par admin via | Lu par l'étudiant ? |
-|---|---|---|
-| `formation_modules` | `/admin/formations` (page actuelle) | ❌ **Jamais** |
-| `formation_resources` | `/admin/formations` | ✅ Oui (flat, sans regroupement par module) |
-| `modules` | `/admin/cohortes/:id` | ✅ Oui |
-| `ressources` | `/admin/cohortes/:id` | ✅ Oui |
+## Plan de correction définitive
 
-→ Tout ce que l'admin crée dans **"Formations → Modules + Leçons"** (ce que tu fais dans la capture) n'apparaît **jamais** côté étudiant. C'est pour ça que "ça ne marche pas du tout".
+### 1. Créer une ouverture fiable des contenus côté étudiant
+Sur `/etudiant/formation`, remplacer les simples liens par une vraie action “Ouvrir” sur chaque ressource :
 
-### Autres constats (plateforme globale)
-- RLS et policies présentes sur toutes les tables sensibles (profiles, payments, modules, ressources, etc.) — OK.
-- L'étudiant test `elyos6936@gmail.com` est bien `active` + `paid` (la fonction `is_student_active` renvoie `true`) → les modules cohorte se chargeraient correctement si du contenu y existait.
-- Flux Chariow déjà réparé (réconciliation + déblocage email-matché).
-- Triggers de notification, handle_new_user, update_payment_on_installment : en place et fonctionnels.
-- Aucune table publique sans policies, aucune fuite RLS critique.
+- Vidéo : ouvrir dans un lecteur intégré si c’est YouTube/Vimeo ou afficher un bouton externe si le lien ne peut pas être intégré.
+- PDF/document : ouvrir dans une visionneuse intégrée quand possible, avec bouton “ouvrir dans un nouvel onglet”.
+- Lien/playlist : ouvrir proprement dans un nouvel onglet.
+- Exercice : ouvrir une modal dédiée avec la consigne/description et, si une URL existe, un bouton pour accéder au support externe.
 
-## Plan d'action
+### 2. Gérer les contenus sans URL
+Pour les ressources qui n’ont pas d’URL :
 
-### 1. Unifier l'architecture du contenu (le vrai fix Formation)
-Choix retenu : la **formation** reste la source de vérité du programme pédagogique (réutilisable d'une cohorte à l'autre), et la **cohorte** ne sert qu'aux ajouts spécifiques (annonces, replays live).
+- Ne plus afficher une ligne qui pointe vers `#`.
+- Afficher clairement “Contenu non disponible” ou ouvrir une modal avec la description si c’est un exercice.
+- Désactiver l’action externe quand aucun lien n’existe.
 
-- **Étudiant** (`/etudiant/formation`) : afficher d'abord les `formation_modules` (+ `formation_resources` enfants groupés par `module_id`) de chaque formation à laquelle il est inscrit via une cohorte active, puis les `modules`/`ressources` cohorte-spécifiques.
-- **Admin** : conserver les deux éditeurs mais clarifier l'UI :
-  - `/admin/formations` → "Programme de la formation" (contenu partagé entre toutes les cohortes)
-  - `/admin/cohortes/:id` → "Contenu spécifique à cette cohorte" (replays, annonces, exos cohorte)
-- Migration légère : ajouter la policy SELECT manquante sur `formation_modules` pour étudiants inscrits actifs (déjà ouverte mais on aligne avec `formation_resources`).
+### 3. Ajouter une validation admin minimale
+Dans `/admin/formations` et `/admin/cohortes/:id` :
 
-### 2. Réparer la page étudiant Formation
-Réécrire la requête de `src/routes/_authenticated/etudiant/formation.tsx` pour récupérer `formation_modules(*, formation_resources(*))` filtrés par `formation_id`, et regrouper les leçons par module dans l'affichage.
+- Vérifier les URLs avant enregistrement pour les types vidéo, document et lien.
+- Afficher un message clair si l’admin essaie d’ajouter une vidéo/PDF/lien sans URL valide.
+- Autoriser les exercices sans URL seulement si une description/consigne est fournie.
 
-### 3. Diagnostic global et stabilité
-- Parcourir chaque page étudiant (Dashboard, Formation, Live, Paiements, Certificat, Profil, Support) et chaque page admin (Vue, Étudiants, Formations, Cohortes, Paiements, Notifications, Webhook) pour vérifier qu'elles chargent sans erreur RLS/JS.
-- Ajouter un fallback "aucun contenu" propre partout où une liste peut être vide.
-- Vérifier que les realtime channels écoutent les bonnes tables (`formation_modules` manquait).
-- Test manuel via navigateur : login admin → créer module formation + leçon → login étudiant test → vérifier l'affichage.
+### 4. Factoriser le rendu des ressources
+Créer un composant réutilisable pour éviter que la logique soit différente entre :
 
-### 4. Confirmation finale
-Après corrections, je relance un check complet (lecture DB + parcours UI navigateur) et je te confirme que tout est stable côté admin **et** étudiant.
+- ressources du programme de formation,
+- ressources globales,
+- contenu spécifique à la cohorte.
 
-## Fichiers impactés
-- `src/routes/_authenticated/etudiant/formation.tsx` (requête + rendu)
-- `src/routes/_authenticated/admin/formations.tsx` (libellés UI clarifiés)
-- `src/routes/_authenticated/admin/cohortes.$id.tsx` (libellés UI clarifiés)
-- 1 migration SQL légère si une policy manque après vérification finale
+Ce composant gérera : icône, type, bouton ouvrir, modal lecteur, fallback sans URL, et comportement mobile/desktop.
+
+### 5. Vérifier les accès et les données existantes
+Le backend est opérationnel et les règles d’accès permettent déjà aux étudiants actifs de lire les ressources. Je garderai ces règles, puis je vérifierai que les ressources existantes avec URL YouTube s’ouvrent correctement après correction.
+
+## Fichiers à modifier
+
+- `src/routes/_authenticated/etudiant/formation.tsx`
+- `src/routes/_authenticated/admin/formations.tsx`
+- `src/routes/_authenticated/admin/cohortes.$id.tsx`
+- éventuellement un petit composant dédié dans `src/components/` si cela rend le code plus stable
+
+## Résultat attendu
+
+Après implémentation, un étudiant pourra ouvrir les vidéos, PDF, liens et exercices depuis sa page Formation, avec un comportement clair même quand une ressource est mal renseignée côté admin.
