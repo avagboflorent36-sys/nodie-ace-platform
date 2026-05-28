@@ -72,6 +72,10 @@ export function extractSaleId(payload: any): string {
   const candidates = [
     payload?.sale?.id,
     payload?.data?.sale?.id,
+    payload?.purchase?.id,
+    payload?.data?.purchase?.id,
+    payload?.data?.purchase?.sale_id,
+    payload?.data?.payment?.sale_id,
     payload?.data?.id,
     payload?.sale_id,
     payload?.saleId,
@@ -88,6 +92,40 @@ export function extractSaleId(payload: any): string {
     if (typeof c === "number") return String(c);
   }
   return "";
+}
+
+export function extractAttemptToken(payload: any): string {
+  if (!payload || typeof payload !== "object") return "";
+  const meta =
+    payload?.custom_metadata ??
+    payload?.sale?.custom_metadata ??
+    payload?.data?.sale?.custom_metadata ??
+    payload?.data?.purchase?.custom_metadata ??
+    payload?.metadata ??
+    payload?.data?.metadata ??
+    {};
+  const direct = meta?.attempt_token ?? meta?.attemptToken ?? payload?.attempt_token;
+  if (typeof direct === "string" && direct.trim()) return direct.trim();
+
+  const redirectCandidates = [
+    payload?.redirect_url,
+    payload?.sale?.redirect_url,
+    payload?.data?.redirect_url,
+    payload?.data?.sale?.redirect_url,
+    payload?.data?.purchase?.redirect_url,
+  ];
+  for (const value of redirectCandidates) {
+    if (typeof value !== "string") continue;
+    const match = value.match(/[?&]attempt=([a-z0-9]+)/i);
+    if (match?.[1]) return match[1];
+  }
+  return "";
+}
+
+export function isPaidChariowStatus(status: unknown) {
+  return ["paid", "success", "successful", "completed", "validated"].includes(
+    String(status ?? "").toLowerCase(),
+  );
 }
 
 function extractEventType(payload: any): string {
@@ -111,7 +149,7 @@ export async function processChariowSale(
   hints?: { attempt_token?: string; cohort_id_override?: string },
 ): Promise<{
   ok: boolean;
-  status: "processed" | "not_paid" | "missing_cohort" | "error";
+  status: "paid" | "processed" | "not_paid" | "missing_cohort" | "error";
   message?: string;
   payment_id?: string;
   pending_enrollment_id?: string;
@@ -122,8 +160,8 @@ export async function processChariowSale(
   const c = verified?.customer ?? rawPayload?.customer ?? {};
   const meta = s.custom_metadata ?? rawPayload?.sale?.custom_metadata ?? {};
 
-  const saleStatus = String(s.status ?? "").toLowerCase();
-  const paid = ["paid", "success", "successful", "completed", "validated"].includes(saleStatus);
+  const saleStatus = String(s.status ?? s.payment?.status ?? "").toLowerCase();
+  const paid = isPaidChariowStatus(saleStatus);
   if (!paid) {
     return { ok: false, status: "not_paid", message: `Sale status: ${saleStatus || "unknown"}` };
   }
