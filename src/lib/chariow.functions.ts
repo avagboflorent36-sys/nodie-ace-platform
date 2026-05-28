@@ -294,9 +294,12 @@ export const checkAttemptByToken = createServerFn({ method: "POST" })
     }
 
     // If we have a sale id, double-check Chariow directly and process it when paid.
-    let paid = false;
+    // If Chariow answers "already purchased" at checkout, the email/product pair
+    // is confirmed by Chariow but no sale id is returned; keep it eligible for the
+    // account-creation step, where it will be attached to the authenticated user.
+    let paid = TRUSTED_ATTEMPT_PAID_STATUSES.has(attempt.status);
     let saleStatus: string | null = null;
-    if (saleId) {
+    if (!paid && saleId) {
       try {
         const sale: any = await verifySale(saleId);
         const s = sale?.sale ?? sale?.data?.sale ?? sale?.data?.purchase ?? sale?.purchase ?? sale?.data ?? sale ?? {};
@@ -325,7 +328,7 @@ export const checkAttemptByToken = createServerFn({ method: "POST" })
     return {
       found: true,
       status: attempt.status,
-      paid: paid || attempt.status === "processed",
+      paid,
       sale_status: saleStatus,
       sale_id: saleId || null,
       cohort_id: attempt.cohort_id,
