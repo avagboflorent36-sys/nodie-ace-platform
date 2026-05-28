@@ -55,26 +55,26 @@ function CohortDetail() {
     (full && inst1 && full === inst1);
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 animate-fade-up">
-      <div>
+    <div className="mx-auto w-full max-w-7xl min-w-0 space-y-6 animate-fade-up">
+      <div className="min-w-0">
         <Link to="/admin/cohortes" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft className="mr-1 h-3 w-3" /> Retour aux cohortes
         </Link>
-        <div className="mt-2 flex flex-wrap items-start justify-between gap-3">
-          <div>
+        <div className="mt-2 flex flex-wrap items-start justify-between gap-3 min-w-0">
+          <div className="min-w-0">
             <div className="text-xs uppercase text-muted-foreground">{cohort.formations?.title}</div>
-            <h1 className="mt-1 text-3xl font-bold tracking-tight">{cohort.name}</h1>
-            <div className="mt-2 flex items-center gap-2">
+            <h1 className="mt-1 text-3xl font-bold tracking-tight truncate">{cohort.name}</h1>
+            <div className="mt-2 flex items-center gap-2 flex-wrap">
               <Badge variant="outline">{cohort.status}</Badge>
               <span className="text-xs text-muted-foreground">{cohort.start_date ?? "?"} → {cohort.end_date ?? "?"}</span>
             </div>
           </div>
-          <div className="flex flex-col items-end gap-2">
+          <div className="flex flex-col items-end gap-2 max-w-full">
             <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(inscriptionUrl); toast.success("Lien copié"); }}>
               <Copy className="mr-1 h-3 w-3" /> Copier le lien d'inscription
             </Button>
-            <span className="text-[11px] text-muted-foreground text-right max-w-[260px]">
-              Les liens de paiement tranche 2 sont personnalisés par étudiant (token unique) et disponibles dans l'onglet « Étudiants ».
+            <span className="text-[11px] text-muted-foreground text-right max-w-[280px]">
+              Les étudiants paient la tranche 2 directement depuis « Mes paiements ». L'onglet « Étudiants » fournit aussi un lien de secours.
             </span>
           </div>
         </div>
@@ -83,7 +83,7 @@ function CohortDetail() {
       {productCollision && (
         <Card className="p-4 border-destructive/40 bg-destructive/5 flex items-start gap-3">
           <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
-          <div className="text-sm">
+          <div className="text-sm min-w-0">
             <p className="font-medium text-destructive">Configuration Chariow invalide</p>
             <p className="text-muted-foreground mt-1">
               Plusieurs modes de paiement utilisent le même Product ID Chariow. La page tranche 2 ouvrira le même produit que la tranche 1 / paiement intégral. Allez dans <strong>Paramètres → Intégration Chariow</strong> et assignez un Product ID distinct à chaque mode.
@@ -92,10 +92,8 @@ function CohortDetail() {
         </Card>
       )}
 
-
-
-      <Tabs value={tab} onValueChange={setTab}>
-        <div className="overflow-x-auto">
+      <Tabs value={tab} onValueChange={setTab} className="min-w-0">
+        <div className="-mx-1 overflow-x-auto">
           <TabsList className="inline-flex h-auto flex-wrap gap-1 p-1">
             <TabsTrigger value="overview">Vue d'ensemble</TabsTrigger>
             <TabsTrigger value="students">Étudiants</TabsTrigger>
@@ -109,7 +107,6 @@ function CohortDetail() {
           </TabsList>
         </div>
 
-
         <TabsContent value="overview" className="space-y-4 pt-4"><OverviewTab cohortId={id} /></TabsContent>
         <TabsContent value="students" className="space-y-4 pt-4"><StudentsTab cohortId={id} cohortSlug={cohort.slug} /></TabsContent>
         <TabsContent value="content" className="space-y-4 pt-4"><ContentTab cohortId={id} /></TabsContent>
@@ -119,7 +116,6 @@ function CohortDetail() {
         <TabsContent value="automations" className="space-y-4 pt-4"><AutomationsTab cohortId={id} /></TabsContent>
         <TabsContent value="responses" className="space-y-4 pt-4"><ResponsesTab cohortId={id} /></TabsContent>
         <TabsContent value="settings" className="space-y-4 pt-4"><SettingsTab cohort={cohort} onSaved={() => { refetchCohort(); qc.invalidateQueries({ queryKey: ["admin-cohortes"] }); }} /></TabsContent>
-
       </Tabs>
     </div>
   );
