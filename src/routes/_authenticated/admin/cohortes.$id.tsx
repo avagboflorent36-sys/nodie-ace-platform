@@ -73,9 +73,9 @@ function CohortDetail() {
             <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(inscriptionUrl); toast.success("Lien copié"); }}>
               <Copy className="mr-1 h-3 w-3" /> Copier le lien d'inscription
             </Button>
-            <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(tranche2Url); toast.success("Lien tranche 2 copié"); }}>
-              <Copy className="mr-1 h-3 w-3" /> Copier le lien tranche 2
-            </Button>
+            <span className="text-[11px] text-muted-foreground text-right max-w-[220px]">
+              Le lien tranche 2 est personnalisé par étudiant — voir l'onglet « Étudiants ».
+            </span>
           </div>
         </div>
       </div>
