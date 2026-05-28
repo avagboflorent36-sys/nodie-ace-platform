@@ -95,17 +95,20 @@ function CohortDetail() {
 
 
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="grid w-full grid-cols-9">
-          <TabsTrigger value="overview">Vue d'ensemble</TabsTrigger>
-          <TabsTrigger value="students">Étudiants</TabsTrigger>
-          <TabsTrigger value="content">Contenu</TabsTrigger>
-          <TabsTrigger value="annonces">Annonces</TabsTrigger>
-          <TabsTrigger value="live">Live</TabsTrigger>
-          <TabsTrigger value="form">Formulaire</TabsTrigger>
-          <TabsTrigger value="automations">Automatisations</TabsTrigger>
-          <TabsTrigger value="responses">Réponses</TabsTrigger>
-          <TabsTrigger value="settings">Paramètres</TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto">
+          <TabsList className="inline-flex h-auto flex-wrap gap-1 p-1">
+            <TabsTrigger value="overview">Vue d'ensemble</TabsTrigger>
+            <TabsTrigger value="students">Étudiants</TabsTrigger>
+            <TabsTrigger value="content">Contenu</TabsTrigger>
+            <TabsTrigger value="annonces">Annonces</TabsTrigger>
+            <TabsTrigger value="live">Live</TabsTrigger>
+            <TabsTrigger value="form">Formulaire</TabsTrigger>
+            <TabsTrigger value="automations">Automatisations</TabsTrigger>
+            <TabsTrigger value="responses">Réponses</TabsTrigger>
+            <TabsTrigger value="settings">Paramètres</TabsTrigger>
+          </TabsList>
+        </div>
+
 
         <TabsContent value="overview" className="space-y-4 pt-4"><OverviewTab cohortId={id} /></TabsContent>
         <TabsContent value="students" className="space-y-4 pt-4"><StudentsTab cohortId={id} cohortSlug={cohort.slug} /></TabsContent>
