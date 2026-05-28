@@ -1,4 +1,5 @@
-import { createFileRoute, Link, Navigate, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, Navigate, useNavigate, useSearch } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useState, type FormEvent } from "react";
 import { toast } from "sonner";
 
@@ -10,14 +11,22 @@ import { Card } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { loginSchema } from "@/lib/validators";
 import { useAuth } from "@/hooks/useAuth";
+import { claimAttemptByToken } from "@/lib/chariow.functions";
+
+type SearchParams = { attempt?: string };
 
 export const Route = createFileRoute("/login")({
+  validateSearch: (s: Record<string, unknown>): SearchParams => ({
+    attempt: typeof s.attempt === "string" ? s.attempt : undefined,
+  }),
   head: () => ({ meta: [{ title: "Connexion — Nodie IA Academy" }] }),
   component: LoginPage,
 });
 
 function LoginPage() {
   const navigate = useNavigate();
+  const search = useSearch({ from: "/login" }) as SearchParams;
+  const claimAttempt = useServerFn(claimAttemptByToken);
   const { user, loading: authLoading, rolesLoaded, isAdmin } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -42,6 +51,14 @@ function LoginPage() {
       return;
     }
     toast.success("Connexion réussie");
+    if (search.attempt) {
+      try {
+        await claimAttempt({ data: { token: search.attempt } });
+        toast.success("Paiement lié à votre compte.");
+      } catch (e: any) {
+        toast.error(e?.message ?? "Connexion réussie, mais le paiement n'a pas pu être lié.");
+      }
+    }
     // Check role to route correctly
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { navigate({ to: "/" }); return; }
