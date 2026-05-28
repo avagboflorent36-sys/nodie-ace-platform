@@ -13,6 +13,8 @@ import appCss from "../styles.css?url";
 import { AuthProvider } from "@/hooks/useAuth";
 import { Toaster } from "@/components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { initMobile } from "@/lib/mobile";
+
 
 function NotFoundComponent() {
   return (
@@ -115,6 +117,7 @@ function AuthSync() {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  useEffect(() => { void initMobile(); }, []);
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
@@ -125,3 +128,4 @@ function RootComponent() {
     </QueryClientProvider>
   );
 }
+
