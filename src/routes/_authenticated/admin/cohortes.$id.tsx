@@ -423,14 +423,9 @@ function SettingsTab({ cohort, onSaved }: { cohort: any; onSaved: () => void }) 
         <PaymentScheduleEditor cohortId={cohort.id} />
       </div>
       <div className="pt-6 border-t">
-        <ReminderRulesEditor cohortId={cohort.id} />
+        <ChariowSection cohort={cohort} onSaved={onSaved} />
       </div>
-      <div className="pt-6 border-t">
-        <AccessRulesEditor cohortId={cohort.id} />
-      </div>
-      <div className="pt-6 border-t">
-        <EmailCampaignsEditor cohortId={cohort.id} />
-      </div>
+
       <div className="pt-6 border-t">
         <ChariowSection cohort={cohort} onSaved={onSaved} />
       </div>
