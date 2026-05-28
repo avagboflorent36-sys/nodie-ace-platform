@@ -298,7 +298,7 @@ function StudentsTab({ cohortId, tranche2ProductId }: { cohortId: string; tranch
                     {needsT2 ? (
                       <div className="space-y-2">
                         <Button size="sm" variant="outline" onClick={() => {
-                          const url = `${window.location.origin}/etudiant/paiements/tranche-2/${r.payment.id}`;
+                          const url = `${window.location.origin}/etudiant/tranche-2/${r.payment.id}`;
                           navigator.clipboard.writeText(url);
                           toast.success("Lien sécurisé tranche 2 copié");
                         }}>

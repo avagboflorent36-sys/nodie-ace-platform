@@ -35,10 +35,10 @@ import { Route as AuthenticatedAdminEtudiantsIndexRouteImport } from './routes/_
 import { Route as AuthenticatedAdminCohortesIndexRouteImport } from './routes/_authenticated/admin/cohortes.index'
 import { Route as ApiPublicHooksPaymentRemindersRouteImport } from './routes/api/public/hooks/payment-reminders'
 import { Route as ApiPublicHooksAutomationTickRouteImport } from './routes/api/public/hooks/automation-tick'
+import { Route as AuthenticatedEtudiantTranche2PaymentIdRouteImport } from './routes/_authenticated/etudiant/tranche-2.$paymentId'
 import { Route as AuthenticatedAdminEtudiantsIdRouteImport } from './routes/_authenticated/admin/etudiants.$id'
 import { Route as AuthenticatedAdminCohortesIdRouteImport } from './routes/_authenticated/admin/cohortes.$id'
 import { Route as ApiPublicHooksChariowSecretRouteImport } from './routes/api/public/hooks/chariow.$secret'
-import { Route as AuthenticatedEtudiantPaiementsTranche2PaymentIdRouteImport } from './routes/_authenticated/etudiant/paiements.tranche-2.$paymentId'
 
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
@@ -184,6 +184,12 @@ const ApiPublicHooksAutomationTickRoute =
     path: '/api/public/hooks/automation-tick',
     getParentRoute: () => rootRouteImport,
   } as any)
+const AuthenticatedEtudiantTranche2PaymentIdRoute =
+  AuthenticatedEtudiantTranche2PaymentIdRouteImport.update({
+    id: '/tranche-2/$paymentId',
+    path: '/tranche-2/$paymentId',
+    getParentRoute: () => AuthenticatedEtudiantRoute,
+  } as any)
 const AuthenticatedAdminEtudiantsIdRoute =
   AuthenticatedAdminEtudiantsIdRouteImport.update({
     id: '/etudiants/$id',
@@ -202,12 +208,6 @@ const ApiPublicHooksChariowSecretRoute =
     path: '/api/public/hooks/chariow/$secret',
     getParentRoute: () => rootRouteImport,
   } as any)
-const AuthenticatedEtudiantPaiementsTranche2PaymentIdRoute =
-  AuthenticatedEtudiantPaiementsTranche2PaymentIdRouteImport.update({
-    id: '/tranche-2/$paymentId',
-    path: '/tranche-2/$paymentId',
-    getParentRoute: () => AuthenticatedEtudiantPaiementsRoute,
-  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -225,7 +225,7 @@ export interface FileRoutesByFullPath {
   '/etudiant/certificat': typeof AuthenticatedEtudiantCertificatRoute
   '/etudiant/formation': typeof AuthenticatedEtudiantFormationRoute
   '/etudiant/live': typeof AuthenticatedEtudiantLiveRoute
-  '/etudiant/paiements': typeof AuthenticatedEtudiantPaiementsRouteWithChildren
+  '/etudiant/paiements': typeof AuthenticatedEtudiantPaiementsRoute
   '/etudiant/profil': typeof AuthenticatedEtudiantProfilRoute
   '/etudiant/support': typeof AuthenticatedEtudiantSupportRoute
   '/inscription/$slug/tranche-2': typeof InscriptionSlugTranche2Route
@@ -233,11 +233,11 @@ export interface FileRoutesByFullPath {
   '/etudiant/': typeof AuthenticatedEtudiantIndexRoute
   '/admin/cohortes/$id': typeof AuthenticatedAdminCohortesIdRoute
   '/admin/etudiants/$id': typeof AuthenticatedAdminEtudiantsIdRoute
+  '/etudiant/tranche-2/$paymentId': typeof AuthenticatedEtudiantTranche2PaymentIdRoute
   '/api/public/hooks/automation-tick': typeof ApiPublicHooksAutomationTickRoute
   '/api/public/hooks/payment-reminders': typeof ApiPublicHooksPaymentRemindersRoute
   '/admin/cohortes/': typeof AuthenticatedAdminCohortesIndexRoute
   '/admin/etudiants/': typeof AuthenticatedAdminEtudiantsIndexRoute
-  '/etudiant/paiements/tranche-2/$paymentId': typeof AuthenticatedEtudiantPaiementsTranche2PaymentIdRoute
   '/api/public/hooks/chariow/$secret': typeof ApiPublicHooksChariowSecretRoute
 }
 export interface FileRoutesByTo {
@@ -254,7 +254,7 @@ export interface FileRoutesByTo {
   '/etudiant/certificat': typeof AuthenticatedEtudiantCertificatRoute
   '/etudiant/formation': typeof AuthenticatedEtudiantFormationRoute
   '/etudiant/live': typeof AuthenticatedEtudiantLiveRoute
-  '/etudiant/paiements': typeof AuthenticatedEtudiantPaiementsRouteWithChildren
+  '/etudiant/paiements': typeof AuthenticatedEtudiantPaiementsRoute
   '/etudiant/profil': typeof AuthenticatedEtudiantProfilRoute
   '/etudiant/support': typeof AuthenticatedEtudiantSupportRoute
   '/inscription/$slug/tranche-2': typeof InscriptionSlugTranche2Route
@@ -262,11 +262,11 @@ export interface FileRoutesByTo {
   '/etudiant': typeof AuthenticatedEtudiantIndexRoute
   '/admin/cohortes/$id': typeof AuthenticatedAdminCohortesIdRoute
   '/admin/etudiants/$id': typeof AuthenticatedAdminEtudiantsIdRoute
+  '/etudiant/tranche-2/$paymentId': typeof AuthenticatedEtudiantTranche2PaymentIdRoute
   '/api/public/hooks/automation-tick': typeof ApiPublicHooksAutomationTickRoute
   '/api/public/hooks/payment-reminders': typeof ApiPublicHooksPaymentRemindersRoute
   '/admin/cohortes': typeof AuthenticatedAdminCohortesIndexRoute
   '/admin/etudiants': typeof AuthenticatedAdminEtudiantsIndexRoute
-  '/etudiant/paiements/tranche-2/$paymentId': typeof AuthenticatedEtudiantPaiementsTranche2PaymentIdRoute
   '/api/public/hooks/chariow/$secret': typeof ApiPublicHooksChariowSecretRoute
 }
 export interface FileRoutesById {
@@ -287,7 +287,7 @@ export interface FileRoutesById {
   '/_authenticated/etudiant/certificat': typeof AuthenticatedEtudiantCertificatRoute
   '/_authenticated/etudiant/formation': typeof AuthenticatedEtudiantFormationRoute
   '/_authenticated/etudiant/live': typeof AuthenticatedEtudiantLiveRoute
-  '/_authenticated/etudiant/paiements': typeof AuthenticatedEtudiantPaiementsRouteWithChildren
+  '/_authenticated/etudiant/paiements': typeof AuthenticatedEtudiantPaiementsRoute
   '/_authenticated/etudiant/profil': typeof AuthenticatedEtudiantProfilRoute
   '/_authenticated/etudiant/support': typeof AuthenticatedEtudiantSupportRoute
   '/inscription/$slug/tranche-2': typeof InscriptionSlugTranche2Route
@@ -295,11 +295,11 @@ export interface FileRoutesById {
   '/_authenticated/etudiant/': typeof AuthenticatedEtudiantIndexRoute
   '/_authenticated/admin/cohortes/$id': typeof AuthenticatedAdminCohortesIdRoute
   '/_authenticated/admin/etudiants/$id': typeof AuthenticatedAdminEtudiantsIdRoute
+  '/_authenticated/etudiant/tranche-2/$paymentId': typeof AuthenticatedEtudiantTranche2PaymentIdRoute
   '/api/public/hooks/automation-tick': typeof ApiPublicHooksAutomationTickRoute
   '/api/public/hooks/payment-reminders': typeof ApiPublicHooksPaymentRemindersRoute
   '/_authenticated/admin/cohortes/': typeof AuthenticatedAdminCohortesIndexRoute
   '/_authenticated/admin/etudiants/': typeof AuthenticatedAdminEtudiantsIndexRoute
-  '/_authenticated/etudiant/paiements/tranche-2/$paymentId': typeof AuthenticatedEtudiantPaiementsTranche2PaymentIdRoute
   '/api/public/hooks/chariow/$secret': typeof ApiPublicHooksChariowSecretRoute
 }
 export interface FileRouteTypes {
@@ -328,11 +328,11 @@ export interface FileRouteTypes {
     | '/etudiant/'
     | '/admin/cohortes/$id'
     | '/admin/etudiants/$id'
+    | '/etudiant/tranche-2/$paymentId'
     | '/api/public/hooks/automation-tick'
     | '/api/public/hooks/payment-reminders'
     | '/admin/cohortes/'
     | '/admin/etudiants/'
-    | '/etudiant/paiements/tranche-2/$paymentId'
     | '/api/public/hooks/chariow/$secret'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -357,11 +357,11 @@ export interface FileRouteTypes {
     | '/etudiant'
     | '/admin/cohortes/$id'
     | '/admin/etudiants/$id'
+    | '/etudiant/tranche-2/$paymentId'
     | '/api/public/hooks/automation-tick'
     | '/api/public/hooks/payment-reminders'
     | '/admin/cohortes'
     | '/admin/etudiants'
-    | '/etudiant/paiements/tranche-2/$paymentId'
     | '/api/public/hooks/chariow/$secret'
   id:
     | '__root__'
@@ -389,11 +389,11 @@ export interface FileRouteTypes {
     | '/_authenticated/etudiant/'
     | '/_authenticated/admin/cohortes/$id'
     | '/_authenticated/admin/etudiants/$id'
+    | '/_authenticated/etudiant/tranche-2/$paymentId'
     | '/api/public/hooks/automation-tick'
     | '/api/public/hooks/payment-reminders'
     | '/_authenticated/admin/cohortes/'
     | '/_authenticated/admin/etudiants/'
-    | '/_authenticated/etudiant/paiements/tranche-2/$paymentId'
     | '/api/public/hooks/chariow/$secret'
   fileRoutesById: FileRoutesById
 }
@@ -594,6 +594,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksAutomationTickRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/etudiant/tranche-2/$paymentId': {
+      id: '/_authenticated/etudiant/tranche-2/$paymentId'
+      path: '/tranche-2/$paymentId'
+      fullPath: '/etudiant/tranche-2/$paymentId'
+      preLoaderRoute: typeof AuthenticatedEtudiantTranche2PaymentIdRouteImport
+      parentRoute: typeof AuthenticatedEtudiantRoute
+    }
     '/_authenticated/admin/etudiants/$id': {
       id: '/_authenticated/admin/etudiants/$id'
       path: '/etudiants/$id'
@@ -614,13 +621,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/public/hooks/chariow/$secret'
       preLoaderRoute: typeof ApiPublicHooksChariowSecretRouteImport
       parentRoute: typeof rootRouteImport
-    }
-    '/_authenticated/etudiant/paiements/tranche-2/$paymentId': {
-      id: '/_authenticated/etudiant/paiements/tranche-2/$paymentId'
-      path: '/tranche-2/$paymentId'
-      fullPath: '/etudiant/paiements/tranche-2/$paymentId'
-      preLoaderRoute: typeof AuthenticatedEtudiantPaiementsTranche2PaymentIdRouteImport
-      parentRoute: typeof AuthenticatedEtudiantPaiementsRoute
     }
   }
 }
@@ -652,40 +652,27 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
 const AuthenticatedAdminRouteWithChildren =
   AuthenticatedAdminRoute._addFileChildren(AuthenticatedAdminRouteChildren)
 
-interface AuthenticatedEtudiantPaiementsRouteChildren {
-  AuthenticatedEtudiantPaiementsTranche2PaymentIdRoute: typeof AuthenticatedEtudiantPaiementsTranche2PaymentIdRoute
-}
-
-const AuthenticatedEtudiantPaiementsRouteChildren: AuthenticatedEtudiantPaiementsRouteChildren =
-  {
-    AuthenticatedEtudiantPaiementsTranche2PaymentIdRoute:
-      AuthenticatedEtudiantPaiementsTranche2PaymentIdRoute,
-  }
-
-const AuthenticatedEtudiantPaiementsRouteWithChildren =
-  AuthenticatedEtudiantPaiementsRoute._addFileChildren(
-    AuthenticatedEtudiantPaiementsRouteChildren,
-  )
-
 interface AuthenticatedEtudiantRouteChildren {
   AuthenticatedEtudiantCertificatRoute: typeof AuthenticatedEtudiantCertificatRoute
   AuthenticatedEtudiantFormationRoute: typeof AuthenticatedEtudiantFormationRoute
   AuthenticatedEtudiantLiveRoute: typeof AuthenticatedEtudiantLiveRoute
-  AuthenticatedEtudiantPaiementsRoute: typeof AuthenticatedEtudiantPaiementsRouteWithChildren
+  AuthenticatedEtudiantPaiementsRoute: typeof AuthenticatedEtudiantPaiementsRoute
   AuthenticatedEtudiantProfilRoute: typeof AuthenticatedEtudiantProfilRoute
   AuthenticatedEtudiantSupportRoute: typeof AuthenticatedEtudiantSupportRoute
   AuthenticatedEtudiantIndexRoute: typeof AuthenticatedEtudiantIndexRoute
+  AuthenticatedEtudiantTranche2PaymentIdRoute: typeof AuthenticatedEtudiantTranche2PaymentIdRoute
 }
 
 const AuthenticatedEtudiantRouteChildren: AuthenticatedEtudiantRouteChildren = {
   AuthenticatedEtudiantCertificatRoute: AuthenticatedEtudiantCertificatRoute,
   AuthenticatedEtudiantFormationRoute: AuthenticatedEtudiantFormationRoute,
   AuthenticatedEtudiantLiveRoute: AuthenticatedEtudiantLiveRoute,
-  AuthenticatedEtudiantPaiementsRoute:
-    AuthenticatedEtudiantPaiementsRouteWithChildren,
+  AuthenticatedEtudiantPaiementsRoute: AuthenticatedEtudiantPaiementsRoute,
   AuthenticatedEtudiantProfilRoute: AuthenticatedEtudiantProfilRoute,
   AuthenticatedEtudiantSupportRoute: AuthenticatedEtudiantSupportRoute,
   AuthenticatedEtudiantIndexRoute: AuthenticatedEtudiantIndexRoute,
+  AuthenticatedEtudiantTranche2PaymentIdRoute:
+    AuthenticatedEtudiantTranche2PaymentIdRoute,
 }
 
 const AuthenticatedEtudiantRouteWithChildren =

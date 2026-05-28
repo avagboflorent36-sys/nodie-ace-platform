@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { getMyTranche2CheckoutSummary, startMyTranche2Checkout } from "@/lib/chariow.functions";
 
-export const Route = createFileRoute("/_authenticated/etudiant/paiements/tranche-2/$paymentId")({
+export const Route = createFileRoute("/_authenticated/etudiant/tranche-2/$paymentId")({
   component: Tranche2CheckoutPage,
 });
 
