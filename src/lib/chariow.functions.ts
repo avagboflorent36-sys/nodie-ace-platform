@@ -390,7 +390,7 @@ export const startChariowCheckoutForTranche2Token = createServerFn({ method: "PO
         payment_id: payment.id,
         installment_id: t2?.id ?? null,
         status: "created",
-      })
+      } as any)
       .select("id")
       .single();
 
@@ -650,7 +650,7 @@ export const startMyTranche2Checkout = createServerFn({ method: "POST" })
         payment_id: payment.id,
         installment_id: t2?.id ?? null,
         status: "created",
-      })
+      } as any)
       .select("id")
       .single();
 
