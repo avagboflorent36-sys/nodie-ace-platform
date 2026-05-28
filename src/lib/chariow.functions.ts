@@ -303,7 +303,7 @@ export const startChariowCheckoutForTranche2Token = createServerFn({ method: "PO
     const { data: payment, error: payErr } = await supabaseAdmin
       .from("payments")
       .select(
-        "id, status, mode, cohort_id, student_id, chariow_customer_email, currency, amount_total, payment_installments(id, position, status)",
+        "id, status, mode, cohort_id, student_id, chariow_customer_email, currency, amount_total, payment_installments(id, position, status, amount)",
       )
       .eq("tranche2_token", data.token)
       .maybeSingle();
@@ -387,6 +387,8 @@ export const startChariowCheckoutForTranche2Token = createServerFn({ method: "PO
         installment_position: 2,
         chariow_product_id: productId,
         amount_expected: amountExpected,
+        payment_id: payment.id,
+        installment_id: t2?.id ?? null,
         status: "created",
       })
       .select("id")
@@ -533,7 +535,7 @@ export const startMyTranche2Checkout = createServerFn({ method: "POST" })
     const { data: payment, error: payErr } = await supabaseAdmin
       .from("payments")
       .select(
-        "id, status, mode, cohort_id, student_id, chariow_customer_email, currency, amount_total, payment_installments(id, position, status)",
+        "id, status, mode, cohort_id, student_id, chariow_customer_email, currency, amount_total, payment_installments(id, position, status, amount)",
       )
       .eq("id", data.payment_id)
       .maybeSingle();
@@ -610,6 +612,8 @@ export const startMyTranche2Checkout = createServerFn({ method: "POST" })
         installment_position: 2,
         chariow_product_id: productId,
         amount_expected: amountExpected,
+        payment_id: payment.id,
+        installment_id: t2?.id ?? null,
         status: "created",
       })
       .select("id")
