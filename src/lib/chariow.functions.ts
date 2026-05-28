@@ -443,7 +443,7 @@ export const claimAttemptByToken = createServerFn({ method: "POST" })
     const attemptEmail = String(attempt.email ?? "")
       .trim()
       .toLowerCase();
-    const userEmail = String(context.claims?.email ?? "")
+    const userEmail = String((context.claims as any)?.email ?? "")
       .trim()
       .toLowerCase();
     let paid = TRUSTED_ATTEMPT_PAID_STATUSES.has(attempt.status);
