@@ -519,6 +519,41 @@ export const startChariowCheckoutForTranche2Token = createServerFn({ method: "PO
 // L'étudiant clique « Payer la tranche 2 » dans /etudiant/paiements et reçoit
 // directement une URL checkout. Plus fiable que le lien tokenisé partagé.
 // ─────────────────────────────────────────────────────────────────────────────
+export const getMyTranche2CheckoutSummary = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({ payment_id: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const { data: payment } = await supabaseAdmin
+      .from("payments")
+      .select("id, status, mode, cohort_id, student_id, currency, amount_total, amount_paid, payment_installments(id, position, status, amount, due_date)")
+      .eq("id", data.payment_id)
+      .maybeSingle();
+    if (!payment || payment.student_id !== context.userId) {
+      return { ok: false, status: "not_found", message: "Paiement introuvable." };
+    }
+
+    const { data: cohort } = await supabaseAdmin
+      .from("cohortes")
+      .select("id, name, price_installment, chariow_product_id_installment_2")
+      .eq("id", payment.cohort_id)
+      .maybeSingle();
+    const t2 = (payment.payment_installments ?? []).find((i: any) => i.position === 2);
+    const productId = normalizeChariowProductId(cohort?.chariow_product_id_installment_2);
+    const ready = payment.mode === "installments_2" && payment.status !== "paid" && t2?.status !== "validated" && !!productId;
+
+    return {
+      ok: ready,
+      status: ready ? "ready" : payment.status === "paid" || t2?.status === "validated" ? "already_paid" : !productId ? "no_product" : "not_payable",
+      message: ready ? null : !productId ? "Le Product ID Chariow de la tranche 2 n'est pas configuré." : "Cette tranche 2 n'est pas payable.",
+      cohort_name: cohort?.name ?? "Cohorte",
+      product_id: productId,
+      currency: payment.currency,
+      amount_total: Number(payment.amount_total ?? 0),
+      amount_paid: Number(payment.amount_paid ?? 0),
+      tranche2: t2 ? { id: t2.id, status: t2.status, amount: Number(t2.amount ?? cohort?.price_installment ?? 0), due_date: t2.due_date } : null,
+    };
+  });
+
 export const startMyTranche2Checkout = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
