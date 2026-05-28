@@ -44,7 +44,7 @@ function CohortDetail() {
   if (!cohort) return <div className="p-8 text-muted-foreground">Chargement...</div>;
 
   const inscriptionUrl = `${window.location.origin}/inscription/${cohort.slug}`;
-  // Les liens tranche 2 sont désormais personnalisés par étudiant (jeton unique sur payments.tranche2_token) — voir l'onglet Étudiants.
+  // Les liens tranche 2 sont désormais des liens sécurisés vers l'espace étudiant.
 
   const inst1 = cohort.chariow_product_id_installment_1;
   const inst2 = cohort.chariow_product_id_installment_2;
@@ -255,7 +255,7 @@ function StudentsTab({ cohortId, tranche2ProductId }: { cohortId: string; tranch
       if (ids.length === 0) return [];
       const [{ data: profiles }, { data: payments }] = await Promise.all([
         supabase.from("profiles").select("id, first_name, last_name, email").in("id", ids),
-        supabase.from("payments").select("id, student_id, status, mode, amount_total, amount_paid, tranche2_token, payment_installments(id, position, status)").eq("cohort_id", cohortId).in("student_id", ids),
+        supabase.from("payments").select("id, student_id, status, mode, amount_total, amount_paid, payment_installments(id, position, status)").eq("cohort_id", cohortId).in("student_id", ids),
       ]);
       const paymentIds = (payments ?? []).map((p) => p.id);
       const { data: attempts } = paymentIds.length
@@ -298,7 +298,7 @@ function StudentsTab({ cohortId, tranche2ProductId }: { cohortId: string; tranch
                     {needsT2 ? (
                       <div className="space-y-2">
                         <Button size="sm" variant="outline" onClick={() => {
-                          const url = `${window.location.origin}/etudiant/paiements/tranche-2/${r.payment.id}`;
+                          const url = `${window.location.origin}/etudiant/tranche-2/${r.payment.id}`;
                           navigator.clipboard.writeText(url);
                           toast.success("Lien sécurisé tranche 2 copié");
                         }}>
