@@ -20,6 +20,7 @@ import {
   fetchSaleStatus,
   checkAttemptByToken,
   claimPendingEnrollment,
+  claimAttemptByToken,
 } from "@/lib/chariow.functions";
 
 type SearchParams = { sale?: string; claim?: string; attempt?: string };
