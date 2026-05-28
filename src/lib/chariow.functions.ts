@@ -1172,7 +1172,7 @@ export const listChariowAttempts = createServerFn({ method: "POST" })
     const { data } = await supabaseAdmin
       .from("chariow_payment_attempts")
       .select(
-        "id, token, cohort_id, email, first_name, last_name, mode, installment_position, chariow_product_id, amount_expected, currency, chariow_sale_id, status, last_error, created_at, processed_at, cohortes(name, slug)",
+        "id, token, cohort_id, payment_id, installment_id, email, first_name, last_name, mode, installment_position, chariow_product_id, amount_expected, currency, chariow_sale_id, checkout_url, status, last_error, created_at, processed_at, cohortes(name, slug)",
       )
       .order("created_at", { ascending: false })
       .limit(50);
