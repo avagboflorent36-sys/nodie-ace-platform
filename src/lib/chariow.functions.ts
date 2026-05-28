@@ -470,3 +470,72 @@ export const setCohortChariowProducts = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Admin : lister les tentatives Chariow récentes
+// ─────────────────────────────────────────────────────────────────────────────
+async function assertAdmin(supabase: any, userId: string) {
+  const { data: roles } = await supabase
+    .from("user_roles").select("role").eq("user_id", userId);
+  if (!roles?.some((r: any) => r.role === "admin" || r.role === "super_admin"))
+    throw new Error("Admin only");
+}
+
+export const listChariowAttempts = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    const { data } = await supabaseAdmin
+      .from("chariow_payment_attempts")
+      .select("id, token, cohort_id, email, first_name, last_name, mode, installment_position, chariow_product_id, amount_expected, currency, chariow_sale_id, status, last_error, created_at, processed_at, cohortes(name, slug)")
+      .order("created_at", { ascending: false })
+      .limit(50);
+    return { attempts: data ?? [] };
+  });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Admin : associer manuellement une tentative à une cohorte / sale_id et la traiter
+// ─────────────────────────────────────────────────────────────────────────────
+export const reconcileAttempt = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z.object({
+      attempt_id: z.string().uuid(),
+      sale_id: z.string().trim().min(3).max(255).optional(),
+      cohort_id: z.string().uuid().optional(),
+    }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.supabase, context.userId);
+
+    const update: any = {};
+    if (data.sale_id) update.chariow_sale_id = data.sale_id;
+    if (data.cohort_id) update.cohort_id = data.cohort_id;
+    if (Object.keys(update).length > 0) {
+      await supabaseAdmin
+        .from("chariow_payment_attempts").update(update).eq("id", data.attempt_id);
+    }
+
+    const { data: a } = await supabaseAdmin
+      .from("chariow_payment_attempts")
+      .select("token, chariow_sale_id, cohort_id")
+      .eq("id", data.attempt_id).maybeSingle();
+    if (!a?.chariow_sale_id) {
+      throw new Error("Aucun Sale ID Chariow associé à cette tentative.");
+    }
+
+    const result = await processChariowSale(a.chariow_sale_id, undefined, {
+      attempt_token: a.token,
+      cohort_id_override: a.cohort_id ?? undefined,
+    });
+
+    await supabaseAdmin.from("chariow_webhook_events").insert({
+      event_type: "admin.reconcile",
+      sale_id: a.chariow_sale_id,
+      payload: { source: "admin_reconcile", attempt_id: data.attempt_id, result } as any,
+      processed_at: new Date().toISOString(),
+      error: result.ok ? null : result.message ?? result.status,
+    });
+
+    return result;
+  });
