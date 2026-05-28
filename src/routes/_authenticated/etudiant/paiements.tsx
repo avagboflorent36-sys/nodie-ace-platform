@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Upload, AlertCircle, CheckCircle2, Clock, Wallet, CreditCard } from "lucide-react";
 
@@ -23,6 +23,18 @@ function StudentPayments() {
   const [uploading, setUploading] = useState<string | null>(null);
   const [paying, setPaying] = useState<string | null>(null);
   const startCheckout = useServerFn(startChariowCheckout);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("paid") === "2") {
+      toast.success("Paiement de la tranche 2 enregistré. Validation sous peu.");
+      url.searchParams.delete("paid");
+      url.searchParams.delete("sale");
+      window.history.replaceState({}, "", url.toString());
+      if (user) qc.invalidateQueries({ queryKey: ["student-payments", user.id] });
+    }
+  }, [user, qc]);
+
 
   const { data: payments = [], isLoading } = useQuery({
     queryKey: ["student-payments", user?.id],

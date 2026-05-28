@@ -49,6 +49,33 @@ export type Database = {
           },
         ]
       }
+      automation_run_log: {
+        Row: {
+          error: string | null
+          id: string
+          job_type: string
+          payload: Json | null
+          run_at: string
+          status: string
+        }
+        Insert: {
+          error?: string | null
+          id?: string
+          job_type: string
+          payload?: Json | null
+          run_at?: string
+          status?: string
+        }
+        Update: {
+          error?: string | null
+          id?: string
+          job_type?: string
+          payload?: Json | null
+          run_at?: string
+          status?: string
+        }
+        Relationships: []
+      }
       chariow_payment_attempts: {
         Row: {
           amount_expected: number | null
@@ -155,6 +182,97 @@ export type Database = {
           sale_id?: string
         }
         Relationships: []
+      }
+      cohort_access_rules: {
+        Row: {
+          action: string
+          cohort_id: string
+          created_at: string
+          enabled: boolean
+          id: string
+          installment_position: number | null
+          offset_days: number
+          trigger_type: string
+        }
+        Insert: {
+          action?: string
+          cohort_id: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          installment_position?: number | null
+          offset_days?: number
+          trigger_type?: string
+        }
+        Update: {
+          action?: string
+          cohort_id?: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          installment_position?: number | null
+          offset_days?: number
+          trigger_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cohort_access_rules_cohort_id_fkey"
+            columns: ["cohort_id"]
+            isOneToOne: false
+            referencedRelation: "cohortes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cohort_email_campaigns: {
+        Row: {
+          audience: string
+          body_html: string
+          cohort_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          recipient_count: number
+          scheduled_at: string | null
+          sent_at: string | null
+          status: string
+          subject: string
+        }
+        Insert: {
+          audience?: string
+          body_html: string
+          cohort_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          recipient_count?: number
+          scheduled_at?: string | null
+          sent_at?: string | null
+          status?: string
+          subject: string
+        }
+        Update: {
+          audience?: string
+          body_html?: string
+          cohort_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          recipient_count?: number
+          scheduled_at?: string | null
+          sent_at?: string | null
+          status?: string
+          subject?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cohort_email_campaigns_cohort_id_fkey"
+            columns: ["cohort_id"]
+            isOneToOne: false
+            referencedRelation: "cohortes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       cohort_enrollments: {
         Row: {

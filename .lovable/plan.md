@@ -1,57 +1,112 @@
-# Plan — Page Formation étudiant : nettoyage + progression
+# Optimisation du système de paiement & automatisations
 
-## 1. Supprimer les 2 premières sections
-Dans `src/routes/_authenticated/etudiant/formation.tsx`, pour chaque cohorte affichée, retirer :
-- **Section 1** : la carte d'en-tête (image, titre cohorte, description, dates, lien Zoom) — bloc `<Card>` lignes ~128-141.
-- **Section 2** : la carte **Annonces** — bloc `cohortAnnonces.length > 0 && (...)` lignes ~143-160.
+## Objectifs
+1. Suivi clair de tous les paiements (vue admin consolidée, états explicites, alertes).
+2. Relances automatiques (email) sans action manuelle.
+3. Règles d'automatisation par cohorte : blocage/déblocage d'accès, emails groupés.
+4. Lien de paiement de la tranche 2 → renvoie vers l'espace étudiant (et non vers le formulaire d'inscription).
 
-Conserver uniquement :
-- `Programme de la formation` (modules + leçons globales)
-- `Ressources de la formation` (ressources globales sans module) — sous-bloc de la formation, à conserver
-- `Contenu spécifique à cette cohorte`
+---
 
-Le titre de page (`Ma formation` + sous-titre) reste, ainsi que le bandeau d'accès suspendu et l'état vide.
+## 1. Lien tranche 2 — flux corrigé
 
-## 2. Marquer comme lu + passer au suivant
+Aujourd'hui : `inscription.$slug` est le seul point d'entrée Chariow → après paiement, l'utilisateur passe par `claim_token` et reformulaire.
 
-### 2.a — Base de données
-Nouvelle table `public.resource_progress` :
-- `user_id` (uuid, FK auth.users)
-- `resource_type` (text : `'formation'` ou `'cohort'`)
-- `resource_id` (uuid)
-- `read_at` (timestamptz default now())
-- Clé unique (user_id, resource_type, resource_id)
-- RLS : l'utilisateur peut lire/insérer/supprimer **uniquement ses propres lignes** (`auth.uid() = user_id`).
-- GRANT à `authenticated` + `service_role`.
+Cible :
+- Tranche 1 (ou paiement intégral) → reste sur `inscription.$slug` (utilisateur non encore inscrit).
+- Tranche 2 → bouton "Payer tranche 2" sur `/etudiant/paiements` (déjà présent côté code), mais on s'assure que :
+  - Le `success_url` Chariow pour la tranche 2 pointe vers `/etudiant/paiements?paid=2` (et non `/inscription/...`).
+  - Le webhook Chariow lie directement la tranche 2 au `payment` existant via `student_id + cohort_id` (pas de `pending_enrollment` créé pour la tranche 2).
+  - Affichage d'un toast de confirmation au retour.
 
-### 2.b — Construire une file ordonnée
-Dans `formation.tsx`, après avoir chargé les données d'une cohorte, construire une liste plate `playlist` ordonnée :
-1. leçons de chaque module de formation (par position de module puis position de leçon) — type `formation`
-2. ressources globales de la formation — type `formation`
-3. leçons de chaque module de cohorte (par position) — type `cohort`
+Fichiers : `src/lib/chariow.functions.ts` (success_url conditionnel selon `installment_position`), `src/routes/api/public/hooks/chariow.$secret.ts` (skip claim flow pour position=2), `src/routes/_authenticated/etudiant/paiements.tsx` (toast `?paid=2`).
 
-Cette playlist est passée à chaque `ResourceRow` avec son index, pour permettre le "suivant".
+---
 
-### 2.c — Composant `ResourceViewer`
-Modifier `src/components/ResourceViewer.tsx` :
-- Charger les ressources lues (`resource_progress`) une fois pour l'utilisateur — via une query React Query partagée (clé `["resource-progress", userId]`).
-- Dans le dialog, ajouter en pied :
-  - Bouton **« Marquer comme lu »** (ou **« ✓ Déjà lu »** si déjà coché, avec option pour annuler) → insert/delete dans `resource_progress` + invalidation de la query.
-  - Bouton **« Ressource suivante → »** si un suivant existe dans la playlist : ferme le dialog courant et ouvre le suivant. Désactivé si dernier.
-- Dans `ResourceRow`, afficher un petit indicateur ✓ vert à côté du titre quand la ressource est marquée lue.
+## 2. Tableau de bord paiements — admin
 
-### 2.d — Coordination playlist ↔ dialog
-- `ResourceRow` reçoit `playlist: ResourceItem[]` et `index: number`.
-- Quand l'utilisateur clique « Suivant », on déclenche un callback `onNavigate(nextIndex)` qui est géré au niveau du conteneur de chaque section : un état partagé `openIndex` détermine quelle ressource est ouverte dans la cohorte courante.
-- Implémentation simple : un seul composant parent par cohorte (`<CohortPlaylist resources={playlist}>`) gère l'état `openIndex`, rend toutes les `ResourceRow` et un unique `ResourceViewer`.
+Refonte de `/admin/paiements` :
+- KPIs en haut : Total encaissé, En attente de validation, En retard, Taux de complétion (par cohorte).
+- Filtres combinables : cohorte, mode (1x/2x), statut, source (chariow/manuel), période.
+- Timeline par étudiant (modal détail) : inscription → T1 → T2 → relances envoyées → blocage/déblocage.
+- Badges visuels : "En retard X j", "Bloqué", "Relancé Xx", "Validé".
+- Export CSV enrichi (déjà existant, ajouter colonnes relances + accès).
 
-## Fichiers touchés
-- `src/routes/_authenticated/etudiant/formation.tsx` — suppression de 2 sections, construction de la playlist par cohorte, intégration du nouveau composant.
-- `src/components/ResourceViewer.tsx` — ajout des boutons « Marquer comme lu » et « Suivant », badge « lu », gestion de la navigation.
-- Nouvelle migration Supabase : table `resource_progress` + RLS + GRANT.
+---
 
-## Hors scope
-- Aucun changement sur le côté admin.
-- Aucune modification du contenu des ressources elles-mêmes.
+## 3. Moteur d'automatisation par cohorte
 
-Souhaitez-vous que j'applique ce plan ?
+Nouvelle section "Automatisations" dans `/admin/cohortes/$id` avec 3 types de règles :
+
+### A. Relances paiement (existe déjà partiellement — `cohort_reminder_rules`)
+- UI plus claire : J-7, J-3, J-1, J+1, J+3, J+7 avec aperçu d'email.
+- Templates personnalisables par cohorte (sujet + corps Markdown).
+
+### B. Règles d'accès automatiques (nouveau)
+Nouvelle table `cohort_access_rules` :
+```
+id, cohort_id, trigger ('payment_overdue'), offset_days (ex: +7),
+action ('restrict_access' | 'restore_access' | 'send_email'),
+enabled, created_at
+```
+- Exemples :
+  - `J+7 après échéance T2 non payée` → `status='restricted'` sur `cohort_enrollments`.
+  - `Validation T2` → `status='active'` automatiquement (déjà déclenchable par trigger DB).
+- Implémentation : trigger Postgres `AFTER UPDATE` sur `payment_installments.status` + tâche cron quotidienne pour les délais.
+
+### C. Campagnes email programmées (nouveau)
+Nouvelle table `cohort_email_campaigns` :
+```
+id, cohort_id, subject, body_html, audience
+  ('all' | 'paid_full' | 'paid_partial' | 'unpaid' | 'restricted'),
+scheduled_at, sent_at, status
+```
+- UI : créer/programmer/dupliquer un email, choisir l'audience, prévisualiser, envoyer un test.
+- Dispatch : cron horaire qui sélectionne les campagnes `scheduled_at <= now() AND sent_at IS NULL`.
+
+---
+
+## 4. Infrastructure (cron + jobs)
+
+Un seul endpoint cron `POST /api/public/hooks/automation-tick` (protégé par `apikey` anon), planifié toutes les 15 min via `pg_cron` :
+1. Calcule les échéances et déclenche les relances (`cohort_reminder_rules`).
+2. Applique les règles d'accès (`cohort_access_rules`) : restrict / restore.
+3. Envoie les campagnes dues (`cohort_email_campaigns`).
+4. Loggue tout dans `automation_run_log` (audit + debug admin).
+
+Trigger DB supplémentaire :
+- À la validation de la tranche 2 → `cohort_enrollments.status = 'active'` automatique (déblocage immédiat sans attendre le cron).
+
+---
+
+## Détails techniques
+
+### Migrations
+1. `cohort_access_rules` (+ RLS admin only + GRANTs).
+2. `cohort_email_campaigns` (+ RLS admin, GRANTs, index `(scheduled_at, status)`).
+3. `automation_run_log` (id, run_at, type, payload jsonb, status).
+4. Trigger `on_installment_validated_restore_access`.
+5. Cron `pg_cron` toutes les 15 min vers `/api/public/hooks/automation-tick`.
+
+### Server functions / routes
+- `src/lib/automation.functions.ts` : CRUD règles + campagnes + envoi de test.
+- `src/routes/api/public/hooks/automation-tick.ts` : exécution.
+- Refactor `src/lib/reminders.functions.ts` pour partager le rendu d'emails (templates Markdown → HTML).
+
+### UI nouvelle
+- `src/routes/_authenticated/admin/cohortes.$id.tsx` : nouveaux blocs "Règles d'accès" et "Campagnes email" (à côté de "Relances automatiques").
+- `/admin/paiements` : KPIs, filtres, modal timeline.
+
+### Flux tranche 2
+- `startChariowCheckout` : `success_url = installment_position === 2 ? '/etudiant/paiements?paid=2' : '/inscription/<slug>/merci?token=...'`.
+- Webhook : si `installment_position=2` et `payment` existe déjà → MAJ directe, pas de `pending_enrollment`.
+
+---
+
+## Livrables (ordre d'implémentation)
+1. Migrations DB (tables, trigger, GRANTs, cron).
+2. Server functions automation + endpoint cron.
+3. UI cohorte (règles d'accès + campagnes email).
+4. Refonte vue admin paiements (KPIs + filtres + timeline).
+5. Correction flux tranche 2 (success_url + webhook + toast).
+6. Tests manuels : simuler un retard, vérifier blocage J+7, payer T2, vérifier déblocage automatique, lancer une campagne ciblée.

@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { setCohortChariowProducts } from "@/lib/chariow.functions";
+import { sendCampaignNow, previewCampaignAudience } from "@/lib/automation.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/cohortes/$id")({
   component: CohortDetail,
@@ -422,6 +423,12 @@ function SettingsTab({ cohort, onSaved }: { cohort: any; onSaved: () => void }) 
         <ReminderRulesEditor cohortId={cohort.id} />
       </div>
       <div className="pt-6 border-t">
+        <AccessRulesEditor cohortId={cohort.id} />
+      </div>
+      <div className="pt-6 border-t">
+        <EmailCampaignsEditor cohortId={cohort.id} />
+      </div>
+      <div className="pt-6 border-t">
         <ChariowSection cohort={cohort} onSaved={onSaved} />
       </div>
     </Card>
@@ -565,6 +572,176 @@ function ReminderRulesEditor({ cohortId }: { cohortId: string }) {
     </div>
   );
 }
+
+function AccessRulesEditor({ cohortId }: { cohortId: string }) {
+  const { data: rows = [], refetch } = useQuery({
+    queryKey: ["cohort-access-rules", cohortId],
+    queryFn: async () => (await (supabase as any).from("cohort_access_rules").select("*").eq("cohort_id", cohortId).order("offset_days")).data ?? [],
+  });
+  const add = async () => {
+    await (supabase as any).from("cohort_access_rules").insert({
+      cohort_id: cohortId, trigger_type: "installment_overdue",
+      installment_position: 2, offset_days: 7, action: "restrict_access", enabled: true,
+    });
+    refetch();
+  };
+  const update = async (id: string, patch: any) => { await (supabase as any).from("cohort_access_rules").update(patch).eq("id", id); refetch(); };
+  const del = async (id: string) => { await (supabase as any).from("cohort_access_rules").delete().eq("id", id); refetch(); };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="font-semibold">Règles d'accès automatique</h3>
+          <p className="text-xs text-muted-foreground">Bloquer l'accès des étudiants en retard. Le déblocage est automatique dès la validation du paiement.</p>
+        </div>
+        <Button size="sm" variant="outline" onClick={add}><Plus className="mr-1 h-3 w-3" /> Règle</Button>
+      </div>
+      {rows.length === 0 ? <p className="text-sm text-muted-foreground">Aucune règle. Exemple : Tranche 2 — J+7 → bloquer.</p> :
+        rows.map((r: any) => (
+          <div key={r.id} className="grid grid-cols-12 gap-2 items-center">
+            <div className="col-span-2 flex items-center gap-2">
+              <Switch checked={r.enabled} onCheckedChange={(v) => update(r.id, { enabled: v })} />
+              <span className="text-xs">{r.enabled ? "Actif" : "Off"}</span>
+            </div>
+            <Select value={String(r.installment_position ?? "any")} onValueChange={(v) => update(r.id, { installment_position: v === "any" ? null : Number(v) })}>
+              <SelectTrigger className="col-span-3"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="any">Toute tranche</SelectItem>
+                <SelectItem value="1">Tranche 1</SelectItem>
+                <SelectItem value="2">Tranche 2</SelectItem>
+              </SelectContent>
+            </Select>
+            <div className="col-span-3 flex items-center gap-1">
+              <span className="text-xs">J+</span>
+              <Input type="number" defaultValue={r.offset_days} onBlur={(e) => update(r.id, { offset_days: Number(e.target.value) })} />
+              <span className="text-xs whitespace-nowrap">jours après</span>
+            </div>
+            <Select value={r.action} onValueChange={(v) => update(r.id, { action: v })}>
+              <SelectTrigger className="col-span-3"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="restrict_access">Bloquer l'accès</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button size="icon" variant="ghost" className="col-span-1" onClick={() => del(r.id)}><Trash2 className="h-3 w-3 text-destructive" /></Button>
+          </div>
+        ))}
+      <p className="text-[11px] text-muted-foreground">Déblocage automatique : dès qu'un étudiant règle sa tranche manquante, son accès est rétabli instantanément (sans attendre le prochain cycle).</p>
+    </div>
+  );
+}
+
+function EmailCampaignsEditor({ cohortId }: { cohortId: string }) {
+  const qc = useQueryClient();
+  const sendNow = useServerFn(sendCampaignNow);
+  const previewAudience = useServerFn(previewCampaignAudience);
+  const [draft, setDraft] = useState({ subject: "", body_html: "", audience: "all", scheduled_at: "" });
+  const [audCount, setAudCount] = useState<number | null>(null);
+
+  const { data: rows = [], refetch } = useQuery({
+    queryKey: ["cohort-email-campaigns", cohortId],
+    queryFn: async () => (await (supabase as any).from("cohort_email_campaigns").select("*").eq("cohort_id", cohortId).order("created_at", { ascending: false })).data ?? [],
+  });
+
+  const checkAud = async (audience: string) => {
+    try {
+      const r = await previewAudience({ data: { cohort_id: cohortId, audience: audience as any } });
+      setAudCount(r.count);
+    } catch { setAudCount(null); }
+  };
+
+  const create = async (status: "draft" | "scheduled" | "send_now") => {
+    if (!draft.subject.trim() || !draft.body_html.trim()) return toast.error("Sujet et contenu requis");
+    if (status === "scheduled" && !draft.scheduled_at) return toast.error("Date de programmation requise");
+
+    const insertStatus = status === "send_now" ? "scheduled" : status;
+    const { data, error } = await (supabase as any).from("cohort_email_campaigns").insert({
+      cohort_id: cohortId, subject: draft.subject, body_html: draft.body_html,
+      audience: draft.audience, status: insertStatus,
+      scheduled_at: status === "scheduled" ? draft.scheduled_at : null,
+    }).select("id").single();
+    if (error) { toast.error(error.message); return; }
+
+    if (status === "send_now") {
+      try {
+        const r = await sendNow({ data: { campaign_id: data.id } });
+        toast.success(`Envoyé à ${r.sent} destinataire(s)${r.failed ? `, ${r.failed} échec` : ""}`);
+      } catch (e: any) { toast.error(e.message); }
+    } else {
+      toast.success(status === "scheduled" ? "Programmé" : "Brouillon enregistré");
+    }
+    setDraft({ subject: "", body_html: "", audience: "all", scheduled_at: "" });
+    setAudCount(null);
+    refetch(); qc.invalidateQueries({ queryKey: ["cohort-email-campaigns", cohortId] });
+  };
+
+  const del = async (id: string) => {
+    await (supabase as any).from("cohort_email_campaigns").delete().eq("id", id);
+    refetch();
+  };
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3 className="font-semibold">Campagnes email</h3>
+        <p className="text-xs text-muted-foreground">Envoyez un email à toute la cohorte ou à un segment (payeurs, retardataires, bloqués…).</p>
+      </div>
+
+      <Card className="p-4 space-y-3 bg-secondary/30">
+        <div><Label>Sujet</Label><Input value={draft.subject} onChange={(e) => setDraft({ ...draft, subject: e.target.value })} placeholder="Ex: Démarrage de la cohorte" /></div>
+        <div><Label>Contenu HTML</Label><Textarea rows={6} value={draft.body_html} onChange={(e) => setDraft({ ...draft, body_html: e.target.value })} placeholder="<p>Bonjour {{first_name}},</p>..." /></div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label>Audience</Label>
+            <Select value={draft.audience} onValueChange={(v) => { setDraft({ ...draft, audience: v }); checkAud(v); }}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous les étudiants</SelectItem>
+                <SelectItem value="paid_full">Paiement complet</SelectItem>
+                <SelectItem value="paid_partial">Paiement partiel (T1 OK)</SelectItem>
+                <SelectItem value="unpaid">Aucun paiement validé</SelectItem>
+                <SelectItem value="restricted">Comptes bloqués</SelectItem>
+              </SelectContent>
+            </Select>
+            {audCount !== null && <p className="text-[11px] text-muted-foreground mt-1">≈ {audCount} destinataire(s)</p>}
+          </div>
+          <div>
+            <Label>Programmer (optionnel)</Label>
+            <Input type="datetime-local" value={draft.scheduled_at} onChange={(e) => setDraft({ ...draft, scheduled_at: e.target.value })} />
+          </div>
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          <Button size="sm" variant="outline" onClick={() => create("draft")}>Brouillon</Button>
+          <Button size="sm" variant="outline" onClick={() => create("scheduled")} disabled={!draft.scheduled_at}>Programmer</Button>
+          <Button size="sm" className="bg-gold text-primary hover:bg-gold/90" onClick={() => create("send_now")}>Envoyer maintenant</Button>
+        </div>
+        <p className="text-[11px] text-muted-foreground">Variable disponible dans le contenu : <code>{`{{first_name}}`}</code></p>
+      </Card>
+
+      {rows.length === 0 ? <p className="text-sm text-muted-foreground">Aucune campagne.</p> : (
+        <div className="space-y-2">
+          {rows.map((r: any) => (
+            <div key={r.id} className="flex items-center justify-between gap-2 border rounded-md p-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline">{r.status}</Badge>
+                  <span className="text-xs text-muted-foreground">{r.audience}</span>
+                  {r.sent_at && <span className="text-xs text-muted-foreground">— {r.recipient_count} env.</span>}
+                </div>
+                <div className="font-medium text-sm mt-1 truncate">{r.subject}</div>
+                <div className="text-[11px] text-muted-foreground">
+                  {r.scheduled_at ? `Programmé : ${new Date(r.scheduled_at).toLocaleString()}` : `Créé : ${new Date(r.created_at).toLocaleString()}`}
+                </div>
+              </div>
+              <Button size="icon" variant="ghost" onClick={() => del(r.id)}><Trash2 className="h-3 w-3 text-destructive" /></Button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 function AnnoncesTab({ cohortId }: { cohortId: string }) {
   const qc = useQueryClient();
