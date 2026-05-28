@@ -253,7 +253,7 @@ function StudentsTab({ cohortId }: { cohortId: string }) {
       if (ids.length === 0) return [];
       const [{ data: profiles }, { data: payments }] = await Promise.all([
         supabase.from("profiles").select("id, first_name, last_name, email").in("id", ids),
-        supabase.from("payments").select("id, student_id, status, amount_total, amount_paid").eq("cohort_id", cohortId).in("student_id", ids),
+        supabase.from("payments").select("id, student_id, status, mode, amount_total, amount_paid, tranche2_token").eq("cohort_id", cohortId).in("student_id", ids),
       ]);
       const pmap = new Map((profiles ?? []).map((p) => [p.id, p]));
       const paymap = new Map((payments ?? []).map((p) => [p.student_id, p]));
@@ -272,22 +272,36 @@ function StudentsTab({ cohortId }: { cohortId: string }) {
   return (
     <Card>
       <Table>
-        <TableHeader><TableRow><TableHead>Étudiant</TableHead><TableHead>Email</TableHead><TableHead>Paiement</TableHead><TableHead>Accès</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
+        <TableHeader><TableRow><TableHead>Étudiant</TableHead><TableHead>Email</TableHead><TableHead>Paiement</TableHead><TableHead>Lien tranche 2</TableHead><TableHead>Accès</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
         <TableBody>
-          {rows.length === 0 ? <TableRow><TableCell colSpan={5} className="py-12 text-center text-muted-foreground">Aucun étudiant inscrit.</TableCell></TableRow> :
-            rows.map((r: any) => (
-              <TableRow key={r.id}>
-                <TableCell>{r.profile ? `${r.profile.first_name} ${r.profile.last_name}` : "—"}</TableCell>
-                <TableCell>{r.profile?.email ?? "—"}</TableCell>
-                <TableCell><Badge variant="outline">{r.payment?.status ?? "—"}</Badge>{r.payment ? ` ${Number(r.payment.amount_paid).toLocaleString()}/${Number(r.payment.amount_total).toLocaleString()}` : ""}</TableCell>
-                <TableCell><Badge variant={r.status === "restricted" ? "destructive" : "default"}>{r.status}</Badge></TableCell>
-                <TableCell>
-                  <Button size="sm" variant={r.status === "restricted" ? "default" : "outline"} onClick={() => toggleAccess(r.id, r.status)}>
-                    {r.status === "restricted" ? "Rétablir" : "Restreindre"}
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
+          {rows.length === 0 ? <TableRow><TableCell colSpan={6} className="py-12 text-center text-muted-foreground">Aucun étudiant inscrit.</TableCell></TableRow> :
+            rows.map((r: any) => {
+              const needsT2 = r.payment?.mode === "installments_2" && r.payment?.status !== "paid" && r.payment?.tranche2_token;
+              return (
+                <TableRow key={r.id}>
+                  <TableCell>{r.profile ? `${r.profile.first_name} ${r.profile.last_name}` : "—"}</TableCell>
+                  <TableCell>{r.profile?.email ?? "—"}</TableCell>
+                  <TableCell><Badge variant="outline">{r.payment?.status ?? "—"}</Badge>{r.payment ? ` ${Number(r.payment.amount_paid).toLocaleString()}/${Number(r.payment.amount_total).toLocaleString()}` : ""}</TableCell>
+                  <TableCell>
+                    {needsT2 ? (
+                      <Button size="sm" variant="outline" onClick={() => {
+                        const url = `${window.location.origin}/inscription/${(window as any).__cohortSlug ?? ""}/tranche-2?t=${r.payment.tranche2_token}`;
+                        navigator.clipboard.writeText(url);
+                        toast.success("Lien tranche 2 copié");
+                      }}>
+                        <Copy className="mr-1 h-3 w-3" /> Copier
+                      </Button>
+                    ) : <span className="text-xs text-muted-foreground">—</span>}
+                  </TableCell>
+                  <TableCell><Badge variant={r.status === "restricted" ? "destructive" : "default"}>{r.status}</Badge></TableCell>
+                  <TableCell>
+                    <Button size="sm" variant={r.status === "restricted" ? "default" : "outline"} onClick={() => toggleAccess(r.id, r.status)}>
+                      {r.status === "restricted" ? "Rétablir" : "Restreindre"}
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
         </TableBody>
       </Table>
     </Card>
