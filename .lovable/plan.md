@@ -1,112 +1,69 @@
-# Optimisation du système de paiement & automatisations
 
-## Objectifs
-1. Suivi clair de tous les paiements (vue admin consolidée, états explicites, alertes).
-2. Relances automatiques (email) sans action manuelle.
-3. Règles d'automatisation par cohorte : blocage/déblocage d'accès, emails groupés.
-4. Lien de paiement de la tranche 2 → renvoie vers l'espace étudiant (et non vers le formulaire d'inscription).
+## Diagnostic
 
----
+Le symptôme « les pages disparaissent et réapparaissent » est causé par des **re-renders en boucle** déclenchés par 3 problèmes structurels, pas par un bug isolé d'une page :
 
-## 1. Lien tranche 2 — flux corrigé
+### 1. `AuthProvider` réinitialise l'état à chaque event Supabase
+Dans `src/hooks/useAuth.tsx`, l'event `onAuthStateChange` se déclenche aussi sur `TOKEN_REFRESHED`, `INITIAL_SESSION`, focus d'onglet, etc. Chaque appel fait :
+- `setSession(newSession)` même si le token est identique → nouvelle référence d'objet → tous les consommateurs `useAuth()` re-rendent
+- `setRolesLoaded(false)` puis re-fetch des rôles → les gardes basés sur `rolesLoaded` (ex: admin/étudiant) **démontent leur contenu** pendant le re-fetch → page blanche → réapparition. C'est exactement le « disparaît et réapparaît ».
 
-Aujourd'hui : `inscription.$slug` est le seul point d'entrée Chariow → après paiement, l'utilisateur passe par `claim_token` et reformulaire.
+### 2. `_authenticated` AuthGate dépend de `loading` mais pas de `rolesLoaded`
+`AuthGate` rend `<Outlet />` dès que `loading` est false. Les pages enfants (admin/étudiant) ont leur propre garde sur `isAdmin`/`isStudent` qui est `false` pendant le re-fetch des rôles → redirection ou écran vide transitoire → flash.
 
-Cible :
-- Tranche 1 (ou paiement intégral) → reste sur `inscription.$slug` (utilisateur non encore inscrit).
-- Tranche 2 → bouton "Payer tranche 2" sur `/etudiant/paiements` (déjà présent côté code), mais on s'assure que :
-  - Le `success_url` Chariow pour la tranche 2 pointe vers `/etudiant/paiements?paid=2` (et non `/inscription/...`).
-  - Le webhook Chariow lie directement la tranche 2 au `payment` existant via `student_id + cohort_id` (pas de `pending_enrollment` créé pour la tranche 2).
-  - Affichage d'un toast de confirmation au retour.
-
-Fichiers : `src/lib/chariow.functions.ts` (success_url conditionnel selon `installment_position`), `src/routes/api/public/hooks/chariow.$secret.ts` (skip claim flow pour position=2), `src/routes/_authenticated/etudiant/paiements.tsx` (toast `?paid=2`).
+### 3. `useServerFn` refs dans les deps de `useEffect`
+Dans `inscription.$slug.tsx` (PostPaymentStep) et `etudiant/paiements.tsx`, les fonctions retournées par `useServerFn` sont passées dans les `deps` de `useEffect`. Si la ref change à chaque render, l'effet de polling **redémarre en boucle** → setStates → re-render → nouveau poll.
 
 ---
 
-## 2. Tableau de bord paiements — admin
+## Plan de correction
 
-Refonte de `/admin/paiements` :
-- KPIs en haut : Total encaissé, En attente de validation, En retard, Taux de complétion (par cohorte).
-- Filtres combinables : cohorte, mode (1x/2x), statut, source (chariow/manuel), période.
-- Timeline par étudiant (modal détail) : inscription → T1 → T2 → relances envoyées → blocage/déblocage.
-- Badges visuels : "En retard X j", "Bloqué", "Relancé Xx", "Validé".
-- Export CSV enrichi (déjà existant, ajouter colonnes relances + accès).
+### A. `src/hooks/useAuth.tsx` — éviter les re-renders inutiles
+1. Comparer `newSession?.access_token` au token courant avant `setSession`. Pas de setState si identique.
+2. Ne re-fetcher les rôles que si **l'user id change**, pas à chaque refresh de token. Garder l'ancienne liste de rôles affichée pendant un éventuel refresh (pas de `setRolesLoaded(false)`).
+3. Ajouter un flag `initialized` pour distinguer le tout premier chargement des events suivants.
 
----
+### B. `src/routes/_authenticated.tsx` — garde plus stricte
+- Attendre `rolesLoaded` avant de rendre `<Outlet />` (même écran de chargement). Évite que les sous-routes voient un état « connecté sans rôle » transitoire.
 
-## 3. Moteur d'automatisation par cohorte
+### C. Stabiliser les effets de polling paiement
+- `src/routes/inscription.$slug.tsx` (PostPaymentStep) : retirer `fetchStatus` / `checkAttempt` des deps du `useEffect` (ils ne changent pas la logique) et n'y garder que `[saleId, attemptToken, hasRemoteCheck]`. Idem pour tout `useEffect` similaire.
+- `src/routes/_authenticated/etudiant/paiements.tsx` : vérifier qu'aucun `useEffect` ne dépend d'un `useServerFn` non stabilisé.
 
-Nouvelle section "Automatisations" dans `/admin/cohortes/$id` avec 3 types de règles :
+### D. Fiabilité du formulaire d'inscription (`inscription.$slug.tsx`)
+1. **Validation Zod** centralisée pour les champs Étape 1 (firstName/lastName ≥ 2 et ≤ 100, email valide, phone regex international `^\+?[0-9 ]{6,20}$`). Messages d'erreur sous chaque champ au lieu d'un toast unique.
+2. **Idempotence** du clic « Payer » : désactiver le bouton dès le premier clic (déjà partiellement fait via `loading`), mais **garder désactivé** même en cas d'erreur réseau pendant 2s pour éviter la double création de sale Chariow.
+3. **Trim + normalisation** systématique (email lowercase, phone sans espaces) côté client + côté serverFn (déjà partiellement présent dans `startChariowCheckout` — à vérifier et compléter).
+4. **Gestion explicite de l'erreur réseau** : try/catch autour de `startCheckout` qui affiche un message dédié si `fetch` échoue (offline / timeout) plutôt qu'un toast générique.
+5. **Validation Étape 2** (post-paiement) : mot de passe ≥ 8 caractères + au moins 1 chiffre, country obligatoire, réponses aux `form_fields.required` vérifiées.
 
-### A. Relances paiement (existe déjà partiellement — `cohort_reminder_rules`)
-- UI plus claire : J-7, J-3, J-1, J+1, J+3, J+7 avec aperçu d'email.
-- Templates personnalisables par cohorte (sujet + corps Markdown).
+### E. Boundary global anti-flash
+- Dans `__root.tsx`, conserver `ErrorComponent` mais ajouter une vérification : ne pas démonter le `QueryClientProvider` lors d'un re-render du root. Vérifier que `QueryClient` est bien instancié dans `getRouter()` (déjà le cas d'après la doc).
 
-### B. Règles d'accès automatiques (nouveau)
-Nouvelle table `cohort_access_rules` :
-```
-id, cohort_id, trigger ('payment_overdue'), offset_days (ex: +7),
-action ('restrict_access' | 'restore_access' | 'send_email'),
-enabled, created_at
-```
-- Exemples :
-  - `J+7 après échéance T2 non payée` → `status='restricted'` sur `cohort_enrollments`.
-  - `Validation T2` → `status='active'` automatiquement (déjà déclenchable par trigger DB).
-- Implémentation : trigger Postgres `AFTER UPDATE` sur `payment_installments.status` + tâche cron quotidienne pour les délais.
-
-### C. Campagnes email programmées (nouveau)
-Nouvelle table `cohort_email_campaigns` :
-```
-id, cohort_id, subject, body_html, audience
-  ('all' | 'paid_full' | 'paid_partial' | 'unpaid' | 'restricted'),
-scheduled_at, sent_at, status
-```
-- UI : créer/programmer/dupliquer un email, choisir l'audience, prévisualiser, envoyer un test.
-- Dispatch : cron horaire qui sélectionne les campagnes `scheduled_at <= now() AND sent_at IS NULL`.
+### F. Audit ciblé des autres zones citées
+- `etudiant/formation`, `etudiant/ressources`, `etudiant/paiements` : repérer tout `useEffect([...serverFn])` ou tout `useState` initialisé depuis `useAuth()` qui causerait un démontage.
+- `admin/cohortes.$id`, `admin/etudiants`, `admin/paiements` : même audit + s'assurer que les `Route.loader` n'appellent pas de serverFn protégée sur des routes publiques (déjà documenté dans les knowledge files).
+- Login/Signup/Reset : vérifier que `signUp` / `signIn` ne déclenchent pas une navigation **avant** que `onAuthStateChange` ait propagé l'état (sinon flash login → home → login). Si besoin, naviguer dans le callback `onAuthStateChange` plutôt que juste après l'appel.
 
 ---
 
-## 4. Infrastructure (cron + jobs)
+## Fichiers modifiés
 
-Un seul endpoint cron `POST /api/public/hooks/automation-tick` (protégé par `apikey` anon), planifié toutes les 15 min via `pg_cron` :
-1. Calcule les échéances et déclenche les relances (`cohort_reminder_rules`).
-2. Applique les règles d'accès (`cohort_access_rules`) : restrict / restore.
-3. Envoie les campagnes dues (`cohort_email_campaigns`).
-4. Loggue tout dans `automation_run_log` (audit + debug admin).
+- `src/hooks/useAuth.tsx`
+- `src/routes/_authenticated.tsx`
+- `src/routes/inscription.$slug.tsx`
+- `src/routes/_authenticated/etudiant/paiements.tsx` (vérif effets)
+- `src/routes/_authenticated/etudiant/formation.tsx` (vérif effets)
+- `src/routes/login.tsx`, `src/routes/signup.tsx` (navigation post-auth si nécessaire)
 
-Trigger DB supplémentaire :
-- À la validation de la tranche 2 → `cohort_enrollments.status = 'active'` automatique (déblocage immédiat sans attendre le cron).
-
----
-
-## Détails techniques
-
-### Migrations
-1. `cohort_access_rules` (+ RLS admin only + GRANTs).
-2. `cohort_email_campaigns` (+ RLS admin, GRANTs, index `(scheduled_at, status)`).
-3. `automation_run_log` (id, run_at, type, payload jsonb, status).
-4. Trigger `on_installment_validated_restore_access`.
-5. Cron `pg_cron` toutes les 15 min vers `/api/public/hooks/automation-tick`.
-
-### Server functions / routes
-- `src/lib/automation.functions.ts` : CRUD règles + campagnes + envoi de test.
-- `src/routes/api/public/hooks/automation-tick.ts` : exécution.
-- Refactor `src/lib/reminders.functions.ts` pour partager le rendu d'emails (templates Markdown → HTML).
-
-### UI nouvelle
-- `src/routes/_authenticated/admin/cohortes.$id.tsx` : nouveaux blocs "Règles d'accès" et "Campagnes email" (à côté de "Relances automatiques").
-- `/admin/paiements` : KPIs, filtres, modal timeline.
-
-### Flux tranche 2
-- `startChariowCheckout` : `success_url = installment_position === 2 ? '/etudiant/paiements?paid=2' : '/inscription/<slug>/merci?token=...'`.
-- Webhook : si `installment_position=2` et `payment` existe déjà → MAJ directe, pas de `pending_enrollment`.
+Aucune migration DB nécessaire. Aucun changement fonctionnel visible — purement stabilité et fiabilité.
 
 ---
 
-## Livrables (ordre d'implémentation)
-1. Migrations DB (tables, trigger, GRANTs, cron).
-2. Server functions automation + endpoint cron.
-3. UI cohorte (règles d'accès + campagnes email).
-4. Refonte vue admin paiements (KPIs + filtres + timeline).
-5. Correction flux tranche 2 (success_url + webhook + toast).
-6. Tests manuels : simuler un retard, vérifier blocage J+7, payer T2, vérifier déblocage automatique, lancer une campagne ciblée.
+## Validation après implémentation
+
+1. Recharger `/inscription/<slug>` plusieurs fois → plus de flash.
+2. Naviguer entre `/admin/cohortes` et `/admin/etudiants` rapidement → pas de page blanche transitoire.
+3. Remplir le formulaire avec champs invalides → erreurs affichées sous chaque champ.
+4. Cliquer 3× rapidement sur « Payer » → un seul appel `startChariowCheckout`.
+5. Laisser un onglet ouvert 1h (token refresh Supabase) → la page ne se recharge pas / ne flash pas.
