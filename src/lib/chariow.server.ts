@@ -108,12 +108,14 @@ function extractEventType(payload: any): string {
 export async function processChariowSale(
   saleId: string,
   rawPayload?: any,
+  hints?: { attempt_token?: string; cohort_id_override?: string },
 ): Promise<{
   ok: boolean;
   status: "processed" | "not_paid" | "missing_cohort" | "error";
   message?: string;
   payment_id?: string;
   pending_enrollment_id?: string;
+  attempt_id?: string;
 }> {
   const verified: any = await verifySale(saleId);
   const s = verified?.sale ?? verified?.data ?? verified ?? {};
@@ -126,22 +128,73 @@ export async function processChariowSale(
     return { ok: false, status: "not_paid", message: `Sale status: ${saleStatus || "unknown"}` };
   }
 
-  const cohortId: string | undefined = meta.cohort_id;
+  // Resolve cohort/mode/student data with priority:
+  //  1. attempt token (from redirect URL / metadata)
+  //  2. existing attempt linked by sale_id
+  //  3. Chariow custom_metadata
+  //  4. fallback: most recent attempt for same email + product (last 24h)
+  const customerEmail = String(c.email ?? rawPayload?.customer?.email ?? "").toLowerCase();
+  const productId: string | undefined =
+    s.product_id ?? s.product?.id ?? rawPayload?.sale?.product_id;
+  const tokenFromMeta: string | undefined = meta.attempt_token ?? hints?.attempt_token;
+
+  let attempt: any = null;
+  if (tokenFromMeta) {
+    const { data } = await supabaseAdmin
+      .from("chariow_payment_attempts")
+      .select("*").eq("token", tokenFromMeta).maybeSingle();
+    attempt = data;
+  }
+  if (!attempt) {
+    const { data } = await supabaseAdmin
+      .from("chariow_payment_attempts")
+      .select("*").eq("chariow_sale_id", saleId).maybeSingle();
+    attempt = data;
+  }
+  if (!attempt && customerEmail && productId) {
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { data } = await supabaseAdmin
+      .from("chariow_payment_attempts")
+      .select("*")
+      .ilike("email", customerEmail)
+      .eq("chariow_product_id", productId)
+      .gte("created_at", since)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    attempt = data;
+  }
+
+  const cohortId: string | undefined =
+    hints?.cohort_id_override ?? meta.cohort_id ?? attempt?.cohort_id;
   const mode: "full" | "installments_2" =
-    meta.mode === "installments_2" ? "installments_2" : "full";
-  const position = Number(meta.installment_position ?? 1) || 1;
+    (meta.mode ?? attempt?.mode) === "installments_2" ? "installments_2" : "full";
+  const position = Number(meta.installment_position ?? attempt?.installment_position ?? 1) || 1;
   const cohortSlug: string = meta.cohort_slug ?? "";
 
   if (!cohortId) {
-    return { ok: false, status: "missing_cohort", message: "Missing cohort_id in custom_metadata" };
+    if (attempt) {
+      await supabaseAdmin.from("chariow_payment_attempts").update({
+        status: "needs_review",
+        chariow_sale_id: saleId,
+        last_error: "Cohorte introuvable (ni metadata Chariow ni tentative)",
+      }).eq("id", attempt.id);
+    }
+    return {
+      ok: false,
+      status: "missing_cohort",
+      message:
+        "Aucune cohorte associée. Associez ce paiement manuellement dans la page Réconciliation.",
+      attempt_id: attempt?.id,
+    };
   }
 
-  const email = (c.email ?? rawPayload?.customer?.email ?? "").toLowerCase();
-  const firstName = c.first_name ?? rawPayload?.customer?.first_name ?? "";
-  const lastName = c.last_name ?? rawPayload?.customer?.last_name ?? "";
-  const phone = c.phone ?? rawPayload?.customer?.phone ?? "";
+  const email = customerEmail || String(attempt?.email ?? "").toLowerCase();
+  const firstName = c.first_name ?? rawPayload?.customer?.first_name ?? attempt?.first_name ?? "";
+  const lastName = c.last_name ?? rawPayload?.customer?.last_name ?? attempt?.last_name ?? "";
+  const phone = c.phone ?? rawPayload?.customer?.phone ?? attempt?.phone ?? "";
   const amount = Number(s.amount ?? rawPayload?.sale?.amount ?? 0);
-  const currency = s.currency ?? rawPayload?.sale?.currency ?? "XOF";
+  const currency = s.currency ?? rawPayload?.sale?.currency ?? attempt?.currency ?? "XOF";
 
   const [{ data: cohort }, { data: profile }] = await Promise.all([
     supabaseAdmin
@@ -246,8 +299,19 @@ export async function processChariowSale(
         { onConflict: "student_id,cohort_id" } as any,
       );
 
-    return { ok: true, status: "processed", payment_id: payment?.id };
+    if (attempt) {
+      await supabaseAdmin.from("chariow_payment_attempts").update({
+        status: "processed",
+        chariow_sale_id: saleId,
+        processed_at: new Date().toISOString(),
+        chariow_raw_response: (rawPayload ?? verified) as any,
+        last_error: null,
+      }).eq("id", attempt.id);
+    }
+
+    return { ok: true, status: "processed", payment_id: payment?.id, attempt_id: attempt?.id };
   }
+
 
   // No profile → pending_enrollment + claim email
   // Reuse existing pending_enrollment if one already exists for the sale
@@ -305,7 +369,9 @@ export async function processChariowSale(
   }
 
   if (email && claimToken) {
-    const link = siteUrl(`/inscription/${cohortSlug}?claim=${claimToken}`);
+    const slugForLink = cohortSlug || (cohort as any).slug || "";
+    const link = siteUrl(`/inscription/${slugForLink}?claim=${claimToken}`);
+
     try {
       await sendEmail(
         email,
@@ -324,7 +390,17 @@ export async function processChariowSale(
     }
   }
 
-  return { ok: true, status: "processed", pending_enrollment_id: pendingId };
+  if (attempt) {
+    await supabaseAdmin.from("chariow_payment_attempts").update({
+      status: "processed",
+      chariow_sale_id: saleId,
+      processed_at: new Date().toISOString(),
+      chariow_raw_response: (rawPayload ?? verified) as any,
+      last_error: null,
+    }).eq("id", attempt.id);
+  }
+
+  return { ok: true, status: "processed", pending_enrollment_id: pendingId, attempt_id: attempt?.id };
 }
 
 export { extractEventType };

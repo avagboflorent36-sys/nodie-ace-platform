@@ -74,7 +74,15 @@ export const Route = createFileRoute("/api/public/hooks/chariow/$secret")({
         }
 
         try {
-          const result = await processChariowSale(saleId, raw);
+          // Also try to recover attempt_token from a redirect_url echoed back
+          const redirectUrl: string =
+            raw?.sale?.redirect_url ?? raw?.redirect_url ?? raw?.data?.redirect_url ?? "";
+          let attemptToken: string | undefined;
+          if (redirectUrl) {
+            const m = String(redirectUrl).match(/[?&]attempt=([a-z0-9]+)/i);
+            if (m) attemptToken = m[1];
+          }
+          const result = await processChariowSale(saleId, raw, { attempt_token: attemptToken });
           if (eventRowId) {
             await supabaseAdmin
               .from("chariow_webhook_events")

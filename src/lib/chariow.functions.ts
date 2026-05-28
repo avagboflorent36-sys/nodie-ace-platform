@@ -63,7 +63,41 @@ export const startChariowCheckout = createServerFn({ method: "POST" })
     }
 
     const origin = (data.return_origin ?? SITE_URL).replace(/\/+$/, "");
-    const redirect = `${origin}/inscription/${cohort.slug}?sale={sale_id}`;
+
+    // Create an internal attempt FIRST so we can always trace this payment
+    // even if Chariow drops custom_metadata or the redirect breaks.
+    const attemptToken =
+      crypto.randomUUID().replace(/-/g, "") +
+      crypto.randomUUID().replace(/-/g, "").slice(0, 16);
+
+    const amountExpected =
+      data.mode === "full"
+        ? Number(cohort.price_full ?? 0)
+        : Number(cohort.price_installment ?? 0);
+
+    const { data: attempt, error: attemptError } = await supabaseAdmin
+      .from("chariow_payment_attempts")
+      .insert({
+        token: attemptToken,
+        cohort_id: cohort.id,
+        email: data.email,
+        first_name: data.first_name,
+        last_name: data.last_name,
+        phone: data.phone,
+        mode: data.mode,
+        installment_position: data.installment_position,
+        chariow_product_id: productId,
+        amount_expected: amountExpected,
+        status: "created",
+      })
+      .select("id")
+      .single();
+    if (attemptError || !attempt) {
+      throw new Error("Impossible d'enregistrer la tentative de paiement.");
+    }
+
+    const redirect =
+      `${origin}/inscription/${cohort.slug}?attempt=${attemptToken}&sale={sale_id}`;
 
     // Chariow expects phone as { number, country_code } where country_code
     // is the ISO 3166-1 alpha-2 country code (e.g. "SN", "FR", "US"),
@@ -87,7 +121,6 @@ export const startChariowCheckout = createServerFn({ method: "POST" })
     let isoCountry = "SN";
     let numberOnly = digitsOnly;
     if (rawPhone.startsWith("+")) {
-      // Try longest dial code match (3, 2, then 1 digit)
       for (const len of [3, 2, 1]) {
         const dial = digitsOnly.slice(0, len);
         if (DIAL_TO_ISO[dial]) {
@@ -97,7 +130,6 @@ export const startChariowCheckout = createServerFn({ method: "POST" })
         }
       }
     } else if (digitsOnly.length > 9) {
-      // Heuristic: digits like 221771234567 → country part + local
       for (const len of [3, 2, 1]) {
         const dial = digitsOnly.slice(0, len);
         if (DIAL_TO_ISO[dial] && digitsOnly.length - len >= 7) {
@@ -124,6 +156,7 @@ export const startChariowCheckout = createServerFn({ method: "POST" })
         cohort_slug: cohort.slug,
         mode: data.mode,
         installment_position: String(data.installment_position),
+        attempt_token: attemptToken,
       },
     });
 
@@ -174,6 +207,11 @@ export const startChariowCheckout = createServerFn({ method: "POST" })
     const url = findCheckoutUrl(checkout);
 
     if (!url && step === "already_purchased") {
+      await supabaseAdmin.from("chariow_payment_attempts").update({
+        status: "already_purchased",
+        last_error: message ?? "already_purchased",
+        chariow_raw_response: checkout as any,
+      }).eq("id", attempt.id);
       return {
         checkout_url: null,
         status: "already_purchased",
@@ -188,14 +226,71 @@ export const startChariowCheckout = createServerFn({ method: "POST" })
         "[Chariow] checkout response without URL:",
         JSON.stringify(checkout).slice(0, 1500),
       );
+      await supabaseAdmin.from("chariow_payment_attempts").update({
+        status: "failed",
+        last_error: "Chariow n'a pas renvoyé d'URL de paiement",
+        chariow_raw_response: checkout as any,
+      }).eq("id", attempt.id);
       return {
         checkout_url: null,
         status: "missing_checkout_url",
         message: "Chariow n'a pas renvoyé d'URL de paiement.",
       };
     }
-    return { checkout_url: url, status: "checkout_created", message: null };
+
+    await supabaseAdmin.from("chariow_payment_attempts").update({
+      status: "redirected",
+      checkout_url: url,
+      chariow_raw_response: checkout as any,
+    }).eq("id", attempt.id);
+
+    return {
+      checkout_url: url,
+      status: "checkout_created",
+      message: null,
+      attempt_token: attemptToken,
+    };
   });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Vérifier une tentative interne par token (public) — utilisé au retour de paiement
+// ─────────────────────────────────────────────────────────────────────────────
+export const checkAttemptByToken = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z.object({ token: z.string().min(20).max(128) }).parse(input),
+  )
+  .handler(async ({ data }) => {
+    const { data: attempt } = await supabaseAdmin
+      .from("chariow_payment_attempts")
+      .select("id, status, chariow_sale_id, cohort_id, last_error")
+      .eq("token", data.token)
+      .maybeSingle();
+    if (!attempt) return { found: false, status: "unknown" as const };
+
+    // If we have a sale id, double-check Chariow directly
+    let paid = false;
+    let saleStatus: string | null = null;
+    if (attempt.chariow_sale_id) {
+      try {
+        const sale: any = await verifySale(attempt.chariow_sale_id);
+        const s = sale?.sale ?? sale?.data ?? sale ?? {};
+        saleStatus = s.status ?? null;
+        paid = ["paid", "success", "successful", "completed", "validated"].includes(
+          String(s.status ?? "").toLowerCase(),
+        );
+      } catch {}
+    }
+    return {
+      found: true,
+      status: attempt.status,
+      paid: paid || attempt.status === "processed",
+      sale_status: saleStatus,
+      sale_id: attempt.chariow_sale_id,
+      cohort_id: attempt.cohort_id,
+      last_error: attempt.last_error,
+    };
+  });
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 2. Vérifier le statut d'une vente (public, info minimale)
@@ -374,4 +469,73 @@ export const setCohortChariowProducts = createServerFn({ method: "POST" })
       .eq("id", data.cohort_id);
     if (error) throw new Error(error.message);
     return { ok: true };
+  });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Admin : lister les tentatives Chariow récentes
+// ─────────────────────────────────────────────────────────────────────────────
+async function assertAdmin(supabase: any, userId: string) {
+  const { data: roles } = await supabase
+    .from("user_roles").select("role").eq("user_id", userId);
+  if (!roles?.some((r: any) => r.role === "admin" || r.role === "super_admin"))
+    throw new Error("Admin only");
+}
+
+export const listChariowAttempts = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    const { data } = await supabaseAdmin
+      .from("chariow_payment_attempts")
+      .select("id, token, cohort_id, email, first_name, last_name, mode, installment_position, chariow_product_id, amount_expected, currency, chariow_sale_id, status, last_error, created_at, processed_at, cohortes(name, slug)")
+      .order("created_at", { ascending: false })
+      .limit(50);
+    return { attempts: data ?? [] };
+  });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Admin : associer manuellement une tentative à une cohorte / sale_id et la traiter
+// ─────────────────────────────────────────────────────────────────────────────
+export const reconcileAttempt = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z.object({
+      attempt_id: z.string().uuid(),
+      sale_id: z.string().trim().min(3).max(255).optional(),
+      cohort_id: z.string().uuid().optional(),
+    }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.supabase, context.userId);
+
+    const update: any = {};
+    if (data.sale_id) update.chariow_sale_id = data.sale_id;
+    if (data.cohort_id) update.cohort_id = data.cohort_id;
+    if (Object.keys(update).length > 0) {
+      await supabaseAdmin
+        .from("chariow_payment_attempts").update(update).eq("id", data.attempt_id);
+    }
+
+    const { data: a } = await supabaseAdmin
+      .from("chariow_payment_attempts")
+      .select("token, chariow_sale_id, cohort_id")
+      .eq("id", data.attempt_id).maybeSingle();
+    if (!a?.chariow_sale_id) {
+      throw new Error("Aucun Sale ID Chariow associé à cette tentative.");
+    }
+
+    const result = await processChariowSale(a.chariow_sale_id, undefined, {
+      attempt_token: a.token,
+      cohort_id_override: a.cohort_id ?? undefined,
+    });
+
+    await supabaseAdmin.from("chariow_webhook_events").insert({
+      event_type: "admin.reconcile",
+      sale_id: a.chariow_sale_id,
+      payload: { source: "admin_reconcile", attempt_id: data.attempt_id, result } as any,
+      processed_at: new Date().toISOString(),
+      error: result.ok ? null : result.message ?? result.status,
+    });
+
+    return result;
   });
