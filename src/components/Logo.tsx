@@ -9,9 +9,10 @@ export function Logo({ light = false }: { light?: boolean }) {
       >
         N
       </span>
-      <span className={light ? "text-sidebar-foreground" : "text-foreground"}>
-        Nodie <span className="text-gold">IA</span>
+      <span className={`${light ? "text-sidebar-foreground" : "text-foreground"} truncate`}>
+        Nodie <span className="text-gold">IA</span> Academy
       </span>
+
     </Link>
   );
 }
