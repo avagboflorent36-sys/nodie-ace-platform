@@ -21,6 +21,8 @@ export const Route = createFileRoute("/_authenticated/admin/formations")({
 
 const ICONS: Record<string, any> = { document: FileText, video: Video, link: Link2, exercise: BookOpen };
 
+type LessonForm = { title: string; type: string; url: string; description: string };
+
 function slugify(s: string) {
   return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
@@ -228,7 +230,7 @@ function FormationDetail({ formationId }: { formationId: string }) {
   const [modForm, setModForm] = useState({ title: "", description: "" });
   const [lessonOpenForModule, setLessonOpenForModule] = useState<string | null>(null);
   const [globalOpen, setGlobalOpen] = useState(false);
-  const [lessonForm, setLessonForm] = useState({ title: "", type: "video", url: "", description: "" });
+  const [lessonForm, setLessonForm] = useState<LessonForm>({ title: "", type: "video", url: "", description: "" });
 
   const { data: modules = [], refetch: refetchModules } = useQuery({
     queryKey: ["formation-modules", formationId],
@@ -273,31 +275,6 @@ function FormationDetail({ formationId }: { formationId: string }) {
   const delLesson = async (id: string) => { await supabase.from("formation_resources").delete().eq("id", id); refetchRes(); };
 
   const globalResources = resources.filter((r: any) => !r.module_id);
-
-  const LessonDialog = ({ open, onOpenChange, onSubmit, title }: any) => (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
-        <div className="space-y-3">
-          <div><Label>Titre</Label><Input value={lessonForm.title} onChange={(e) => setLessonForm({ ...lessonForm, title: e.target.value })} /></div>
-          <div><Label>Type</Label>
-            <Select value={lessonForm.type} onValueChange={(v) => setLessonForm({ ...lessonForm, type: v })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="video">Vidéo / Replay</SelectItem>
-                <SelectItem value="link">Playlist / Lien</SelectItem>
-                <SelectItem value="document">Document PDF</SelectItem>
-                <SelectItem value="exercise">Exercice</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div><Label>URL</Label><Input value={lessonForm.url} onChange={(e) => setLessonForm({ ...lessonForm, url: e.target.value })} placeholder="https://..." /></div>
-          <div><Label>Description</Label><Textarea value={lessonForm.description} onChange={(e) => setLessonForm({ ...lessonForm, description: e.target.value })} /></div>
-          <Button className="w-full" onClick={onSubmit}>Ajouter</Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
 
   return (
     <Card className="p-6">
@@ -393,13 +370,51 @@ function FormationDetail({ formationId }: { formationId: string }) {
         onOpenChange={(o: boolean) => !o && setLessonOpenForModule(null)}
         onSubmit={() => addLesson(lessonOpenForModule)}
         title="Nouvelle leçon"
+        lessonForm={lessonForm}
+        setLessonForm={setLessonForm}
       />
       <LessonDialog
         open={globalOpen}
         onOpenChange={setGlobalOpen}
         onSubmit={() => addLesson(null)}
         title="Nouvelle ressource globale"
+        lessonForm={lessonForm}
+        setLessonForm={setLessonForm}
       />
     </Card>
+  );
+}
+
+function LessonDialog({ open, onOpenChange, onSubmit, title, lessonForm, setLessonForm }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSubmit: () => void;
+  title: string;
+  lessonForm: LessonForm;
+  setLessonForm: (form: LessonForm) => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <div><Label>Titre</Label><Input value={lessonForm.title} onChange={(e) => setLessonForm({ ...lessonForm, title: e.target.value })} /></div>
+          <div><Label>Type</Label>
+            <Select value={lessonForm.type} onValueChange={(v) => setLessonForm({ ...lessonForm, type: v })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="video">Vidéo / Replay</SelectItem>
+                <SelectItem value="link">Playlist / Lien</SelectItem>
+                <SelectItem value="document">Document PDF</SelectItem>
+                <SelectItem value="exercise">Exercice</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div><Label>URL</Label><Input value={lessonForm.url} onChange={(e) => setLessonForm({ ...lessonForm, url: e.target.value })} placeholder="https://..." /></div>
+          <div><Label>Description</Label><Textarea value={lessonForm.description} onChange={(e) => setLessonForm({ ...lessonForm, description: e.target.value })} /></div>
+          <Button className="w-full" onClick={onSubmit}>Ajouter</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
