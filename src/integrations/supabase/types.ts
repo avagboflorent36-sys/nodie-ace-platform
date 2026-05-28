@@ -843,6 +843,7 @@ export type Database = {
           source: string
           status: Database["public"]["Enums"]["payment_status"]
           student_id: string
+          tranche2_token: string | null
           updated_at: string
         }
         Insert: {
@@ -859,6 +860,7 @@ export type Database = {
           source?: string
           status?: Database["public"]["Enums"]["payment_status"]
           student_id: string
+          tranche2_token?: string | null
           updated_at?: string
         }
         Update: {
@@ -875,6 +877,7 @@ export type Database = {
           source?: string
           status?: Database["public"]["Enums"]["payment_status"]
           student_id?: string
+          tranche2_token?: string | null
           updated_at?: string
         }
         Relationships: [
