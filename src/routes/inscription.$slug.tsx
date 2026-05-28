@@ -158,8 +158,13 @@ function CheckoutStep({ cohort }: { cohort: any }) {
         window.location.href = r.checkout_url;
         return;
       }
-      if (r.redirect_url) {
-        window.location.href = r.redirect_url;
+      if (r.status === "ownership_confirmed") {
+        toast.info(
+          r.message ?? "Cette adresse a déjà payé ce produit. Reprise de votre inscription…",
+        );
+      }
+      if ((r as any).redirect_url) {
+        window.location.href = (r as any).redirect_url;
         return;
       }
       toast.error(r.message ?? "Impossible de créer le paiement Chariow");

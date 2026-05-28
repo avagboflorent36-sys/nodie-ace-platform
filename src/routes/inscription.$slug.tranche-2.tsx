@@ -203,6 +203,14 @@ function FinalizeStep({ cohort, userId }: { cohort: any; userId: string }) {
         window.location.href = r.checkout_url;
         return;
       }
+      if (r.status === "ownership_confirmed") {
+        toast.error(
+          r.message ??
+            "Chariow indique que cette adresse a déjà acheté le produit de la tranche 2. Vérifiez votre historique de paiement ou contactez le support.",
+        );
+        setLoading(false);
+        return;
+      }
       toast.error(r.message ?? "Impossible de créer le paiement");
       setLoading(false);
     } catch (e: any) {
