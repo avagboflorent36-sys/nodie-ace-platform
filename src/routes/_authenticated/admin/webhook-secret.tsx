@@ -1,12 +1,19 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
+import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { AlertTriangle, Copy, Eye } from "lucide-react";
+import { AlertTriangle, Copy, Eye, RefreshCw, CheckCircle2, XCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { getChariowWebhookUrls } from "@/lib/admin-secrets.functions";
+import {
+  syncChariowSale,
+  listChariowWebhookEvents,
+} from "@/lib/chariow.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/webhook-secret")({
   component: WebhookSecretPage,
@@ -14,8 +21,19 @@ export const Route = createFileRoute("/_authenticated/admin/webhook-secret")({
 
 function WebhookSecretPage() {
   const fetchUrls = useServerFn(getChariowWebhookUrls);
+  const resync = useServerFn(syncChariowSale);
+  const listEvents = useServerFn(listChariowWebhookEvents);
+
   const [urls, setUrls] = useState<{ previewUrl: string; productionUrl: string } | null>(null);
   const [loading, setLoading] = useState(false);
+  const [saleId, setSaleId] = useState("");
+  const [resyncing, setResyncing] = useState(false);
+
+  const eventsQ = useQuery({
+    queryKey: ["chariow-webhook-events"],
+    queryFn: () => listEvents({ data: undefined as any }),
+    refetchInterval: 10000,
+  });
 
   const reveal = async () => {
     setLoading(true);
@@ -34,15 +52,37 @@ function WebhookSecretPage() {
     toast.success(`${label} copiée`);
   };
 
+  const doResync = async () => {
+    const id = saleId.trim();
+    if (id.length < 3) {
+      toast.error("ID de vente invalide");
+      return;
+    }
+    setResyncing(true);
+    try {
+      const r = await resync({ data: { sale_id: id } });
+      if (r.ok) {
+        toast.success("Paiement resynchronisé");
+        setSaleId("");
+        eventsQ.refetch();
+      } else {
+        toast.error(r.message ?? `Statut: ${r.status}`);
+      }
+    } catch (e: any) {
+      toast.error(e?.message ?? "Échec du resync");
+    } finally {
+      setResyncing(false);
+    }
+  };
+
   return (
     <div className="max-w-3xl space-y-6 p-6">
       <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive flex gap-3">
         <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
         <div>
-          <p className="font-semibold">Page temporaire</p>
+          <p className="font-semibold">Page interne</p>
           <p className="text-destructive/80">
-            Cette page affiche le secret du webhook Chariow. Après avoir copié l'URL
-            et configuré Chariow, demande-moi de la supprimer.
+            Configuration du webhook Chariow, resync manuel d'une vente et historique des événements reçus.
           </p>
         </div>
       </div>
@@ -59,55 +99,116 @@ function WebhookSecretPage() {
             </Button>
           ) : (
             <div className="space-y-4">
-              <div className="space-y-2">
-                <p className="text-sm font-medium">
-                  URL preview (pour tester maintenant) :
-                </p>
-                <div className="flex gap-2">
-                  <code className="flex-1 rounded bg-muted px-3 py-2 text-xs break-all">
-                    {urls.previewUrl}
-                  </code>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => copy(urls.previewUrl, "URL preview")}
-                  >
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <p className="text-sm font-medium">
-                  URL production (après publication) :
-                </p>
-                <div className="flex gap-2">
-                  <code className="flex-1 rounded bg-muted px-3 py-2 text-xs break-all">
-                    {urls.productionUrl}
-                  </code>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => copy(urls.productionUrl, "URL production")}
-                  >
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-
+              <UrlRow label="URL preview" url={urls.previewUrl} onCopy={copy} />
+              <UrlRow label="URL production" url={urls.productionUrl} onCopy={copy} />
               <div className="rounded border border-border bg-muted/30 p-3 text-sm text-muted-foreground">
                 <p className="font-medium text-foreground mb-1">Étapes :</p>
                 <ol className="list-decimal list-inside space-y-1">
-                  <li>Copier l'URL preview</li>
+                  <li>Copier l'URL production</li>
                   <li>Coller dans Chariow comme URL de webhook</li>
                   <li>Faire un paiement test</li>
-                  <li>Vérifier dans /admin/paiements</li>
+                  <li>Vérifier ci-dessous dans "Événements reçus"</li>
                 </ol>
               </div>
             </div>
           )}
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Resynchroniser une vente Chariow</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Si un étudiant a payé mais n'a pas été redirigé / n'apparait pas, colle ici
+            l'ID de vente Chariow (visible dans le dashboard Chariow) pour relancer le traitement.
+          </p>
+          <div className="flex gap-2">
+            <Input
+              placeholder="sale_xxx ou ID Chariow"
+              value={saleId}
+              onChange={(e) => setSaleId(e.target.value)}
+            />
+            <Button onClick={doResync} disabled={resyncing}>
+              <RefreshCw className={`h-4 w-4 mr-2 ${resyncing ? "animate-spin" : ""}`} />
+              Resync
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <span>Événements reçus (30 derniers)</span>
+            <Button size="sm" variant="ghost" onClick={() => eventsQ.refetch()}>
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {eventsQ.isLoading ? (
+            <p className="text-sm text-muted-foreground">Chargement...</p>
+          ) : (eventsQ.data?.events ?? []).length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Aucun événement reçu pour le moment.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {eventsQ.data!.events.map((e: any) => (
+                <div
+                  key={e.id}
+                  className="rounded border border-border p-3 text-xs flex items-start gap-3"
+                >
+                  {e.error ? (
+                    <XCircle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+                  ) : (
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+                  )}
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="outline">{e.event_type}</Badge>
+                      <span className="font-mono break-all">{e.sale_id}</span>
+                    </div>
+                    <p className="text-muted-foreground">
+                      Reçu : {new Date(e.received_at).toLocaleString()}
+                      {e.processed_at
+                        ? ` · Traité : ${new Date(e.processed_at).toLocaleString()}`
+                        : " · Non traité"}
+                    </p>
+                    {e.error && (
+                      <p className="text-destructive break-all">Erreur : {e.error}</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function UrlRow({
+  label,
+  url,
+  onCopy,
+}: {
+  label: string;
+  url: string;
+  onCopy: (t: string, l: string) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <p className="text-sm font-medium">{label} :</p>
+      <div className="flex gap-2">
+        <code className="flex-1 rounded bg-muted px-3 py-2 text-xs break-all">{url}</code>
+        <Button size="sm" variant="outline" onClick={() => onCopy(url, label)}>
+          <Copy className="h-4 w-4" />
+        </Button>
+      </div>
     </div>
   );
 }
