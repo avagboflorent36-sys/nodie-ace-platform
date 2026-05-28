@@ -421,6 +421,7 @@ export const startChariowCheckoutForTranche2Token = createServerFn({ method: "PO
         installment_position: "2",
         attempt_token: attemptToken,
         payment_id: payment.id,
+        installment_id: t2?.id ?? "",
       },
     });
 
@@ -669,6 +670,7 @@ export const startMyTranche2Checkout = createServerFn({ method: "POST" })
         installment_position: "2",
         attempt_token: attemptToken,
         payment_id: payment.id,
+        installment_id: t2?.id ?? "",
       },
     });
 
