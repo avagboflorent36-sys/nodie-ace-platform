@@ -369,7 +369,9 @@ export async function processChariowSale(
   }
 
   if (email && claimToken) {
-    const link = siteUrl(`/inscription/${cohortSlug}?claim=${claimToken}`);
+    const slugForLink = cohortSlug || (cohort as any).slug || "";
+    const link = siteUrl(`/inscription/${slugForLink}?claim=${claimToken}`);
+
     try {
       await sendEmail(
         email,
