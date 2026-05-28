@@ -108,7 +108,7 @@ function CohortDetail() {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4 pt-4"><OverviewTab cohortId={id} /></TabsContent>
-        <TabsContent value="students" className="space-y-4 pt-4"><StudentsTab cohortId={id} /></TabsContent>
+        <TabsContent value="students" className="space-y-4 pt-4"><StudentsTab cohortId={id} cohortSlug={cohort.slug} /></TabsContent>
         <TabsContent value="content" className="space-y-4 pt-4"><ContentTab cohortId={id} /></TabsContent>
         <TabsContent value="annonces" className="space-y-4 pt-4"><AnnoncesTab cohortId={id} /></TabsContent>
         <TabsContent value="live" className="space-y-4 pt-4"><LiveTab cohortId={id} /></TabsContent>
