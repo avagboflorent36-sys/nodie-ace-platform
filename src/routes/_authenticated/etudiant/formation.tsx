@@ -124,99 +124,67 @@ function FormationPage() {
 
           return (
             <div key={c?.id} className="space-y-4">
-              <Card className="overflow-hidden">
-                {f?.cover_image_url && <img src={f.cover_image_url} alt="" className="h-48 w-full object-cover" />}
-                <div className="p-6">
-                  <Badge variant="outline" className="mb-2">{f?.title}</Badge>
-                  <h2 className="text-2xl font-bold">{c?.name}</h2>
-                  {f?.description && <p className="mt-2 text-sm text-muted-foreground">{f.description}</p>}
-                  {f?.long_description && <p className="mt-3 text-sm whitespace-pre-wrap">{f.long_description}</p>}
-                  <div className="mt-4 flex flex-wrap gap-3 text-xs text-muted-foreground">
-                    {c?.start_date && <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />Début : {new Date(c.start_date).toLocaleDateString()}</span>}
-                    {c?.end_date && <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />Fin : {new Date(c.end_date).toLocaleDateString()}</span>}
-                    {c?.zoom_link && <a href={c.zoom_link} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-gold hover:underline"><ExternalLink className="h-3 w-3" />Lien Zoom</a>}
+              <PlaylistProvider playlist={buildPlaylist(fModules, fResources, fGlobalResources, cohortModules)}>
+                {fModules.length > 0 && (
+                  <div className="space-y-3">
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Programme de la formation</h3>
+                    {fModules.map((m: any) => {
+                      const lessons = fResources
+                        .filter((r) => r.module_id === m.id)
+                        .slice()
+                        .sort((a: any, b: any) => a.position - b.position);
+                      return (
+                        <Card key={m.id} className="p-6">
+                          <h4 className="font-semibold">{m.title}</h4>
+                          {m.description && <p className="mt-1 text-sm text-muted-foreground">{m.description}</p>}
+                          {lessons.length > 0 ? (
+                            <div className="mt-4 divide-y rounded-lg border">
+                              {lessons.map((r: any) => <ResourceRow key={r.id} r={r} />)}
+                            </div>
+                          ) : (
+                            <p className="mt-3 text-xs text-muted-foreground">Aucune leçon dans ce module.</p>
+                          )}
+                        </Card>
+                      );
+                    })}
                   </div>
-                </div>
-              </Card>
+                )}
 
-              {cohortAnnonces.length > 0 && (
-                <Card className="p-6">
-                  <h3 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                    <Megaphone className="h-4 w-4" /> Annonces
-                  </h3>
-                  <div className="mt-3 space-y-3">
-                    {cohortAnnonces.map((a) => (
-                      <div key={a.id} className="rounded-lg border p-3">
-                        <div className="flex items-center justify-between">
-                          <div className="font-medium">{a.title}</div>
-                          <span className="text-xs text-muted-foreground">{new Date(a.created_at).toLocaleDateString()}</span>
-                        </div>
-                        <p className="mt-1 text-sm text-muted-foreground whitespace-pre-wrap">{a.content}</p>
-                      </div>
-                    ))}
-                  </div>
-                </Card>
-              )}
+                {fGlobalResources.length > 0 && (
+                  <Card className="p-6">
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Ressources de la formation</h3>
+                    <div className="mt-3 divide-y rounded-lg border">
+                      {fGlobalResources
+                        .slice()
+                        .sort((a: any, b: any) => a.position - b.position)
+                        .map((r: any) => <ResourceRow key={r.id} r={r} />)}
+                    </div>
+                  </Card>
+                )}
 
-              {fModules.length > 0 && (
-                <div className="space-y-3">
-                  <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Programme de la formation</h3>
-                  {fModules.map((m: any) => {
-                    const lessons = fResources
-                      .filter((r) => r.module_id === m.id)
-                      .slice()
-                      .sort((a: any, b: any) => a.position - b.position);
-                    return (
+                {cohortModules.length > 0 && (
+                  <div className="space-y-3">
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Contenu spécifique à cette cohorte</h3>
+                    {cohortModules.map((m: any) => (
                       <Card key={m.id} className="p-6">
                         <h4 className="font-semibold">{m.title}</h4>
                         {m.description && <p className="mt-1 text-sm text-muted-foreground">{m.description}</p>}
-                        {lessons.length > 0 ? (
+                        {(m.ressources ?? []).length > 0 && (
                           <div className="mt-4 divide-y rounded-lg border">
-                            {lessons.map((r: any) => <ResourceRow key={r.id} r={r} />)}
+                            {m.ressources.slice().sort((a: any, b: any) => a.position - b.position).map((r: any) => <ResourceRow key={r.id} r={r} />)}
                           </div>
-                        ) : (
-                          <p className="mt-3 text-xs text-muted-foreground">Aucune leçon dans ce module.</p>
                         )}
                       </Card>
-                    );
-                  })}
-                </div>
-              )}
-
-              {fGlobalResources.length > 0 && (
-                <Card className="p-6">
-                  <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Ressources de la formation</h3>
-                  <div className="mt-3 divide-y rounded-lg border">
-                    {fGlobalResources
-                      .slice()
-                      .sort((a: any, b: any) => a.position - b.position)
-                      .map((r: any) => <ResourceRow key={r.id} r={r} />)}
+                    ))}
                   </div>
-                </Card>
-              )}
+                )}
 
-              {cohortModules.length > 0 && (
-                <div className="space-y-3">
-                  <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Contenu spécifique à cette cohorte</h3>
-                  {cohortModules.map((m: any) => (
-                    <Card key={m.id} className="p-6">
-                      <h4 className="font-semibold">{m.title}</h4>
-                      {m.description && <p className="mt-1 text-sm text-muted-foreground">{m.description}</p>}
-                      {(m.ressources ?? []).length > 0 && (
-                        <div className="mt-4 divide-y rounded-lg border">
-                          {m.ressources.slice().sort((a: any, b: any) => a.position - b.position).map((r: any) => <ResourceRow key={r.id} r={r} />)}
-                        </div>
-                      )}
-                    </Card>
-                  ))}
-                </div>
-              )}
-
-              {!hasAnyContent && (
-                <Card className="p-12 text-center text-muted-foreground text-sm">
-                  Aucun contenu pédagogique n'a encore été publié pour cette formation.
-                </Card>
-              )}
+                {!hasAnyContent && (
+                  <Card className="p-12 text-center text-muted-foreground text-sm">
+                    Aucun contenu pédagogique n'a encore été publié pour cette formation.
+                  </Card>
+                )}
+              </PlaylistProvider>
             </div>
           );
         })
@@ -224,6 +192,28 @@ function FormationPage() {
     </div>
   );
 }
+
+function buildPlaylist(
+  fModules: any[],
+  fResources: any[],
+  fGlobalResources: any[],
+  cohortModules: any[],
+): ResourceItem[] {
+  const out: ResourceItem[] = [];
+  for (const m of fModules) {
+    const lessons = fResources.filter((r) => r.module_id === m.id).slice().sort((a, b) => a.position - b.position);
+    for (const r of lessons) out.push({ id: r.id, title: r.title, type: r.type, url: r.url, description: r.description });
+  }
+  for (const r of fGlobalResources.slice().sort((a, b) => a.position - b.position)) {
+    out.push({ id: r.id, title: r.title, type: r.type, url: r.url, description: r.description });
+  }
+  for (const m of cohortModules) {
+    const lessons = (m.ressources ?? []).slice().sort((a: any, b: any) => a.position - b.position);
+    for (const r of lessons) out.push({ id: r.id, title: r.title, type: r.type, url: r.url, description: r.description });
+  }
+  return out;
+}
+
 
 
 
