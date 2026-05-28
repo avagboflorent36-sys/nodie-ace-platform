@@ -432,6 +432,14 @@ function PostPaymentStep({
     });
     if (suErr || !signed.user) {
       setLoading(false);
+      const alreadyExists = /already|registered|exists|inscrit|existe/i.test(
+        suErr?.message ?? "",
+      );
+      if (alreadyExists && attemptToken) {
+        toast.error("Ce compte existe déjà. Connectez-vous pour lier votre paiement.");
+        navigate({ to: "/login", search: { attempt: attemptToken } as any });
+        return;
+      }
       toast.error(suErr?.message ?? "Erreur lors de la création du compte");
       return;
     }
@@ -480,7 +488,10 @@ function PostPaymentStep({
       toast.success(
         "Compte créé ! Vérifiez votre email puis connectez-vous pour accéder à votre espace.",
       );
-      navigate({ to: "/login" });
+      navigate({
+        to: "/login",
+        search: attemptToken ? ({ attempt: attemptToken } as any) : undefined,
+      });
     }
   };
 
