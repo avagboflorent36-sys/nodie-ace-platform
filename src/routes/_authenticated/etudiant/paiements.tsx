@@ -24,6 +24,18 @@ function StudentPayments() {
   const [paying, setPaying] = useState<string | null>(null);
   const startCheckout = useServerFn(startChariowCheckout);
 
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("paid") === "2") {
+      toast.success("Paiement de la tranche 2 enregistré. Validation sous peu.");
+      url.searchParams.delete("paid");
+      url.searchParams.delete("sale");
+      window.history.replaceState({}, "", url.toString());
+      if (user) qc.invalidateQueries({ queryKey: ["student-payments", user.id] });
+    }
+  }, [user, qc]);
+
+
   const { data: payments = [], isLoading } = useQuery({
     queryKey: ["student-payments", user?.id],
     enabled: !!user,
