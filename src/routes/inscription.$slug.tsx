@@ -291,6 +291,7 @@ function PostPaymentStep({
   const fetchStatus = useServerFn(fetchSaleStatus);
   const checkAttempt = useServerFn(checkAttemptByToken);
   const claim = useServerFn(claimPendingEnrollment);
+  const claimAttempt = useServerFn(claimAttemptByToken);
 
   const hasRemoteCheck = !!(saleId || attemptToken);
   const [verifying, setVerifying] = useState(hasRemoteCheck);
