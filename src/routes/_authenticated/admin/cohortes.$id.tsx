@@ -44,6 +44,7 @@ function CohortDetail() {
   if (!cohort) return <div className="p-8 text-muted-foreground">Chargement...</div>;
 
   const inscriptionUrl = `${window.location.origin}/inscription/${cohort.slug}`;
+  const tranche2Url = `${window.location.origin}/inscription/${cohort.slug}/tranche-2`;
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 animate-fade-up">
@@ -60,11 +61,17 @@ function CohortDetail() {
               <span className="text-xs text-muted-foreground">{cohort.start_date ?? "?"} → {cohort.end_date ?? "?"}</span>
             </div>
           </div>
-          <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(inscriptionUrl); toast.success("Lien copié"); }}>
-            <Copy className="mr-1 h-3 w-3" /> Copier le lien d'inscription
-          </Button>
+          <div className="flex flex-col items-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(inscriptionUrl); toast.success("Lien copié"); }}>
+              <Copy className="mr-1 h-3 w-3" /> Copier le lien d'inscription
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(tranche2Url); toast.success("Lien tranche 2 copié"); }}>
+              <Copy className="mr-1 h-3 w-3" /> Copier le lien tranche 2
+            </Button>
+          </div>
         </div>
       </div>
+
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="grid w-full grid-cols-9">
@@ -322,9 +329,9 @@ function FormBuilderTab({ cohortId, inscriptionUrl }: { cohortId: string; inscri
 
   return (
     <div className="space-y-4">
-      <Card className="p-4 bg-secondary/30">
-        <div className="flex items-center justify-between">
-          <div>
+      <Card className="p-4 bg-secondary/30 space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
             <p className="text-sm font-medium">Lien d'inscription public</p>
             <p className="text-xs text-muted-foreground break-all">{inscriptionUrl}</p>
           </div>
@@ -332,7 +339,18 @@ function FormBuilderTab({ cohortId, inscriptionUrl }: { cohortId: string; inscri
             <Copy className="mr-1 h-3 w-3" /> Copier
           </Button>
         </div>
+        <div className="flex items-center justify-between gap-3 pt-3 border-t">
+          <div className="min-w-0">
+            <p className="text-sm font-medium">Lien finalisation tranche 2</p>
+            <p className="text-xs text-muted-foreground break-all">{`${inscriptionUrl}/tranche-2`}</p>
+            <p className="text-[11px] text-muted-foreground mt-1">À envoyer aux étudiants qui ont déjà payé la tranche 1 — ouvre directement le checkout sans repasser par le formulaire.</p>
+          </div>
+          <Button size="sm" variant="outline" onClick={() => { navigator.clipboard.writeText(`${inscriptionUrl}/tranche-2`); toast.success("Lien tranche 2 copié"); }}>
+            <Copy className="mr-1 h-3 w-3" /> Copier
+          </Button>
+        </div>
       </Card>
+
       <p className="text-sm text-muted-foreground">Champs imposés : Prénom, Nom, Email, WhatsApp, Pays, Mode de paiement.</p>
       <div className="space-y-2">
         {fields.map((f: any) => (

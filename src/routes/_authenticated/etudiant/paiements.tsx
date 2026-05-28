@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Upload, AlertCircle, CheckCircle2, Clock, Wallet, CreditCard } from "lucide-react";
+import { Upload, AlertCircle, CheckCircle2, Clock, Wallet, CreditCard, Copy } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -42,7 +42,7 @@ function StudentPayments() {
     queryFn: async () => {
       const { data } = await supabase
         .from("payments")
-        .select("id, mode, status, source, amount_total, amount_paid, currency, final_deadline, cohort_id, cohortes(name, formations(title)), payment_installments(id, position, amount, status, due_date, submitted_at, validated_at, proof_path, rejection_reason, chariow_sale_id)")
+        .select("id, mode, status, source, amount_total, amount_paid, currency, final_deadline, cohort_id, cohortes(name, slug, formations(title)), payment_installments(id, position, amount, status, due_date, submitted_at, validated_at, proof_path, rejection_reason, chariow_sale_id)")
         .eq("student_id", user!.id)
         .order("created_at", { ascending: false });
       return data ?? [];
@@ -129,6 +129,26 @@ function StudentPayments() {
               <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
                 <div className="h-full bg-gold transition-all" style={{ width: `${ratio}%` }} />
               </div>
+
+              {p.status === "partial" && p.cohortes?.slug && (
+                <Card className="p-3 bg-secondary/40 border-dashed flex flex-wrap items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium">Lien direct de finalisation</p>
+                    <p className="text-[11px] text-muted-foreground break-all">{`${window.location.origin}/inscription/${p.cohortes.slug}/tranche-2`}</p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      navigator.clipboard.writeText(`${window.location.origin}/inscription/${p.cohortes.slug}/tranche-2`);
+                      toast.success("Lien copié");
+                    }}
+                  >
+                    <Copy className="mr-1 h-3 w-3" /> Copier
+                  </Button>
+                </Card>
+              )}
+
 
               <div className="space-y-2">
                 {(p.payment_installments ?? []).slice().sort((a: any, b: any) => a.position - b.position).map((i: any) => {

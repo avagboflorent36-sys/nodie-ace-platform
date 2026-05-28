@@ -20,6 +20,7 @@ import { Route as AuthenticatedEtudiantRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedEtudiantIndexRouteImport } from './routes/_authenticated/etudiant/index'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
+import { Route as InscriptionSlugTranche2RouteImport } from './routes/inscription.$slug.tranche-2'
 import { Route as AuthenticatedEtudiantSupportRouteImport } from './routes/_authenticated/etudiant/support'
 import { Route as AuthenticatedEtudiantProfilRouteImport } from './routes/_authenticated/etudiant/profil'
 import { Route as AuthenticatedEtudiantPaiementsRouteImport } from './routes/_authenticated/etudiant/paiements'
@@ -92,6 +93,11 @@ const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AuthenticatedAdminRoute,
+} as any)
+const InscriptionSlugTranche2Route = InscriptionSlugTranche2RouteImport.update({
+  id: '/tranche-2',
+  path: '/tranche-2',
+  getParentRoute: () => InscriptionSlugRoute,
 } as any)
 const AuthenticatedEtudiantSupportRoute =
   AuthenticatedEtudiantSupportRouteImport.update({
@@ -204,7 +210,7 @@ export interface FileRoutesByFullPath {
   '/signup': typeof SignupRoute
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/etudiant': typeof AuthenticatedEtudiantRouteWithChildren
-  '/inscription/$slug': typeof InscriptionSlugRoute
+  '/inscription/$slug': typeof InscriptionSlugRouteWithChildren
   '/admin/formations': typeof AuthenticatedAdminFormationsRoute
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/paiements': typeof AuthenticatedAdminPaiementsRoute
@@ -215,6 +221,7 @@ export interface FileRoutesByFullPath {
   '/etudiant/paiements': typeof AuthenticatedEtudiantPaiementsRoute
   '/etudiant/profil': typeof AuthenticatedEtudiantProfilRoute
   '/etudiant/support': typeof AuthenticatedEtudiantSupportRoute
+  '/inscription/$slug/tranche-2': typeof InscriptionSlugTranche2Route
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/etudiant/': typeof AuthenticatedEtudiantIndexRoute
   '/admin/cohortes/$id': typeof AuthenticatedAdminCohortesIdRoute
@@ -231,7 +238,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
-  '/inscription/$slug': typeof InscriptionSlugRoute
+  '/inscription/$slug': typeof InscriptionSlugRouteWithChildren
   '/admin/formations': typeof AuthenticatedAdminFormationsRoute
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/paiements': typeof AuthenticatedAdminPaiementsRoute
@@ -242,6 +249,7 @@ export interface FileRoutesByTo {
   '/etudiant/paiements': typeof AuthenticatedEtudiantPaiementsRoute
   '/etudiant/profil': typeof AuthenticatedEtudiantProfilRoute
   '/etudiant/support': typeof AuthenticatedEtudiantSupportRoute
+  '/inscription/$slug/tranche-2': typeof InscriptionSlugTranche2Route
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/etudiant': typeof AuthenticatedEtudiantIndexRoute
   '/admin/cohortes/$id': typeof AuthenticatedAdminCohortesIdRoute
@@ -262,7 +270,7 @@ export interface FileRoutesById {
   '/signup': typeof SignupRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/etudiant': typeof AuthenticatedEtudiantRouteWithChildren
-  '/inscription/$slug': typeof InscriptionSlugRoute
+  '/inscription/$slug': typeof InscriptionSlugRouteWithChildren
   '/_authenticated/admin/formations': typeof AuthenticatedAdminFormationsRoute
   '/_authenticated/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/_authenticated/admin/paiements': typeof AuthenticatedAdminPaiementsRoute
@@ -273,6 +281,7 @@ export interface FileRoutesById {
   '/_authenticated/etudiant/paiements': typeof AuthenticatedEtudiantPaiementsRoute
   '/_authenticated/etudiant/profil': typeof AuthenticatedEtudiantProfilRoute
   '/_authenticated/etudiant/support': typeof AuthenticatedEtudiantSupportRoute
+  '/inscription/$slug/tranche-2': typeof InscriptionSlugTranche2Route
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/etudiant/': typeof AuthenticatedEtudiantIndexRoute
   '/_authenticated/admin/cohortes/$id': typeof AuthenticatedAdminCohortesIdRoute
@@ -304,6 +313,7 @@ export interface FileRouteTypes {
     | '/etudiant/paiements'
     | '/etudiant/profil'
     | '/etudiant/support'
+    | '/inscription/$slug/tranche-2'
     | '/admin/'
     | '/etudiant/'
     | '/admin/cohortes/$id'
@@ -331,6 +341,7 @@ export interface FileRouteTypes {
     | '/etudiant/paiements'
     | '/etudiant/profil'
     | '/etudiant/support'
+    | '/inscription/$slug/tranche-2'
     | '/admin'
     | '/etudiant'
     | '/admin/cohortes/$id'
@@ -361,6 +372,7 @@ export interface FileRouteTypes {
     | '/_authenticated/etudiant/paiements'
     | '/_authenticated/etudiant/profil'
     | '/_authenticated/etudiant/support'
+    | '/inscription/$slug/tranche-2'
     | '/_authenticated/admin/'
     | '/_authenticated/etudiant/'
     | '/_authenticated/admin/cohortes/$id'
@@ -379,7 +391,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   SignupRoute: typeof SignupRoute
-  InscriptionSlugRoute: typeof InscriptionSlugRoute
+  InscriptionSlugRoute: typeof InscriptionSlugRouteWithChildren
   ApiPublicHooksAutomationTickRoute: typeof ApiPublicHooksAutomationTickRoute
   ApiPublicHooksPaymentRemindersRoute: typeof ApiPublicHooksPaymentRemindersRoute
   ApiPublicHooksChariowSecretRoute: typeof ApiPublicHooksChariowSecretRoute
@@ -463,6 +475,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/'
       preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/inscription/$slug/tranche-2': {
+      id: '/inscription/$slug/tranche-2'
+      path: '/tranche-2'
+      fullPath: '/inscription/$slug/tranche-2'
+      preLoaderRoute: typeof InscriptionSlugTranche2RouteImport
+      parentRoute: typeof InscriptionSlugRoute
     }
     '/_authenticated/etudiant/support': {
       id: '/_authenticated/etudiant/support'
@@ -652,6 +671,18 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
   AuthenticatedRouteChildren,
 )
 
+interface InscriptionSlugRouteChildren {
+  InscriptionSlugTranche2Route: typeof InscriptionSlugTranche2Route
+}
+
+const InscriptionSlugRouteChildren: InscriptionSlugRouteChildren = {
+  InscriptionSlugTranche2Route: InscriptionSlugTranche2Route,
+}
+
+const InscriptionSlugRouteWithChildren = InscriptionSlugRoute._addFileChildren(
+  InscriptionSlugRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
@@ -659,7 +690,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   SignupRoute: SignupRoute,
-  InscriptionSlugRoute: InscriptionSlugRoute,
+  InscriptionSlugRoute: InscriptionSlugRouteWithChildren,
   ApiPublicHooksAutomationTickRoute: ApiPublicHooksAutomationTickRoute,
   ApiPublicHooksPaymentRemindersRoute: ApiPublicHooksPaymentRemindersRoute,
   ApiPublicHooksChariowSecretRoute: ApiPublicHooksChariowSecretRoute,
