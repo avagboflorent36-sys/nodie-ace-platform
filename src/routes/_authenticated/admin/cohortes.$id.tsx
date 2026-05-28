@@ -463,10 +463,6 @@ function SettingsTab({ cohort, onSaved }: { cohort: any; onSaved: () => void }) 
       <div className="pt-6 border-t">
         <ChariowSection cohort={cohort} onSaved={onSaved} />
       </div>
-
-      <div className="pt-6 border-t">
-        <ChariowSection cohort={cohort} onSaved={onSaved} />
-      </div>
     </Card>
   );
 }
