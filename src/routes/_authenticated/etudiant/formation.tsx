@@ -1,13 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
-import { BookOpen, AlertCircle, Megaphone, Calendar, ExternalLink } from "lucide-react";
+import { BookOpen, AlertCircle } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { ResourceRow } from "@/components/ResourceViewer";
+import { ResourceRow, PlaylistProvider, type ResourceItem } from "@/components/ResourceViewer";
 
 export const Route = createFileRoute("/_authenticated/etudiant/formation")({
   component: FormationPage,
