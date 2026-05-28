@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -25,6 +25,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [rolesLoaded, setRolesLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  // Track last-known values to avoid noisy re-renders on TOKEN_REFRESHED etc.
+  const lastAccessTokenRef = useRef<string | null>(null);
+  const lastUserIdRef = useRef<string | null>(null);
+
   const loadRoles = async (uid: string | null) => {
     if (!uid) {
       setRoles([]);
@@ -39,25 +43,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // Listener first
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      const newToken = newSession?.access_token ?? null;
+      const newUid = newSession?.user?.id ?? null;
+
+      // Skip if nothing meaningful changed (e.g. silent token refresh w/ same user)
+      if (newToken === lastAccessTokenRef.current && newUid === lastUserIdRef.current) {
+        return;
+      }
+
+      const uidChanged = newUid !== lastUserIdRef.current;
+      lastAccessTokenRef.current = newToken;
+      lastUserIdRef.current = newUid;
+
       setSession(newSession);
       setUser(newSession?.user ?? null);
-      if (newSession?.user) {
-        setRolesLoaded(false);
-        // Defer DB call to avoid auth-listener deadlock
-        setTimeout(() => { void loadRoles(newSession.user.id); }, 0);
-      } else {
-        setRoles([]);
-        setRolesLoaded(true);
+
+      if (uidChanged) {
+        if (newUid) {
+          // Defer DB call to avoid auth-listener deadlock; keep previous roles
+          // visible during refetch to avoid flashing the auth gate.
+          setTimeout(() => { void loadRoles(newUid); }, 0);
+        } else {
+          setRoles([]);
+          setRolesLoaded(true);
+        }
       }
     });
 
     // Then hydrate
     (async () => {
       const { data } = await supabase.auth.getSession();
-      setSession(data.session);
-      setUser(data.session?.user ?? null);
-      if (data.session?.user) {
-        await loadRoles(data.session.user.id);
+      const s = data.session;
+      lastAccessTokenRef.current = s?.access_token ?? null;
+      lastUserIdRef.current = s?.user?.id ?? null;
+      setSession(s);
+      setUser(s?.user ?? null);
+      if (s?.user) {
+        await loadRoles(s.user.id);
       } else {
         setRolesLoaded(true);
       }
@@ -69,6 +91,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     await supabase.auth.signOut();
+    lastAccessTokenRef.current = null;
+    lastUserIdRef.current = null;
     setRoles([]);
     setRolesLoaded(true);
   };

@@ -6,8 +6,8 @@ export const Route = createFileRoute("/_authenticated")({
 });
 
 function AuthGate() {
-  const { user, loading } = useAuth();
-  if (loading) {
+  const { user, loading, rolesLoaded } = useAuth();
+  if (loading || (user && !rolesLoaded)) {
     return (
       <div className="flex min-h-screen items-center justify-center text-muted-foreground">
         Chargement...

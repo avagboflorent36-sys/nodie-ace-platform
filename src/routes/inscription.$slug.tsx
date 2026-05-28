@@ -340,7 +340,8 @@ function PostPaymentStep({
     return () => {
       cancelled = true;
     };
-  }, [saleId, attemptToken, hasRemoteCheck, fetchStatus, checkAttempt]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [saleId, attemptToken, hasRemoteCheck]);
 
   const manualRecheck = async () => {
     setManualChecking(true);
