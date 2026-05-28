@@ -1,48 +1,28 @@
+Constat : le backend est en ligne, mais les derniers appels Chariow vers `/api/public/hooks/chariow/...` répondent en `400`. Aucune ligne n’a été enregistrée dans les événements webhook ni dans les paiements Chariow. Donc le paiement peut avoir été débité côté Chariow, mais la plateforme n’a pas pu lire/valider le message reçu.
 
-## Objectif
-Afficher **une seule fois** la valeur de `CHARIOW_WEBHOOK_URL_SECRET` dans une page admin protégée, pour que tu puisses copier l'URL complète du webhook à coller dans Chariow. Ensuite, la page sera supprimée.
+Plan proposé :
 
-## Étapes
+1. Rendre le webhook plus tolérant
+   - Accepter plusieurs formats possibles envoyés par Chariow au lieu de refuser directement si `sale.id` n’est pas exactement au bon endroit.
+   - Enregistrer un événement webhook même quand le payload est invalide, avec l’erreur, pour que l’admin puisse diagnostiquer.
+   - Retourner une réponse contrôlée pour éviter que le paiement disparaisse sans trace côté plateforme.
 
-### 1. Créer une server function protégée
-Fichier : `src/lib/admin-secrets.functions.ts`
-- `createServerFn` avec middleware `requireSupabaseAuth`
-- Vérifie que `userId` a le rôle `admin` ou `super_admin` via `user_roles`
-- Si oui → renvoie `process.env.CHARIOW_WEBHOOK_URL_SECRET` et construit l'URL complète :
-  ```
-  https://project--66439da9-0337-4213-a275-40cffeef22c6-dev.lovable.app/api/public/hooks/chariow/<SECRET>
-  ```
-- Si non → throw `Unauthorized`
+2. Ajouter une récupération manuelle admin
+   - Sur la page admin liée au secret/webhook ou aux paiements, ajouter un champ “ID de vente Chariow”.
+   - Permettre à l’admin de saisir l’ID de transaction visible dans Chariow pour forcer une vérification via l’API Chariow.
+   - Si la vente est confirmée, créer/mettre à jour le paiement, l’inscription et l’accès étudiant.
 
-### 2. Créer la page admin temporaire
-Fichier : `src/routes/_authenticated/admin/webhook-secret.tsx`
-- Route protégée (déjà sous `_authenticated` + check admin)
-- Bouton "Révéler le secret" → appelle la server function
-- Affiche :
-  - L'URL preview (`-dev.lovable.app`) — pour tester
-  - L'URL production (`.lovable.app`) — à utiliser après publication
-- Bouton "Copier" pour chaque URL
-- Avertissement rouge : "Page temporaire, sera supprimée après usage"
+3. Fiabiliser le parcours étudiant après paiement
+   - Ajouter une page/état de retour qui vérifie le paiement plusieurs fois après redirection.
+   - Si Chariow prend du temps ou si le webhook arrive en retard, afficher “confirmation en cours” au lieu de bloquer l’utilisateur.
+   - Dès que le paiement est confirmé, rediriger vers le formulaire d’inscription.
 
-### 3. Ajouter un lien dans la sidebar admin
-Lien discret dans `/admin` vers `/admin/webhook-secret`.
+4. Ajouter une visibilité admin simple
+   - Afficher les derniers webhooks reçus, leur statut et les erreurs.
+   - Cela permettra de voir si Chariow envoie un mauvais format, un mauvais événement, ou si l’ID de vente manque.
 
-### 4. Après que tu aies copié l'URL
-Tu me dis "c'est bon", et je supprime :
-- `src/routes/_authenticated/admin/webhook-secret.tsx`
-- `src/lib/admin-secrets.functions.ts`
-- Le lien dans la sidebar
-
-## Ce que tu feras ensuite
-1. Aller sur `/admin/webhook-secret`
-2. Cliquer "Révéler"
-3. Copier l'URL complète (version `-dev` pour tester maintenant)
-4. La coller dans Chariow comme URL de webhook
-5. Faire un paiement test
-6. Vérifier dans `/admin/paiements` que le paiement apparaît
-7. Me dire "c'est bon" pour que je nettoie
-
-## Sécurité
-- Server function vérifie le rôle admin côté serveur (pas seulement côté UI)
-- Le secret n'est jamais exposé dans le bundle client
-- La page est supprimée après usage → aucune fuite persistante
+Détail technique :
+- Modifier la route webhook Chariow pour extraire `saleId` depuis plusieurs clés possibles (`sale.id`, `data.id`, `id`, etc.).
+- Créer une fonction serveur admin protégée pour “resynchroniser” une vente Chariow par ID.
+- Réutiliser la logique existante de validation de vente pour éviter de dupliquer les règles métier.
+- Ne pas toucher aux secrets existants sauf si les logs montrent ensuite un problème d’URL ou de clé API.
