@@ -49,6 +49,83 @@ export type Database = {
           },
         ]
       }
+      chariow_payment_attempts: {
+        Row: {
+          amount_expected: number | null
+          chariow_product_id: string | null
+          chariow_raw_response: Json | null
+          chariow_sale_id: string | null
+          checkout_url: string | null
+          cohort_id: string
+          created_at: string
+          currency: string
+          email: string
+          first_name: string | null
+          id: string
+          installment_position: number
+          last_error: string | null
+          last_name: string | null
+          mode: Database["public"]["Enums"]["payment_mode"]
+          phone: string | null
+          processed_at: string | null
+          status: string
+          token: string
+          updated_at: string
+        }
+        Insert: {
+          amount_expected?: number | null
+          chariow_product_id?: string | null
+          chariow_raw_response?: Json | null
+          chariow_sale_id?: string | null
+          checkout_url?: string | null
+          cohort_id: string
+          created_at?: string
+          currency?: string
+          email: string
+          first_name?: string | null
+          id?: string
+          installment_position?: number
+          last_error?: string | null
+          last_name?: string | null
+          mode: Database["public"]["Enums"]["payment_mode"]
+          phone?: string | null
+          processed_at?: string | null
+          status?: string
+          token: string
+          updated_at?: string
+        }
+        Update: {
+          amount_expected?: number | null
+          chariow_product_id?: string | null
+          chariow_raw_response?: Json | null
+          chariow_sale_id?: string | null
+          checkout_url?: string | null
+          cohort_id?: string
+          created_at?: string
+          currency?: string
+          email?: string
+          first_name?: string | null
+          id?: string
+          installment_position?: number
+          last_error?: string | null
+          last_name?: string | null
+          mode?: Database["public"]["Enums"]["payment_mode"]
+          phone?: string | null
+          processed_at?: string | null
+          status?: string
+          token?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chariow_payment_attempts_cohort_id_fkey"
+            columns: ["cohort_id"]
+            isOneToOne: false
+            referencedRelation: "cohortes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chariow_webhook_events: {
         Row: {
           error: string | null
