@@ -63,7 +63,41 @@ export const startChariowCheckout = createServerFn({ method: "POST" })
     }
 
     const origin = (data.return_origin ?? SITE_URL).replace(/\/+$/, "");
-    const redirect = `${origin}/inscription/${cohort.slug}?sale={sale_id}`;
+
+    // Create an internal attempt FIRST so we can always trace this payment
+    // even if Chariow drops custom_metadata or the redirect breaks.
+    const attemptToken =
+      crypto.randomUUID().replace(/-/g, "") +
+      crypto.randomUUID().replace(/-/g, "").slice(0, 16);
+
+    const amountExpected =
+      data.mode === "full"
+        ? Number(cohort.price_full ?? 0)
+        : Number(cohort.price_installment ?? 0);
+
+    const { data: attempt, error: attemptError } = await supabaseAdmin
+      .from("chariow_payment_attempts")
+      .insert({
+        token: attemptToken,
+        cohort_id: cohort.id,
+        email: data.email,
+        first_name: data.first_name,
+        last_name: data.last_name,
+        phone: data.phone,
+        mode: data.mode,
+        installment_position: data.installment_position,
+        chariow_product_id: productId,
+        amount_expected: amountExpected,
+        status: "created",
+      })
+      .select("id")
+      .single();
+    if (attemptError || !attempt) {
+      throw new Error("Impossible d'enregistrer la tentative de paiement.");
+    }
+
+    const redirect =
+      `${origin}/inscription/${cohort.slug}?attempt=${attemptToken}&sale={sale_id}`;
 
     // Chariow expects phone as { number, country_code } where country_code
     // is the ISO 3166-1 alpha-2 country code (e.g. "SN", "FR", "US"),
@@ -87,7 +121,6 @@ export const startChariowCheckout = createServerFn({ method: "POST" })
     let isoCountry = "SN";
     let numberOnly = digitsOnly;
     if (rawPhone.startsWith("+")) {
-      // Try longest dial code match (3, 2, then 1 digit)
       for (const len of [3, 2, 1]) {
         const dial = digitsOnly.slice(0, len);
         if (DIAL_TO_ISO[dial]) {
@@ -97,7 +130,6 @@ export const startChariowCheckout = createServerFn({ method: "POST" })
         }
       }
     } else if (digitsOnly.length > 9) {
-      // Heuristic: digits like 221771234567 → country part + local
       for (const len of [3, 2, 1]) {
         const dial = digitsOnly.slice(0, len);
         if (DIAL_TO_ISO[dial] && digitsOnly.length - len >= 7) {
@@ -124,6 +156,7 @@ export const startChariowCheckout = createServerFn({ method: "POST" })
         cohort_slug: cohort.slug,
         mode: data.mode,
         installment_position: String(data.installment_position),
+        attempt_token: attemptToken,
       },
     });
 
