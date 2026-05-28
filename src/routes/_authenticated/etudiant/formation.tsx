@@ -6,7 +6,7 @@ import { BookOpen, AlertCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { ResourceRow, PlaylistProvider, type ResourceItem } from "@/components/ResourceViewer";
+import { ResourceRow as Row, PlaylistProvider, type ResourceItem } from "@/components/ResourceViewer";
 
 export const Route = createFileRoute("/_authenticated/etudiant/formation")({
   component: FormationPage,
