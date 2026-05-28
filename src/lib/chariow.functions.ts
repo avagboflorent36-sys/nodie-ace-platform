@@ -30,6 +30,44 @@ const TRUSTED_ATTEMPT_PAID_STATUSES = new Set([
   "already_purchased",
 ]);
 
+const DIAL_TO_ISO: Record<string, string> = {
+  "221": "SN", "225": "CI", "229": "BJ", "228": "TG", "226": "BF",
+  "227": "NE", "223": "ML", "224": "GN", "237": "CM", "235": "TD",
+  "33": "FR", "32": "BE", "352": "LU", "41": "CH",
+  "1": "US", "44": "GB",
+};
+
+function formatPhoneForChariow(raw: string): { number: string; country_code: string } {
+  const rawPhone = (raw || "").trim();
+  const digitsOnly = rawPhone.replace(/[^\d]/g, "");
+  let isoCountry = "SN";
+  let numberOnly = digitsOnly;
+  if (rawPhone.startsWith("+")) {
+    for (const len of [3, 2, 1]) {
+      const dial = digitsOnly.slice(0, len);
+      if (DIAL_TO_ISO[dial]) {
+        isoCountry = DIAL_TO_ISO[dial];
+        numberOnly = digitsOnly.slice(len);
+        break;
+      }
+    }
+  } else if (digitsOnly.length > 9) {
+    for (const len of [3, 2, 1]) {
+      const dial = digitsOnly.slice(0, len);
+      if (DIAL_TO_ISO[dial] && digitsOnly.length - len >= 7) {
+        isoCountry = DIAL_TO_ISO[dial];
+        numberOnly = digitsOnly.slice(len);
+        break;
+      }
+    }
+  }
+  numberOnly = numberOnly.replace(/^0+/, "");
+  if (!numberOnly || numberOnly.length < 6) {
+    throw new Error("Numéro de téléphone invalide. Vérifiez le numéro et l'indicatif pays.");
+  }
+  return { number: numberOnly, country_code: isoCountry };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. Démarrer un checkout Chariow (public — paiement avant compte)
 // ─────────────────────────────────────────────────────────────────────────────
