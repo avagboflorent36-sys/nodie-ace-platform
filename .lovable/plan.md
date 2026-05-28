@@ -1,38 +1,37 @@
 
-## Objectif
+## Diagnostic
 
-Faire fonctionner l'envoi d'emails Resend avec votre propre clé API personnelle.
+L'examen de la base montre que les 8 dernières tentatives sur cette cohorte utilisaient toutes `prd_hmels6` (ancien ID, avant vos modifications). Les plus récentes ont reçu `ownership_confirmed` de Chariow (l'email a déjà acheté ce produit) → Chariow ne renvoie aucune URL de paiement et le code ne le signale pas clairement à l'utilisateur.
+
+Les IDs en DB sont maintenant corrects et distincts :
+- Full : `prd_hmels6`
+- Tranche 1 : `prd_fied8f`
+- Tranche 2 : `prd_wdheah`
 
 ## Plan
 
-### 1. Remplacer la clé Resend actuelle
-La clé `RESEND_API_KEY` actuelle est gérée par le connecteur Lovable (et n'est pas une vraie clé Resend). Il faut la remplacer par votre clé personnelle.
+### 1. Rendre `ownership_confirmed` visible et actionnable
+Actuellement, quand Chariow répond "déjà acheté", la page ne réagit pas. Modifier :
 
-→ Je demanderai via le formulaire sécurisé les 2 secrets :
-- `RESEND_API_KEY` : votre clé `re_xxx` depuis resend.com → API Keys
-- `EMAIL_FROM` : votre adresse d'expédition vérifiée (ex: `Nodie IA Academy <contact@votredomaine.com>`)
+- **`src/routes/inscription.$slug.tsx`** : si `r.status === "ownership_confirmed"`, afficher un toast clair + rediriger vers `r.redirect_url` (reprise du flux de création de compte via attempt_token).
+- **`src/routes/inscription.$slug.tranche-2.tsx`** : idem — si `ownership_confirmed`, afficher un message expliquant que cette adresse a déjà été utilisée pour ce produit Chariow, avec le choix de contacter le support ou réessayer avec un autre email.
 
-### 2. `src/lib/email.server.ts`
-- Conserver l'appel direct à `https://api.resend.com/emails` (fonctionne avec une vraie clé `re_xxx`).
-- Lire `EMAIL_FROM` depuis le secret (avec fallback `onboarding@resend.dev` + warning).
-- Renvoyer des erreurs explicites (status HTTP + body Resend) au lieu d'échouer silencieusement.
+### 2. Diagnostic visible côté admin
+- **`src/routes/_authenticated/admin/cohortes.$id.tsx`** : dans l'onglet Paiements, afficher un mini-récap "Dernières tentatives Chariow" (10 dernières lignes de `chariow_payment_attempts` : email, mode, position, product_id utilisé, status, last_error). Ça permet de vérifier en un coup d'œil que le bon product_id est envoyé.
 
-### 3. Bouton "Tester l'envoi"
-- Server function `sendTestEmail` qui envoie un email de test à l'admin connecté.
-- Bouton dans l'onglet Automatisations + toast avec succès ou message d'erreur Resend complet → diagnostic immédiat.
+### 3. Surface des messages d'erreur Chariow
+- Dans `startChariowCheckout`, quand Chariow renvoie autre chose qu'une URL, propager le `message` Chariow original dans la réponse (déjà fait pour `already_purchased`) + le product_id utilisé → faciliter le debug.
 
-### 4. Bandeau d'aide dans l'onglet Automatisations
-> "Pour envoyer aux étudiants : vérifiez un domaine sur resend.com → Domains, créez une clé API, et renseignez les secrets `RESEND_API_KEY` + `EMAIL_FROM`."
+### 4. Validation : produits identiques
+Déjà en place dans `setCohortChariowProducts` (refuse les doublons) — pas de changement.
 
 ## Fichiers impactés
 
-- `src/lib/email.server.ts` (lecture EMAIL_FROM + erreurs explicites)
-- `src/lib/automation.functions.ts` (+ `sendTestEmail`)
-- `src/routes/_authenticated/admin/cohortes.$id.tsx` (bouton test + bandeau)
+- `src/routes/inscription.$slug.tsx` (gestion `ownership_confirmed` + toast)
+- `src/routes/inscription.$slug.tranche-2.tsx` (idem)
+- `src/lib/chariow.functions.ts` (propager product_id + message dans la réponse)
+- `src/routes/_authenticated/admin/cohortes.$id.tsx` (panneau "Dernières tentatives")
 
-## Étapes côté utilisateur
+## Action côté utilisateur après implémentation
 
-1. Sur resend.com : vérifier votre domaine (Domains → Add Domain → DNS).
-2. Créer une clé API (API Keys → Create).
-3. Quand je vous le demanderai, coller la clé `re_xxx` + l'adresse From.
-4. Cliquer "Tester l'envoi" pour valider.
+Tester avec **une nouvelle adresse email** (non utilisée précédemment sur Chariow pour cette cohorte) pour valider que les 3 modes ouvrent bien 3 pages de paiement distinctes correspondant aux 3 product IDs.
