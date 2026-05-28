@@ -137,7 +137,7 @@ function FormationPage() {
                           {m.description && <p className="mt-1 text-sm text-muted-foreground">{m.description}</p>}
                           {lessons.length > 0 ? (
                             <div className="mt-4 divide-y rounded-lg border">
-                              {lessons.map((r: any) => <ResourceRow key={r.id} r={r} />)}
+                              {lessons.map((r: any) => <Row key={r.id} r={r} />)}
                             </div>
                           ) : (
                             <p className="mt-3 text-xs text-muted-foreground">Aucune leçon dans ce module.</p>
@@ -155,7 +155,7 @@ function FormationPage() {
                       {fGlobalResources
                         .slice()
                         .sort((a: any, b: any) => a.position - b.position)
-                        .map((r: any) => <ResourceRow key={r.id} r={r} />)}
+                        .map((r: any) => <Row key={r.id} r={r} />)}
                     </div>
                   </Card>
                 )}
@@ -169,7 +169,7 @@ function FormationPage() {
                         {m.description && <p className="mt-1 text-sm text-muted-foreground">{m.description}</p>}
                         {(m.ressources ?? []).length > 0 && (
                           <div className="mt-4 divide-y rounded-lg border">
-                            {m.ressources.slice().sort((a: any, b: any) => a.position - b.position).map((r: any) => <ResourceRow key={r.id} r={r} />)}
+                            {m.ressources.slice().sort((a: any, b: any) => a.position - b.position).map((r: any) => <Row key={r.id} r={r} />)}
                           </div>
                         )}
                       </Card>
