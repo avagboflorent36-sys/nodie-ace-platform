@@ -28,6 +28,7 @@ function normalizeChariowProductId(value?: string | null) {
 const TRUSTED_ATTEMPT_PAID_STATUSES = new Set([
   "processed",
   "ownership_confirmed",
+  "already_purchased",
 ]);
 
 // ─────────────────────────────────────────────────────────────────────────────
