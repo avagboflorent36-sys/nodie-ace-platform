@@ -1,25 +1,65 @@
-## Cause racine
+# Diagnostic global de la plateforme
 
-Le fichier de route s'appelle `paiements.tranche-2.$paymentId.tsx`. En routage à plat TanStack, le point dans le nom de fichier fait de cette route un **enfant** de `paiements.tsx`. Or `paiements.tsx` est une page-feuille — il **ne rend pas `<Outlet />`**. Résultat : quand on clique sur « Payer la tranche 2 », l'URL change bien vers `/etudiant/paiements/tranche-2/<id>`, mais la page enfant n'est jamais affichée, et l'utilisateur reste sur la liste des paiements — donnant l'impression que le bouton « n'est pas cliquable ».
+Objectif : vérifier que toutes les pages (publiques et internes) fonctionnent, sont rapides et stables, et identifier les problèmes éventuels avant correction.
 
-Bonus : si un admin clique sur le lien « Copier » côté admin et l'ouvre dans son propre onglet, le layout `_authenticated/etudiant.tsx` le redirige vers `/admin`. La page Tranche 2 ne peut donc être ouverte que par l'étudiant lui-même.
+## Périmètre
 
-## Correction
+### Pages publiques (non authentifiées)
+- `/` — landing
+- `/login`, `/signup`, `/forgot-password`, `/reset-password`
+- `/inscription/$slug` — inscription cohorte
+- `/inscription/$slug/tranche-2` — paiement 2e tranche pré-inscription
 
-1. **Renommer le fichier de route** pour qu'il ne soit plus enfant de `paiements` :
-   - `src/routes/_authenticated/etudiant/paiements.tranche-2.$paymentId.tsx`
-   - → `src/routes/_authenticated/etudiant/tranche-2.$paymentId.tsx`
-   - Mettre à jour la chaîne `createFileRoute(...)` à l'intérieur du fichier pour pointer sur `/_authenticated/etudiant/tranche-2/$paymentId`.
+### Espace étudiant (`/etudiant/*`)
+- Dashboard, formation, live, paiements, profil, certificat, support
+- `/etudiant/tranche-2/$paymentId` — paiement 2e tranche
 
-2. **Mettre à jour tous les liens** vers la nouvelle URL `/etudiant/tranche-2/$paymentId` :
-   - `src/routes/_authenticated/etudiant/paiements.tsx` (2 boutons : bandeau « Payer la tranche 2 » + bouton « Payer » dans la liste)
-   - `src/routes/_authenticated/admin/cohortes.$id.tsx` (génération de l'URL `Copier` côté admin)
+### Espace admin (`/admin/*`)
+- Vue d'ensemble, étudiants (liste + détail), formations, cohortes (liste + détail), paiements, notifications, webhook-secret
 
-3. **Note pour l'admin** : laisser un court texte dans l'onglet « Étudiants » précisant que le lien copié doit être envoyé à l'étudiant (ouvert dans le compte étudiant), car l'admin sera redirigé vers `/admin` s'il l'ouvre lui-même. (Déjà partiellement présent — je le clarifie.)
+### Endpoints serveur
+- `/api/public/hooks/chariow.$secret` — webhook paiement
+- `/api/public/hooks/automation-tick` — cron automatisations
+- `/api/public/hooks/payment-reminders` — relances
 
-## Vérification
+## Méthode de diagnostic
 
-- Connecté en étudiant `avagbofacebook@gmail.com` : cliquer « Payer la tranche 2 » → la page diagnostic Tranche 2 s'ouvre (montant, Product ID, bouton Chariow).
-- Côté admin : le bouton « Copier » génère bien la nouvelle URL `/etudiant/tranche-2/<paymentId>`.
+### 1. Diagnostic statique (code & config)
+- Vérifier l'intégrité de `routeTree.gen.ts` (toutes les routes existent)
+- Vérifier `src/start.ts` (middleware `attachSupabaseAuth` enregistré)
+- Vérifier que chaque route a un `errorComponent` / `notFoundComponent` et que les layouts ont `<Outlet />`
+- Linter Supabase (RLS, policies, grants manquants)
+- Logs récents serveur (erreurs runtime publiées + dev sandbox)
+- Logs DB / auth (erreurs récentes)
 
-Aucune modification de logique métier, de migration DB, ou de webhook nécessaire.
+### 2. Diagnostic runtime (navigation réelle)
+- Naviguer sur chaque page publique en non-connecté → vérifier rendu, console, network
+- Se connecter comme étudiant test → parcourir toutes les pages étudiant
+- Se connecter comme admin → parcourir toutes les pages admin (liste + au moins un détail)
+- Capturer erreurs console / requêtes 4xx/5xx / temps de chargement anormaux
+
+### 3. Diagnostic backend & données
+- Statut Cloud (healthy)
+- Santé DB (connexions, taille, deadlocks)
+- Cohérence données critiques : paiements orphelins, installments tranche-2 manquantes, enrollments incohérents
+
+### 4. Diagnostic performance
+- Performance profile sur landing + dashboard étudiant + dashboard admin
+- Identifier long tasks, requêtes N+1, payloads lourds
+
+## Livrable
+
+Un rapport structuré listant :
+- ✅ Ce qui fonctionne
+- ⚠️ Anomalies mineures (UX, perf, warnings)
+- 🔴 Bugs bloquants à corriger en priorité
+
+Aucune modification de code dans cette phase — je présenterai ensuite un plan de correction ciblé pour les problèmes trouvés.
+
+## Question avant exécution
+
+Pour les tests runtime sur l'espace étudiant et admin, j'ai besoin d'être authentifié dans le preview. Deux options :
+1. **Tu te connectes toi-même** dans la preview (étudiant + admin successivement) et je lance le diagnostic
+2. **Tu me fournis** un email/mot de passe de test pour chaque rôle
+
+Réponds simplement "OK option 1" ou colle les identifiants pour option 2, et je lance le diagnostic.
