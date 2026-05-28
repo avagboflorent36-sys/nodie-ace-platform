@@ -207,6 +207,11 @@ export const startChariowCheckout = createServerFn({ method: "POST" })
     const url = findCheckoutUrl(checkout);
 
     if (!url && step === "already_purchased") {
+      await supabaseAdmin.from("chariow_payment_attempts").update({
+        status: "already_purchased",
+        last_error: message ?? "already_purchased",
+        chariow_raw_response: checkout as any,
+      }).eq("id", attempt.id);
       return {
         checkout_url: null,
         status: "already_purchased",
