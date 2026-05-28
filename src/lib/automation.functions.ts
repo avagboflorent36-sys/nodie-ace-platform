@@ -56,7 +56,7 @@ export const sendCampaignNow = createServerFn({ method: "POST" })
       if (!r.email) continue;
       try {
         const personalized = c.body_html.replace(/\{\{first_name\}\}/g, r.first_name ?? "");
-        await sendOne(r.email, c.subject, personalized);
+        await sendEmail(r.email, c.subject, personalized);
         sent++;
       } catch (e: any) {
         failed++;
