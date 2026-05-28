@@ -92,11 +92,12 @@ function InscriptionPage() {
             </p>
           )}
 
-          {saleId || claimToken ? (
+          {saleId || claimToken || attemptToken ? (
             <PostPaymentStep
               cohort={cohort}
               saleId={saleId}
               claimToken={claimToken}
+              attemptToken={attemptToken}
               slug={slug}
             />
           ) : (
