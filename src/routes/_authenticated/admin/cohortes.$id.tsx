@@ -44,7 +44,7 @@ function CohortDetail() {
   if (!cohort) return <div className="p-8 text-muted-foreground">Chargement...</div>;
 
   const inscriptionUrl = `${window.location.origin}/inscription/${cohort.slug}`;
-  const tranche2Url = `${window.location.origin}/inscription/${cohort.slug}/tranche-2`;
+  // Les liens tranche 2 sont désormais personnalisés par étudiant (jeton unique sur payments.tranche2_token) — voir l'onglet Étudiants.
 
   const inst1 = cohort.chariow_product_id_installment_1;
   const inst2 = cohort.chariow_product_id_installment_2;
