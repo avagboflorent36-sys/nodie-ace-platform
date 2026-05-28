@@ -30,6 +30,44 @@ const TRUSTED_ATTEMPT_PAID_STATUSES = new Set([
   "already_purchased",
 ]);
 
+const DIAL_TO_ISO: Record<string, string> = {
+  "221": "SN", "225": "CI", "229": "BJ", "228": "TG", "226": "BF",
+  "227": "NE", "223": "ML", "224": "GN", "237": "CM", "235": "TD",
+  "33": "FR", "32": "BE", "352": "LU", "41": "CH",
+  "1": "US", "44": "GB",
+};
+
+function formatPhoneForChariow(raw: string): { number: string; country_code: string } {
+  const rawPhone = (raw || "").trim();
+  const digitsOnly = rawPhone.replace(/[^\d]/g, "");
+  let isoCountry = "SN";
+  let numberOnly = digitsOnly;
+  if (rawPhone.startsWith("+")) {
+    for (const len of [3, 2, 1]) {
+      const dial = digitsOnly.slice(0, len);
+      if (DIAL_TO_ISO[dial]) {
+        isoCountry = DIAL_TO_ISO[dial];
+        numberOnly = digitsOnly.slice(len);
+        break;
+      }
+    }
+  } else if (digitsOnly.length > 9) {
+    for (const len of [3, 2, 1]) {
+      const dial = digitsOnly.slice(0, len);
+      if (DIAL_TO_ISO[dial] && digitsOnly.length - len >= 7) {
+        isoCountry = DIAL_TO_ISO[dial];
+        numberOnly = digitsOnly.slice(len);
+        break;
+      }
+    }
+  }
+  numberOnly = numberOnly.replace(/^0+/, "");
+  if (!numberOnly || numberOnly.length < 6) {
+    throw new Error("Numéro de téléphone invalide. Vérifiez le numéro et l'indicatif pays.");
+  }
+  return { number: numberOnly, country_code: isoCountry };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. Démarrer un checkout Chariow (public — paiement avant compte)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -108,60 +146,14 @@ export const startChariowCheckout = createServerFn({ method: "POST" })
         ? `${origin}/etudiant/paiements?paid=2&sale={sale_id}`
         : `${origin}/inscription/${cohort.slug}?attempt=${attemptToken}&sale={sale_id}`;
 
-    // Chariow expects phone as { number, country_code } where country_code
-    // is the ISO 3166-1 alpha-2 country code (e.g. "SN", "FR", "US"),
-    // and number is digits only WITHOUT the dial code.
-    // Defaults to Senegal ("SN") for local numbers.
-    const rawPhone = (data.phone || "").trim();
-    const digitsOnly = rawPhone.replace(/[^\d]/g, "");
-    // Map common dial codes → ISO country code (extend as needed)
-    const DIAL_TO_ISO: Record<string, string> = {
-      "221": "SN", // Sénégal
-      "225": "CI", // Côte d'Ivoire
-      "229": "BJ", // Bénin
-      "228": "TG", // Togo
-      "226": "BF", // Burkina Faso
-      "237": "CM", // Cameroun
-      "33": "FR",
-      "32": "BE",
-      "1": "US",
-      "44": "GB",
-    };
-    let isoCountry = "SN";
-    let numberOnly = digitsOnly;
-    if (rawPhone.startsWith("+")) {
-      for (const len of [3, 2, 1]) {
-        const dial = digitsOnly.slice(0, len);
-        if (DIAL_TO_ISO[dial]) {
-          isoCountry = DIAL_TO_ISO[dial];
-          numberOnly = digitsOnly.slice(len);
-          break;
-        }
-      }
-    } else if (digitsOnly.length > 9) {
-      for (const len of [3, 2, 1]) {
-        const dial = digitsOnly.slice(0, len);
-        if (DIAL_TO_ISO[dial] && digitsOnly.length - len >= 7) {
-          isoCountry = DIAL_TO_ISO[dial];
-          numberOnly = digitsOnly.slice(len);
-          break;
-        }
-      }
-    }
-
-    // Chariow refuse les zéros initiaux (format local) — toujours envoyer en E.164 sans le 0
-    numberOnly = numberOnly.replace(/^0+/, "");
-
-    if (!numberOnly || numberOnly.length < 6) {
-      throw new Error("Numéro de téléphone invalide.");
-    }
+    const phoneE164 = formatPhoneForChariow(data.phone);
 
     const checkout = await initCheckout({
       product_id: productId,
       email: data.email,
       first_name: data.first_name,
       last_name: data.last_name,
-      phone: { number: numberOnly, country_code: isoCountry },
+      phone: phoneE164,
       redirect_url: redirect,
       custom_metadata: {
         cohort_id: cohort.id,
@@ -401,35 +393,10 @@ export const startChariowCheckoutForTranche2Token = createServerFn({ method: "PO
       .single();
 
     // Téléphone → format Chariow
-    const rawPhone = (phone || "").trim();
-    const digitsOnly = rawPhone.replace(/[^\d]/g, "");
-    const DIAL_TO_ISO: Record<string, string> = {
-      "221": "SN", "225": "CI", "229": "BJ", "228": "TG", "226": "BF",
-      "237": "CM", "33": "FR", "32": "BE", "1": "US", "44": "GB",
-    };
-    let isoCountry = "SN";
-    let numberOnly = digitsOnly;
-    if (rawPhone.startsWith("+")) {
-      for (const len of [3, 2, 1]) {
-        const dial = digitsOnly.slice(0, len);
-        if (DIAL_TO_ISO[dial]) {
-          isoCountry = DIAL_TO_ISO[dial];
-          numberOnly = digitsOnly.slice(len);
-          break;
-        }
-      }
-    } else if (digitsOnly.length > 9) {
-      for (const len of [3, 2, 1]) {
-        const dial = digitsOnly.slice(0, len);
-        if (DIAL_TO_ISO[dial] && digitsOnly.length - len >= 7) {
-          isoCountry = DIAL_TO_ISO[dial];
-          numberOnly = digitsOnly.slice(len);
-          break;
-        }
-      }
-    }
-    numberOnly = numberOnly.replace(/^0+/, "");
-    if (!numberOnly || numberOnly.length < 6) {
+    let phoneE164: { number: string; country_code: string };
+    try {
+      phoneE164 = formatPhoneForChariow(phone);
+    } catch {
       return {
         checkout_url: null,
         status: "invalid_phone",
@@ -443,7 +410,7 @@ export const startChariowCheckoutForTranche2Token = createServerFn({ method: "PO
       email,
       first_name: firstName || "Etudiant",
       last_name: lastName || "Etudiant",
-      phone: { number: numberOnly, country_code: isoCountry },
+      phone: phoneE164,
       redirect_url: redirect,
       custom_metadata: {
         cohort_id: cohort.id,

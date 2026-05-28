@@ -73,11 +73,8 @@ function CohortDetail() {
             <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(inscriptionUrl); toast.success("Lien copié"); }}>
               <Copy className="mr-1 h-3 w-3" /> Copier le lien d'inscription
             </Button>
-            <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(`${inscriptionUrl}/tranche-2`); toast.success("Lien tranche 2 copié"); }}>
-              <Copy className="mr-1 h-3 w-3" /> Copier le lien tranche 2
-            </Button>
-            <span className="text-[11px] text-muted-foreground text-right max-w-[240px]">
-              Ce lien tranche 2 générique requiert que l'étudiant soit connecté. Pour un accès direct au paiement, utilisez le lien personnalisé dans l'onglet « Étudiants ».
+            <span className="text-[11px] text-muted-foreground text-right max-w-[260px]">
+              Les liens de paiement tranche 2 sont personnalisés par étudiant (token unique) et disponibles dans l'onglet « Étudiants ».
             </span>
           </div>
         </div>
