@@ -422,6 +422,12 @@ function SettingsTab({ cohort, onSaved }: { cohort: any; onSaved: () => void }) 
         <ReminderRulesEditor cohortId={cohort.id} />
       </div>
       <div className="pt-6 border-t">
+        <AccessRulesEditor cohortId={cohort.id} />
+      </div>
+      <div className="pt-6 border-t">
+        <EmailCampaignsEditor cohortId={cohort.id} />
+      </div>
+      <div className="pt-6 border-t">
         <ChariowSection cohort={cohort} onSaved={onSaved} />
       </div>
     </Card>
