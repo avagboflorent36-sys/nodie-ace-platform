@@ -48,7 +48,16 @@ export async function initCheckout(input: CheckoutInput) {
 }
 
 export async function verifySale(saleId: string) {
-  return chariowFetch(`/sales/${encodeURIComponent(saleId)}`, { method: "GET" });
+  const id = encodeURIComponent(saleId);
+  let lastError: unknown;
+  for (const path of [`/sales/${id}`, `/purchases/${id}`, `/payments/${id}`]) {
+    try {
+      return await chariowFetch(path, { method: "GET" });
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("Impossible de vérifier la vente Chariow");
 }
 
 export function timingSafeEqualStr(a: string, b: string) {
@@ -123,7 +132,7 @@ export function extractAttemptToken(payload: any): string {
 }
 
 export function isPaidChariowStatus(status: unknown) {
-  return ["paid", "success", "successful", "completed", "validated"].includes(
+  return ["paid", "success", "successful", "completed", "validated", "approved", "confirmed", "settled"].includes(
     String(status ?? "").toLowerCase(),
   );
 }
