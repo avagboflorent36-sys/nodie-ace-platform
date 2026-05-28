@@ -342,7 +342,7 @@ function FormBuilderTab({ cohortId, inscriptionUrl }: { cohortId: string; inscri
         <div className="flex items-center justify-between gap-3 pt-3 border-t">
           <div className="min-w-0">
             <p className="text-sm font-medium">Lien finalisation tranche 2</p>
-            <p className="text-xs text-muted-foreground break-all">{`${window.location.origin}/inscription/${(inscriptionUrl.split("/inscription/")[1] ?? "")}/tranche-2`}</p>
+            <p className="text-xs text-muted-foreground break-all">{`${inscriptionUrl}/tranche-2`}</p>
             <p className="text-[11px] text-muted-foreground mt-1">À envoyer aux étudiants qui ont déjà payé la tranche 1 — ouvre directement le checkout sans repasser par le formulaire.</p>
           </div>
           <Button size="sm" variant="outline" onClick={() => { navigator.clipboard.writeText(`${inscriptionUrl}/tranche-2`); toast.success("Lien tranche 2 copié"); }}>
