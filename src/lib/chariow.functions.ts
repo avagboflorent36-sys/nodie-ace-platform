@@ -221,13 +221,30 @@ export const startChariowCheckout = createServerFn({ method: "POST" })
         "[Chariow] checkout response without URL:",
         JSON.stringify(checkout).slice(0, 1500),
       );
+      await supabaseAdmin.from("chariow_payment_attempts").update({
+        status: "failed",
+        last_error: "Chariow n'a pas renvoyé d'URL de paiement",
+        chariow_raw_response: checkout as any,
+      }).eq("id", attempt.id);
       return {
         checkout_url: null,
         status: "missing_checkout_url",
         message: "Chariow n'a pas renvoyé d'URL de paiement.",
       };
     }
-    return { checkout_url: url, status: "checkout_created", message: null };
+
+    await supabaseAdmin.from("chariow_payment_attempts").update({
+      status: "redirected",
+      checkout_url: url,
+      chariow_raw_response: checkout as any,
+    }).eq("id", attempt.id);
+
+    return {
+      checkout_url: url,
+      status: "checkout_created",
+      message: null,
+      attempt_token: attemptToken,
+    };
   });
 
 // ─────────────────────────────────────────────────────────────────────────────
