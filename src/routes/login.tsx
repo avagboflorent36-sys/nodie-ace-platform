@@ -32,6 +32,7 @@ function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [claimingExistingSession, setClaimingExistingSession] = useState(false);
+  const [existingSessionClaimDone, setExistingSessionClaimDone] = useState(false);
 
   useEffect(() => {
     if (!user || !rolesLoaded || !search.attempt) return;
@@ -44,7 +45,10 @@ function LoginPage() {
       } catch (e: any) {
         if (!cancelled) toast.error(e?.message ?? "Le paiement n'a pas pu être lié.");
       } finally {
-        if (!cancelled) setClaimingExistingSession(false);
+        if (!cancelled) {
+          setExistingSessionClaimDone(true);
+          setClaimingExistingSession(false);
+        }
       }
     })();
     return () => {
@@ -52,7 +56,13 @@ function LoginPage() {
     };
   }, [user, rolesLoaded, search.attempt, claimAttempt]);
 
-  if (!authLoading && user && rolesLoaded && !claimingExistingSession) {
+  if (
+    !authLoading &&
+    user &&
+    rolesLoaded &&
+    (!search.attempt || existingSessionClaimDone) &&
+    !claimingExistingSession
+  ) {
     return <Navigate to={isAdmin ? "/admin" : "/etudiant"} />;
   }
 
