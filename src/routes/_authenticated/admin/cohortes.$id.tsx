@@ -598,7 +598,7 @@ function ChariowSection({ cohort, onSaved }: { cohort: any; onSaved: () => void 
         <p className="text-xs text-muted-foreground break-all mt-1">{webhookUrl}</p>
         <p className="text-[11px] text-muted-foreground mt-2">Remplacez <code>&lt;VOTRE_SECRET&gt;</code> par la valeur du secret <code>CHARIOW_WEBHOOK_URL_SECRET</code> configuré côté serveur.</p>
       </Card>
-      <RecentChariowAttempts cohortId={cohortId} />
+      <RecentChariowAttempts cohortId={cohort.id} />
     </div>
   );
 }
