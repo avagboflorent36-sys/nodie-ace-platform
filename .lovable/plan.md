@@ -1,16 +1,50 @@
-# Plan validé
+# Plan : Transformer la plateforme en app mobile Android & iOS
 
-## 1. `src/styles.css`
-Remplacer les valeurs des tokens `--gold` et `--gold-soft` (mode clair + mode sombre) par un violet élégant :
-- Clair : `--gold: oklch(0.55 0.22 295)`, `--gold-soft: oklch(0.95 0.05 295)`
-- Sombre : `--gold: oklch(0.70 0.20 295)`, `--gold-soft: oklch(0.35 0.10 295)`
-- Ajuster `.gradient-gold` et `.shadow-gold` pour refléter la teinte violette.
+## Décisions validées
+- **App ID** : `app.nodieaiacademy`
+- **App Name** : Nodie IA Academy
+- **Notifications push** : plus tard (pas dans ce lot)
+- **Icône** : générée à partir du logo violet "N" actuel
+- **Build natif** : couvert dans le guide (options local + cloud Codemagic/EAS pour ceux sans Mac)
 
-Les noms de tokens restent `gold` pour éviter de toucher 25+ fichiers — pur cosmétique interne.
+## Ce que je vais faire
 
-## 2. `src/components/Logo.tsx`
-Afficher `Nodie IA Academy` en entier (la sidebar tronque proprement en mode replié grâce à `truncate`).
+### 1. Installer Capacitor
+- `@capacitor/core`, `@capacitor/cli`, `@capacitor/android`, `@capacitor/ios`
+- `@capacitor/preferences` (stockage natif pour Supabase auth)
+- `@capacitor/splash-screen`, `@capacitor/status-bar`, `@capacitor/app`
 
-## Hors scope
-- Aucune logique, route, donnée modifiée.
-- Aucun renommage de token.
+### 2. Créer `capacitor.config.ts`
+- `appId: "app.nodieaiacademy"`
+- `appName: "Nodie IA Academy"`
+- `webDir: "dist"` (sortie Vite)
+- `server.url` pointant vers le preview Lovable → hot reload sur téléphone pendant le dev
+- Splash screen violet, status bar style sombre
+
+### 3. Adapter le storage Supabase pour mobile
+- Détecter le runtime Capacitor et utiliser `@capacitor/preferences` au lieu de `localStorage` pour persister la session.
+- Web inchangé.
+
+### 4. Générer l'icône d'application
+- Icône carrée 1024×1024 : "N" blanc sur fond dégradé violet (cohérent avec le logo actuel)
+- Sauvegardée dans `public/icon-1024.png` — sera utilisée par `npx capacitor-assets generate`
+
+### 5. Adaptations UX mobile
+- Safe-area iOS (notch / Dynamic Island) sur le header `AppShell`
+- Status bar violette cohérente
+
+### 6. Créer `MOBILE.md` à la racine
+Guide complet avec :
+- Étapes pour exporter le projet vers GitHub
+- Commandes en local (`npm install`, `npx cap add android`, `npx cap add ios`, `npx cap sync`, `npx cap run android`)
+- **Option A** : build local (Android Studio gratuit / Xcode si Mac)
+- **Option B** : build cloud sans Mac via Codemagic ou EAS Build pour l'IPA iOS
+- Publication Google Play (25 $ unique) + App Store (99 $/an)
+
+## Hors scope (à faire plus tard)
+- Notifications push (Firebase + APNs)
+- Plugins natifs (caméra, biométrie, partage natif…)
+- Splash screen / icône personnalisée raffinée
+
+## Limitation à rappeler
+Lovable ne peut pas produire les binaires `.apk` / `.ipa` finaux — cette dernière étape se fait en local ou via Codemagic/EAS (instructions complètes dans `MOBILE.md`). Tout le reste est configuré ici.
