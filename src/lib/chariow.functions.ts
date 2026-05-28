@@ -318,6 +318,13 @@ export const startChariowCheckoutForTranche2Token = createServerFn({ method: "PO
       };
     }
     const t2 = (payment.payment_installments ?? []).find((i: any) => i.position === 2);
+    if (!t2) {
+      return {
+        checkout_url: null,
+        status: "no_installment",
+        message: "La ligne de tranche 2 est introuvable pour ce paiement.",
+      };
+    }
     if (payment.status === "paid" || t2?.status === "validated") {
       return {
         checkout_url: null,
@@ -540,12 +547,12 @@ export const getMyTranche2CheckoutSummary = createServerFn({ method: "POST" })
       .maybeSingle();
     const t2 = (payment.payment_installments ?? []).find((i: any) => i.position === 2);
     const productId = normalizeChariowProductId(cohort?.chariow_product_id_installment_2);
-    const ready = payment.mode === "installments_2" && payment.status !== "paid" && t2?.status !== "validated" && !!productId;
+    const ready = payment.mode === "installments_2" && payment.status !== "paid" && !!t2 && t2.status !== "validated" && !!productId;
 
     return {
       ok: ready,
       status: ready ? "ready" : payment.status === "paid" || t2?.status === "validated" ? "already_paid" : !productId ? "no_product" : "not_payable",
-      message: ready ? null : !productId ? "Le Product ID Chariow de la tranche 2 n'est pas configuré." : "Cette tranche 2 n'est pas payable.",
+      message: ready ? null : !t2 ? "La ligne de tranche 2 est introuvable pour ce paiement." : !productId ? "Le Product ID Chariow de la tranche 2 n'est pas configuré." : "Cette tranche 2 n'est pas payable.",
       cohort_name: cohort?.name ?? "Cohorte",
       product_id: productId,
       currency: payment.currency,
@@ -585,6 +592,9 @@ export const startMyTranche2Checkout = createServerFn({ method: "POST" })
       return { checkout_url: null, status: "wrong_mode", message: "Ce paiement n'est pas en 2 tranches." };
     }
     const t2 = (payment.payment_installments ?? []).find((i: any) => i.position === 2);
+    if (!t2) {
+      return { checkout_url: null, status: "no_installment", message: "La ligne de tranche 2 est introuvable pour ce paiement." };
+    }
     if (payment.status === "paid" || t2?.status === "validated") {
       return { checkout_url: null, status: "already_paid", message: "La tranche 2 est déjà réglée." };
     }
