@@ -444,15 +444,11 @@ function FormBuilderTab({ cohortId, inscriptionUrl }: { cohortId: string; inscri
             <Copy className="mr-1 h-3 w-3" /> Copier
           </Button>
         </div>
-        <div className="flex items-center justify-between gap-3 pt-3 border-t">
-          <div className="min-w-0">
-            <p className="text-sm font-medium">Lien finalisation tranche 2</p>
-            <p className="text-xs text-muted-foreground break-all">{`${inscriptionUrl}/tranche-2`}</p>
-            <p className="text-[11px] text-muted-foreground mt-1">À envoyer aux étudiants qui ont déjà payé la tranche 1 — ouvre directement le checkout sans repasser par le formulaire.</p>
-          </div>
-          <Button size="sm" variant="outline" onClick={() => { navigator.clipboard.writeText(`${inscriptionUrl}/tranche-2`); toast.success("Lien tranche 2 copié"); }}>
-            <Copy className="mr-1 h-3 w-3" /> Copier
-          </Button>
+        <div className="pt-3 border-t">
+          <p className="text-sm font-medium">Lien finalisation tranche 2</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Chaque étudiant inscrit en 2 tranches a son propre lien personnalisé (jeton unique). Allez dans l'onglet <strong>Étudiants</strong> et cliquez sur « Copier » à côté de l'étudiant concerné pour récupérer son lien tranche 2 — il ouvre directement le checkout Chariow.
+          </p>
         </div>
       </Card>
 
