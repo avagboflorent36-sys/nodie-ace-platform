@@ -253,6 +253,46 @@ export const startChariowCheckout = createServerFn({ method: "POST" })
   });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Vérifier une tentative interne par token (public) — utilisé au retour de paiement
+// ─────────────────────────────────────────────────────────────────────────────
+export const checkAttemptByToken = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z.object({ token: z.string().min(20).max(128) }).parse(input),
+  )
+  .handler(async ({ data }) => {
+    const { data: attempt } = await supabaseAdmin
+      .from("chariow_payment_attempts")
+      .select("id, status, chariow_sale_id, cohort_id, last_error")
+      .eq("token", data.token)
+      .maybeSingle();
+    if (!attempt) return { found: false, status: "unknown" as const };
+
+    // If we have a sale id, double-check Chariow directly
+    let paid = false;
+    let saleStatus: string | null = null;
+    if (attempt.chariow_sale_id) {
+      try {
+        const sale: any = await verifySale(attempt.chariow_sale_id);
+        const s = sale?.sale ?? sale?.data ?? sale ?? {};
+        saleStatus = s.status ?? null;
+        paid = ["paid", "success", "successful", "completed", "validated"].includes(
+          String(s.status ?? "").toLowerCase(),
+        );
+      } catch {}
+    }
+    return {
+      found: true,
+      status: attempt.status,
+      paid: paid || attempt.status === "processed",
+      sale_status: saleStatus,
+      sale_id: attempt.chariow_sale_id,
+      cohort_id: attempt.cohort_id,
+      last_error: attempt.last_error,
+    };
+  });
+
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 2. Vérifier le statut d'une vente (public, info minimale)
 // ─────────────────────────────────────────────────────────────────────────────
 export const fetchSaleStatus = createServerFn({ method: "POST" })
