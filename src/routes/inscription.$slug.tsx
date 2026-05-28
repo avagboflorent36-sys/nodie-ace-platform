@@ -436,16 +436,6 @@ function PostPaymentStep({
       });
     }
 
-    // Ensure session is active (auto-confirm should give one immediately;
-    // fallback to signInWithPassword if not)
-    let hasSession = !!signed.session;
-    if (!hasSession) {
-      const { error: siErr } = await supabase.auth.signInWithPassword({
-        email: form.email.trim().toLowerCase(),
-        password: form.password,
-      });
-      hasSession = !siErr;
-    }
 
     setLoading(false);
     if (hasSession) {
