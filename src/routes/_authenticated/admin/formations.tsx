@@ -303,8 +303,8 @@ function FormationDetail({ formationId }: { formationId: string }) {
     <Card className="p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold">Contenu pédagogique</h2>
-          <p className="mt-1 text-xs text-muted-foreground">Organisez la formation en modules et leçons (document, vidéo, lien, exercice).</p>
+          <h2 className="text-lg font-semibold">Programme de la formation</h2>
+          <p className="mt-1 text-xs text-muted-foreground">Modules et leçons partagés entre toutes les cohortes de cette formation. Visible par tous les étudiants inscrits et actifs.</p>
         </div>
         <Dialog open={modOpen} onOpenChange={setModOpen}>
           <DialogTrigger asChild><Button size="sm" className="bg-gold text-primary hover:bg-gold/90"><Plus className="mr-1 h-3 w-3" /> Module</Button></DialogTrigger>
