@@ -26,13 +26,14 @@ function TrancheDeuxPage() {
       const { data } = await supabase
         .from("cohortes")
         .select(
-          "id, name, slug, status, price_installment, chariow_product_id_installment_2, formations(title, currency, cover_image_url)",
+          "id, name, slug, status, price_installment, chariow_product_id_full, chariow_product_id_installment_1, chariow_product_id_installment_2, formations(title, currency, cover_image_url)",
         )
         .eq("slug", slug)
         .maybeSingle();
       return data;
     },
   });
+
 
   if (cohortLoading || authLoading) {
     return (
