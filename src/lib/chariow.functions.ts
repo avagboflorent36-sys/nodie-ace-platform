@@ -2,7 +2,13 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { initCheckout, verifySale, processChariowSale } from "./chariow.server";
+import {
+  initCheckout,
+  verifySale,
+  processChariowSale,
+  extractSaleId,
+  isPaidChariowStatus,
+} from "./chariow.server";
 
 const SITE_URL =
   process.env.SITE_URL ||
@@ -238,9 +244,12 @@ export const startChariowCheckout = createServerFn({ method: "POST" })
       };
     }
 
+    const initialSaleId = extractSaleId(checkout);
+
     await supabaseAdmin.from("chariow_payment_attempts").update({
       status: "redirected",
       checkout_url: url,
+      chariow_sale_id: initialSaleId || null,
       chariow_raw_response: checkout as any,
     }).eq("id", attempt.id);
 
