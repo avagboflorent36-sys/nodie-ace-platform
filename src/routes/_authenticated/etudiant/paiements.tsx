@@ -130,6 +130,26 @@ function StudentPayments() {
                 <div className="h-full bg-gold transition-all" style={{ width: `${ratio}%` }} />
               </div>
 
+              {p.status === "partial" && p.cohortes?.slug && (
+                <Card className="p-3 bg-secondary/40 border-dashed flex flex-wrap items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium">Lien direct de finalisation</p>
+                    <p className="text-[11px] text-muted-foreground break-all">{`${window.location.origin}/inscription/${p.cohortes.slug}/tranche-2`}</p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      navigator.clipboard.writeText(`${window.location.origin}/inscription/${p.cohortes.slug}/tranche-2`);
+                      toast.success("Lien copié");
+                    }}
+                  >
+                    <Copy className="mr-1 h-3 w-3" /> Copier
+                  </Button>
+                </Card>
+              )}
+
+
               <div className="space-y-2">
                 {(p.payment_installments ?? []).slice().sort((a: any, b: any) => a.position - b.position).map((i: any) => {
                   const isLate = i.status !== "validated" && i.due_date && i.due_date < today;
