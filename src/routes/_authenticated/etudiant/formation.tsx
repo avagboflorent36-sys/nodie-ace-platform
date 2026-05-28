@@ -111,13 +111,11 @@ function FormationPage() {
       ) : (
         (data!.active as any[]).map((enr) => {
           const c = enr.cohortes;
-          const f = c?.formations;
           const formationId = c?.formation_id;
           const fModules = (data!.formationModules as any[]).filter((m) => m.formation_id === formationId);
           const fResources = (data!.formationResources as any[]).filter((r) => r.formation_id === formationId);
           const fGlobalResources = fResources.filter((r) => !r.module_id);
           const cohortModules = (data!.cohortModules as any[]).filter((m) => m.cohort_id === c?.id);
-          const cohortAnnonces = (data!.annonces as any[]).filter((a) => a.cohort_id === c?.id);
 
           const hasAnyContent =
             fModules.length > 0 || fGlobalResources.length > 0 || cohortModules.length > 0;
