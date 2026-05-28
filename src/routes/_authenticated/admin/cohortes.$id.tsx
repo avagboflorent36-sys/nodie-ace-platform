@@ -67,13 +67,14 @@ function CohortDetail() {
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="grid w-full grid-cols-8">
+        <TabsList className="grid w-full grid-cols-9">
           <TabsTrigger value="overview">Vue d'ensemble</TabsTrigger>
           <TabsTrigger value="students">Étudiants</TabsTrigger>
           <TabsTrigger value="content">Contenu</TabsTrigger>
           <TabsTrigger value="annonces">Annonces</TabsTrigger>
           <TabsTrigger value="live">Live</TabsTrigger>
           <TabsTrigger value="form">Formulaire</TabsTrigger>
+          <TabsTrigger value="automations">Automatisations</TabsTrigger>
           <TabsTrigger value="responses">Réponses</TabsTrigger>
           <TabsTrigger value="settings">Paramètres</TabsTrigger>
         </TabsList>
@@ -84,10 +85,32 @@ function CohortDetail() {
         <TabsContent value="annonces" className="space-y-4 pt-4"><AnnoncesTab cohortId={id} /></TabsContent>
         <TabsContent value="live" className="space-y-4 pt-4"><LiveTab cohortId={id} /></TabsContent>
         <TabsContent value="form" className="space-y-4 pt-4"><FormBuilderTab cohortId={id} inscriptionUrl={inscriptionUrl} /></TabsContent>
+        <TabsContent value="automations" className="space-y-4 pt-4"><AutomationsTab cohortId={id} /></TabsContent>
         <TabsContent value="responses" className="space-y-4 pt-4"><ResponsesTab cohortId={id} /></TabsContent>
         <TabsContent value="settings" className="space-y-4 pt-4"><SettingsTab cohort={cohort} onSaved={() => { refetchCohort(); qc.invalidateQueries({ queryKey: ["admin-cohortes"] }); }} /></TabsContent>
+
       </Tabs>
     </div>
+  );
+}
+
+function AutomationsTab({ cohortId }: { cohortId: string }) {
+  return (
+    <Card className="p-6 space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold">Automatisations</h2>
+        <p className="text-sm text-muted-foreground">
+          Programmez les règles d'accès, blocages et relances automatiques pour cette cohorte.
+        </p>
+      </div>
+      <ReminderRulesEditor cohortId={cohortId} />
+      <div className="pt-6 border-t">
+        <AccessRulesEditor cohortId={cohortId} />
+      </div>
+      <div className="pt-6 border-t">
+        <EmailCampaignsEditor cohortId={cohortId} />
+      </div>
+    </Card>
   );
 }
 
@@ -420,14 +443,9 @@ function SettingsTab({ cohort, onSaved }: { cohort: any; onSaved: () => void }) 
         <PaymentScheduleEditor cohortId={cohort.id} />
       </div>
       <div className="pt-6 border-t">
-        <ReminderRulesEditor cohortId={cohort.id} />
+        <ChariowSection cohort={cohort} onSaved={onSaved} />
       </div>
-      <div className="pt-6 border-t">
-        <AccessRulesEditor cohortId={cohort.id} />
-      </div>
-      <div className="pt-6 border-t">
-        <EmailCampaignsEditor cohortId={cohort.id} />
-      </div>
+
       <div className="pt-6 border-t">
         <ChariowSection cohort={cohort} onSaved={onSaved} />
       </div>
