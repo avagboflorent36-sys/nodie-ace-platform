@@ -30,21 +30,31 @@ function FormationPage() {
       const active = (enrollments ?? []).filter((e: any) => e.status === "active");
       const restricted = (enrollments ?? []).filter((e: any) => e.status === "restricted");
       const cohortIds = active.map((e: any) => e.cohort_id);
-      const formationIds = [...new Set(active.map((e: any) => e.cohortes?.formation_id).filter(Boolean))];
+      const formationIds = [...new Set(active.map((e: any) => e.cohortes?.formation_id).filter(Boolean))] as string[];
 
-      const [{ data: modules }, { data: formationResources }, { data: annonces }] = await Promise.all([
+      const [cohortModulesRes, formationModulesRes, formationResourcesRes, annoncesRes] = await Promise.all([
         cohortIds.length
           ? supabase.from("modules").select("id, title, description, position, cohort_id, ressources(id, title, type, url, position, description)").in("cohort_id", cohortIds).order("position")
           : Promise.resolve({ data: [] as any[] }),
         formationIds.length
-          ? supabase.from("formation_resources").select("id, formation_id, title, type, url, description, position").in("formation_id", formationIds).order("position")
+          ? supabase.from("formation_modules").select("id, formation_id, title, description, position").in("formation_id", formationIds).order("position")
+          : Promise.resolve({ data: [] as any[] }),
+        formationIds.length
+          ? supabase.from("formation_resources").select("id, formation_id, module_id, title, type, url, description, position").in("formation_id", formationIds).order("position")
           : Promise.resolve({ data: [] as any[] }),
         cohortIds.length
           ? supabase.from("annonces").select("id, cohort_id, title, content, created_at").in("cohort_id", cohortIds).order("created_at", { ascending: false })
           : Promise.resolve({ data: [] as any[] }),
       ]);
 
-      return { active, restricted, modules: modules ?? [], formationResources: formationResources ?? [], annonces: annonces ?? [] };
+      return {
+        active,
+        restricted,
+        cohortModules: cohortModulesRes.data ?? [],
+        formationModules: formationModulesRes.data ?? [],
+        formationResources: formationResourcesRes.data ?? [],
+        annonces: annoncesRes.data ?? [],
+      };
     },
   });
 
@@ -61,6 +71,9 @@ function FormationPage() {
         queryClient.invalidateQueries({ queryKey: ["student-formation", user?.id] });
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "ressources" }, () => {
+        queryClient.invalidateQueries({ queryKey: ["student-formation", user?.id] });
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "formation_modules" }, () => {
         queryClient.invalidateQueries({ queryKey: ["student-formation", user?.id] });
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "formation_resources" }, () => {
@@ -101,9 +114,15 @@ function FormationPage() {
         (data!.active as any[]).map((enr) => {
           const c = enr.cohortes;
           const f = c?.formations;
-          const cohortModules = (data!.modules as any[]).filter((m) => m.cohort_id === c?.id);
-          const formationRes = (data!.formationResources as any[]).filter((r) => r.formation_id === c?.formation_id);
+          const formationId = c?.formation_id;
+          const fModules = (data!.formationModules as any[]).filter((m) => m.formation_id === formationId);
+          const fResources = (data!.formationResources as any[]).filter((r) => r.formation_id === formationId);
+          const fGlobalResources = fResources.filter((r) => !r.module_id);
+          const cohortModules = (data!.cohortModules as any[]).filter((m) => m.cohort_id === c?.id);
           const cohortAnnonces = (data!.annonces as any[]).filter((a) => a.cohort_id === c?.id);
+
+          const hasAnyContent =
+            fModules.length > 0 || fGlobalResources.length > 0 || cohortModules.length > 0;
 
           return (
             <div key={c?.id} className="space-y-4">
@@ -141,29 +160,64 @@ function FormationPage() {
                 </Card>
               )}
 
-              {formationRes.length > 0 && (
+              {fModules.length > 0 && (
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Programme de la formation</h3>
+                  {fModules.map((m: any) => {
+                    const lessons = fResources
+                      .filter((r) => r.module_id === m.id)
+                      .slice()
+                      .sort((a: any, b: any) => a.position - b.position);
+                    return (
+                      <Card key={m.id} className="p-6">
+                        <h4 className="font-semibold">{m.title}</h4>
+                        {m.description && <p className="mt-1 text-sm text-muted-foreground">{m.description}</p>}
+                        {lessons.length > 0 ? (
+                          <div className="mt-4 divide-y rounded-lg border">
+                            {lessons.map((r: any) => <ResourceRow key={r.id} r={r} />)}
+                          </div>
+                        ) : (
+                          <p className="mt-3 text-xs text-muted-foreground">Aucune leçon dans ce module.</p>
+                        )}
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+
+              {fGlobalResources.length > 0 && (
                 <Card className="p-6">
                   <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Ressources de la formation</h3>
                   <div className="mt-3 divide-y rounded-lg border">
-                    {formationRes.map((r) => <ResourceRow key={r.id} r={r} />)}
+                    {fGlobalResources
+                      .slice()
+                      .sort((a: any, b: any) => a.position - b.position)
+                      .map((r: any) => <ResourceRow key={r.id} r={r} />)}
                   </div>
                 </Card>
               )}
 
-              {cohortModules.length === 0 ? (
-                <Card className="p-6 text-center text-muted-foreground text-sm">Aucun module pour cette cohorte.</Card>
-              ) : (
-                cohortModules.map((m) => (
-                  <Card key={m.id} className="p-6">
-                    <h3 className="font-semibold">{m.title}</h3>
-                    {m.description && <p className="mt-1 text-sm text-muted-foreground">{m.description}</p>}
-                    {(m.ressources ?? []).length > 0 && (
-                      <div className="mt-4 divide-y rounded-lg border">
-                        {m.ressources.slice().sort((a: any, b: any) => a.position - b.position).map((r: any) => <ResourceRow key={r.id} r={r} />)}
-                      </div>
-                    )}
-                  </Card>
-                ))
+              {cohortModules.length > 0 && (
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Contenu spécifique à cette cohorte</h3>
+                  {cohortModules.map((m: any) => (
+                    <Card key={m.id} className="p-6">
+                      <h4 className="font-semibold">{m.title}</h4>
+                      {m.description && <p className="mt-1 text-sm text-muted-foreground">{m.description}</p>}
+                      {(m.ressources ?? []).length > 0 && (
+                        <div className="mt-4 divide-y rounded-lg border">
+                          {m.ressources.slice().sort((a: any, b: any) => a.position - b.position).map((r: any) => <ResourceRow key={r.id} r={r} />)}
+                        </div>
+                      )}
+                    </Card>
+                  ))}
+                </div>
+              )}
+
+              {!hasAnyContent && (
+                <Card className="p-12 text-center text-muted-foreground text-sm">
+                  Aucun contenu pédagogique n'a encore été publié pour cette formation.
+                </Card>
               )}
             </div>
           );
