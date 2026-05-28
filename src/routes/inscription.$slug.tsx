@@ -401,18 +401,31 @@ function PostPaymentStep({
       return;
     }
 
-    // Wait briefly for the session to settle, then claim
-    if (claimToken) {
+    // Ensure session is active so server-fn middleware sees auth.uid()
+    let hasSession = !!signed.session;
+    if (!hasSession) {
+      const { error: siErr } = await supabase.auth.signInWithPassword({
+        email: form.email.trim().toLowerCase(),
+        password: form.password,
+      });
+      hasSession = !siErr;
+    }
+
+    // Lier le paiement au nouveau compte (3 chemins possibles)
+    if (hasSession) {
       try {
-        await claim({ data: { claim_token: claimToken } });
+        if (attemptToken) {
+          await claimAttempt({ data: { token: attemptToken } });
+        } else if (claimToken) {
+          await claim({ data: { claim_token: claimToken } });
+        }
       } catch (e: any) {
-        // Non-blocking — user can claim after email confirm
-        console.error(e);
+        console.error("claim failed", e);
+        toast.error(
+          e?.message ??
+            "Compte créé, mais le paiement n'a pas pu être lié automatiquement. Contactez le support.",
+        );
       }
-    } else {
-      // saleId flow: link existing pending row if any (best effort via email lookup happens server-side)
-      // The webhook already linked by email if profile existed before. Here, profile is just created.
-      // We'll defer the link to the next auth.uid()-aware flow.
     }
 
     if (customFields.length > 0) {
