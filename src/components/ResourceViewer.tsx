@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { createContext, useContext, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { FileText, Video, Link2, BookOpen, ExternalLink, PlayCircle, Check, ChevronRight, CheckCircle2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -10,7 +10,7 @@ import { toast } from "sonner";
 export type ResourceItem = {
   id: string;
   title: string;
-  type: string; // 'video' | 'document' | 'link' | 'exercise'
+  type: string;
   url?: string | null;
   description?: string | null;
 };
@@ -49,7 +49,7 @@ function isPdfUrl(url: string): boolean {
   try { return new URL(url).pathname.toLowerCase().endsWith(".pdf"); } catch { return false; }
 }
 
-export function useResourceProgress() {
+function useResourceProgress() {
   const { user } = useAuth();
   return useQuery({
     queryKey: ["resource-progress", user?.id],
@@ -64,50 +64,79 @@ export function useResourceProgress() {
   });
 }
 
-export function ResourcePlaylist({ resources }: { resources: ResourceItem[] }) {
+type Ctx = {
+  playlist: ResourceItem[];
+  openIndex: number | null;
+  setOpenIndex: (i: number | null) => void;
+};
+const PlaylistCtx = createContext<Ctx | null>(null);
+
+export function PlaylistProvider({ playlist, children }: { playlist: ResourceItem[]; children: React.ReactNode }) {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
-  const { data: readSet } = useResourceProgress();
+  const current = openIndex !== null ? playlist[openIndex] : null;
 
   return (
-    <>
-      {resources.map((r, i) => {
-        const Icon = ICONS[r.type] ?? BookOpen;
-        const canOpen = !!(r.url && r.url.trim()) || r.type === "exercise" || !!r.description;
-        const isRead = readSet?.has(r.id) ?? false;
-        return (
-          <button
-            key={r.id}
-            type="button"
-            onClick={() => canOpen && setOpenIndex(i)}
-            disabled={!canOpen}
-            className="flex w-full items-center gap-3 p-3 text-left transition hover:bg-accent/30 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <Icon className="h-4 w-4 text-gold shrink-0" />
-            <div className="flex-1 min-w-0">
-              <div className="text-sm font-medium truncate flex items-center gap-2">
-                {r.title}
-                {isRead && <CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0" />}
-              </div>
-              {r.description && <div className="text-xs text-muted-foreground line-clamp-1">{r.description}</div>}
-            </div>
-            <span className="text-xs uppercase text-muted-foreground hidden sm:inline">{r.type}</span>
-            {canOpen ? (
-              <span className="text-xs font-medium text-gold inline-flex items-center gap-1"><PlayCircle className="h-3 w-3" />Ouvrir</span>
-            ) : (
-              <span className="text-xs text-muted-foreground">Indisponible</span>
-            )}
-          </button>
-        );
-      })}
-
-      {openIndex !== null && (
+    <PlaylistCtx.Provider value={{ playlist, openIndex, setOpenIndex }}>
+      {children}
+      {current && (
         <ResourceViewer
           open={openIndex !== null}
           onOpenChange={(o) => { if (!o) setOpenIndex(null); }}
-          resource={resources[openIndex]}
-          hasNext={openIndex < resources.length - 1}
-          onNext={() => setOpenIndex((idx) => (idx !== null && idx < resources.length - 1 ? idx + 1 : idx))}
+          resource={current}
+          hasNext={openIndex! < playlist.length - 1}
+          onNext={() => setOpenIndex(openIndex! + 1)}
         />
+      )}
+    </PlaylistCtx.Provider>
+  );
+}
+
+export function ResourceRow({ r }: { r: ResourceItem }) {
+  const ctx = useContext(PlaylistCtx);
+  const { data: readSet } = useResourceProgress();
+  const Icon = ICONS[r.type] ?? BookOpen;
+  const canOpen = !!(r.url && r.url.trim()) || r.type === "exercise" || !!r.description;
+  const isRead = readSet?.has(r.id) ?? false;
+
+  // Fallback when not in a PlaylistProvider: stand-alone dialog
+  const [standaloneOpen, setStandaloneOpen] = useState(false);
+
+  const handleOpen = () => {
+    if (!canOpen) return;
+    if (ctx) {
+      const idx = ctx.playlist.findIndex((p) => p.id === r.id);
+      if (idx >= 0) ctx.setOpenIndex(idx);
+      else setStandaloneOpen(true);
+    } else {
+      setStandaloneOpen(true);
+    }
+  };
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={handleOpen}
+        disabled={!canOpen}
+        className="flex w-full items-center gap-3 p-3 text-left transition hover:bg-accent/30 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        <Icon className="h-4 w-4 text-gold shrink-0" />
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-medium truncate flex items-center gap-2">
+            {r.title}
+            {isRead && <CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0" />}
+          </div>
+          {r.description && <div className="text-xs text-muted-foreground line-clamp-1">{r.description}</div>}
+        </div>
+        <span className="text-xs uppercase text-muted-foreground hidden sm:inline">{r.type}</span>
+        {canOpen ? (
+          <span className="text-xs font-medium text-gold inline-flex items-center gap-1"><PlayCircle className="h-3 w-3" />Ouvrir</span>
+        ) : (
+          <span className="text-xs text-muted-foreground">Indisponible</span>
+        )}
+      </button>
+      {!ctx && (
+        <ResourceViewer open={standaloneOpen} onOpenChange={setStandaloneOpen} resource={r} />
       )}
     </>
   );
@@ -153,7 +182,6 @@ export function ResourceViewer({ open, onOpenChange, resource, hasNext, onNext }
   const hasUrl = url.length > 0;
 
   let body: React.ReactNode = null;
-
   if (resource.type === "video" && hasUrl) {
     const embed = toYouTubeEmbed(url) ?? toVimeoEmbed(url);
     body = embed ? (
@@ -197,7 +225,7 @@ export function ResourceViewer({ open, onOpenChange, resource, hasNext, onNext }
           <p className="text-sm text-muted-foreground whitespace-pre-wrap">{resource.description}</p>
         )}
         {body}
-        <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-2 border-t">
+        <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-3 border-t">
           <Button
             variant={isRead ? "outline" : "default"}
             onClick={() => toggleRead.mutate()}
@@ -209,7 +237,6 @@ export function ResourceViewer({ open, onOpenChange, resource, hasNext, onNext }
           </Button>
           {hasNext && (
             <Button
-              variant="default"
               onClick={() => { if (!isRead && user) toggleRead.mutate(); onNext?.(); }}
               className="bg-gold text-primary hover:bg-gold/90"
             >
@@ -220,11 +247,6 @@ export function ResourceViewer({ open, onOpenChange, resource, hasNext, onNext }
       </DialogContent>
     </Dialog>
   );
-}
-
-/** Backwards-compat: single-row outside a playlist */
-export function ResourceRow({ r }: { r: ResourceItem }) {
-  return <ResourcePlaylist resources={[r]} />;
 }
 
 function ExternalFallback({ url, label }: { url: string; label: string }) {
