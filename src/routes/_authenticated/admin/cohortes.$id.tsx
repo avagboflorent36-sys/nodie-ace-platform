@@ -788,11 +788,19 @@ function EmailCampaignsEditor({ cohortId }: { cohortId: string }) {
     if (status === "send_now") {
       try {
         const r = await sendNow({ data: { campaign_id: data.id } });
-        toast.success(`Envoyé à ${r.sent} destinataire(s)${r.failed ? `, ${r.failed} échec` : ""}`);
+        if (r.sent === 0) {
+          toast.error(
+            `Aucun email envoyé (${r.failed} échec(s))${r.lastError ? ` — ${r.lastError.slice(0, 140)}` : ""}`,
+            { duration: 8000 },
+          );
+        } else {
+          toast.success(`Envoyé à ${r.sent} destinataire(s)${r.failed ? `, ${r.failed} échec(s)` : ""}`);
+        }
       } catch (e: any) { toast.error(e.message); }
     } else {
       toast.success(status === "scheduled" ? "Programmé" : "Brouillon enregistré");
     }
+
     setDraft({ subject: "", body_html: "", audience: "all", scheduled_at: "" });
     setAudCount(null);
     refetch(); qc.invalidateQueries({ queryKey: ["cohort-email-campaigns", cohortId] });
