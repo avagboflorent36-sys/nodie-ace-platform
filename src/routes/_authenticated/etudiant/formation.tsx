@@ -226,5 +226,5 @@ function FormationPage() {
   );
 }
 
-}
+
 
