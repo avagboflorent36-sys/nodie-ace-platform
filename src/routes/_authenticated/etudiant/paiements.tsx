@@ -42,7 +42,7 @@ function StudentPayments() {
     queryFn: async () => {
       const { data } = await supabase
         .from("payments")
-        .select("id, mode, status, source, amount_total, amount_paid, currency, final_deadline, cohort_id, cohortes(name, formations(title)), payment_installments(id, position, amount, status, due_date, submitted_at, validated_at, proof_path, rejection_reason, chariow_sale_id)")
+        .select("id, mode, status, source, amount_total, amount_paid, currency, final_deadline, cohort_id, cohortes(name, slug, formations(title)), payment_installments(id, position, amount, status, due_date, submitted_at, validated_at, proof_path, rejection_reason, chariow_sale_id)")
         .eq("student_id", user!.id)
         .order("created_at", { ascending: false });
       return data ?? [];
