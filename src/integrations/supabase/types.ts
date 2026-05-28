@@ -89,10 +89,12 @@ export type Database = {
           email: string
           first_name: string | null
           id: string
+          installment_id: string | null
           installment_position: number
           last_error: string | null
           last_name: string | null
           mode: Database["public"]["Enums"]["payment_mode"]
+          payment_id: string | null
           phone: string | null
           processed_at: string | null
           status: string
@@ -111,10 +113,12 @@ export type Database = {
           email: string
           first_name?: string | null
           id?: string
+          installment_id?: string | null
           installment_position?: number
           last_error?: string | null
           last_name?: string | null
           mode: Database["public"]["Enums"]["payment_mode"]
+          payment_id?: string | null
           phone?: string | null
           processed_at?: string | null
           status?: string
@@ -133,10 +137,12 @@ export type Database = {
           email?: string
           first_name?: string | null
           id?: string
+          installment_id?: string | null
           installment_position?: number
           last_error?: string | null
           last_name?: string | null
           mode?: Database["public"]["Enums"]["payment_mode"]
+          payment_id?: string | null
           phone?: string | null
           processed_at?: string | null
           status?: string
