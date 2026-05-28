@@ -48,7 +48,16 @@ export async function initCheckout(input: CheckoutInput) {
 }
 
 export async function verifySale(saleId: string) {
-  return chariowFetch(`/sales/${encodeURIComponent(saleId)}`, { method: "GET" });
+  const id = encodeURIComponent(saleId);
+  let lastError: unknown;
+  for (const path of [`/sales/${id}`, `/purchases/${id}`, `/payments/${id}`]) {
+    try {
+      return await chariowFetch(path, { method: "GET" });
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("Impossible de vérifier la vente Chariow");
 }
 
 export function timingSafeEqualStr(a: string, b: string) {
@@ -72,6 +81,10 @@ export function extractSaleId(payload: any): string {
   const candidates = [
     payload?.sale?.id,
     payload?.data?.sale?.id,
+    payload?.purchase?.id,
+    payload?.data?.purchase?.id,
+    payload?.data?.purchase?.sale_id,
+    payload?.data?.payment?.sale_id,
     payload?.data?.id,
     payload?.sale_id,
     payload?.saleId,
@@ -88,6 +101,40 @@ export function extractSaleId(payload: any): string {
     if (typeof c === "number") return String(c);
   }
   return "";
+}
+
+export function extractAttemptToken(payload: any): string {
+  if (!payload || typeof payload !== "object") return "";
+  const meta =
+    payload?.custom_metadata ??
+    payload?.sale?.custom_metadata ??
+    payload?.data?.sale?.custom_metadata ??
+    payload?.data?.purchase?.custom_metadata ??
+    payload?.metadata ??
+    payload?.data?.metadata ??
+    {};
+  const direct = meta?.attempt_token ?? meta?.attemptToken ?? payload?.attempt_token;
+  if (typeof direct === "string" && direct.trim()) return direct.trim();
+
+  const redirectCandidates = [
+    payload?.redirect_url,
+    payload?.sale?.redirect_url,
+    payload?.data?.redirect_url,
+    payload?.data?.sale?.redirect_url,
+    payload?.data?.purchase?.redirect_url,
+  ];
+  for (const value of redirectCandidates) {
+    if (typeof value !== "string") continue;
+    const match = value.match(/[?&]attempt=([a-z0-9]+)/i);
+    if (match?.[1]) return match[1];
+  }
+  return "";
+}
+
+export function isPaidChariowStatus(status: unknown) {
+  return ["paid", "success", "successful", "completed", "validated", "approved", "confirmed", "settled"].includes(
+    String(status ?? "").toLowerCase(),
+  );
 }
 
 function extractEventType(payload: any): string {
@@ -111,19 +158,31 @@ export async function processChariowSale(
   hints?: { attempt_token?: string; cohort_id_override?: string },
 ): Promise<{
   ok: boolean;
-  status: "processed" | "not_paid" | "missing_cohort" | "error";
+  status: "paid" | "processed" | "not_paid" | "missing_cohort" | "error";
   message?: string;
   payment_id?: string;
   pending_enrollment_id?: string;
   attempt_id?: string;
 }> {
   const verified: any = await verifySale(saleId);
-  const s = verified?.sale ?? verified?.data ?? verified ?? {};
-  const c = verified?.customer ?? rawPayload?.customer ?? {};
-  const meta = s.custom_metadata ?? rawPayload?.sale?.custom_metadata ?? {};
+  const s =
+    verified?.sale ??
+    verified?.data?.sale ??
+    verified?.data?.purchase ??
+    verified?.purchase ??
+    verified?.data ??
+    verified ??
+    {};
+  const c = s.customer ?? verified?.customer ?? rawPayload?.customer ?? rawPayload?.data?.purchase?.customer ?? {};
+  const meta =
+    s.custom_metadata ??
+    rawPayload?.sale?.custom_metadata ??
+    rawPayload?.data?.sale?.custom_metadata ??
+    rawPayload?.data?.purchase?.custom_metadata ??
+    {};
 
-  const saleStatus = String(s.status ?? "").toLowerCase();
-  const paid = ["paid", "success", "successful", "completed", "validated"].includes(saleStatus);
+  const saleStatus = String(s.status ?? s.payment?.status ?? "").toLowerCase();
+  const paid = isPaidChariowStatus(s.status) || isPaidChariowStatus(s.payment?.status);
   if (!paid) {
     return { ok: false, status: "not_paid", message: `Sale status: ${saleStatus || "unknown"}` };
   }
@@ -135,7 +194,7 @@ export async function processChariowSale(
   //  4. fallback: most recent attempt for same email + product (last 24h)
   const customerEmail = String(c.email ?? rawPayload?.customer?.email ?? "").toLowerCase();
   const productId: string | undefined =
-    s.product_id ?? s.product?.id ?? rawPayload?.sale?.product_id;
+    s.product_id ?? s.product?.id ?? rawPayload?.sale?.product_id ?? rawPayload?.data?.purchase?.product?.id;
   const tokenFromMeta: string | undefined = meta.attempt_token ?? hints?.attempt_token;
 
   let attempt: any = null;
@@ -193,8 +252,20 @@ export async function processChariowSale(
   const firstName = c.first_name ?? rawPayload?.customer?.first_name ?? attempt?.first_name ?? "";
   const lastName = c.last_name ?? rawPayload?.customer?.last_name ?? attempt?.last_name ?? "";
   const phone = c.phone ?? rawPayload?.customer?.phone ?? attempt?.phone ?? "";
-  const amount = Number(s.amount ?? rawPayload?.sale?.amount ?? 0);
-  const currency = s.currency ?? rawPayload?.sale?.currency ?? attempt?.currency ?? "XOF";
+  const amountValue =
+    s.amount?.value ??
+    s.original_amount?.value ??
+    rawPayload?.sale?.amount ??
+    rawPayload?.data?.purchase?.amount?.value ??
+    0;
+  const amount = Number(amountValue);
+  const currency =
+    s.currency ??
+    s.amount?.currency ??
+    s.original_amount?.currency ??
+    rawPayload?.sale?.currency ??
+    attempt?.currency ??
+    "XOF";
 
   const [{ data: cohort }, { data: profile }] = await Promise.all([
     supabaseAdmin
@@ -347,26 +418,8 @@ export async function processChariowSale(
     claimToken = pe?.claim_token ?? claimToken;
   }
 
-  // Ghost payment (no student yet) — only if not already created for this sale
-  const { data: existingGhost } = await supabaseAdmin
-    .from("payments")
-    .select("id")
-    .eq("chariow_sale_id", saleId)
-    .maybeSingle();
-  if (!existingGhost) {
-    await supabaseAdmin.from("payments").insert({
-      student_id: null as any,
-      cohort_id: cohortId,
-      amount_total: total,
-      amount_paid: mode === "full" ? total : Math.round(total / 2),
-      currency,
-      mode,
-      status: mode === "full" ? "paid" : "partial",
-      source: "chariow",
-      chariow_sale_id: saleId,
-      chariow_customer_email: email,
-    } as any);
-  }
+  // No ghost payment here: payments.student_id is required. The payment is
+  // created safely once the student creates an account via claimAttemptByToken.
 
   if (email && claimToken) {
     const slugForLink = cohortSlug || (cohort as any).slug || "";

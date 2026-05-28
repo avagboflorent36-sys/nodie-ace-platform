@@ -13,6 +13,8 @@ import { getChariowWebhookUrls } from "@/lib/admin-secrets.functions";
 import {
   syncChariowSale,
   listChariowWebhookEvents,
+  listChariowAttempts,
+  reconcileAttempt,
 } from "@/lib/chariow.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/webhook-secret")({
@@ -23,15 +25,24 @@ function WebhookSecretPage() {
   const fetchUrls = useServerFn(getChariowWebhookUrls);
   const resync = useServerFn(syncChariowSale);
   const listEvents = useServerFn(listChariowWebhookEvents);
+  const listAttempts = useServerFn(listChariowAttempts);
+  const reconcile = useServerFn(reconcileAttempt);
 
   const [urls, setUrls] = useState<{ previewUrl: string; productionUrl: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [saleId, setSaleId] = useState("");
   const [resyncing, setResyncing] = useState(false);
+  const [reconcilingId, setReconcilingId] = useState<string | null>(null);
 
   const eventsQ = useQuery({
     queryKey: ["chariow-webhook-events"],
     queryFn: () => listEvents({ data: undefined as any }),
+    refetchInterval: 10000,
+  });
+
+  const attemptsQ = useQuery({
+    queryKey: ["chariow-payment-attempts"],
+    queryFn: () => listAttempts({ data: undefined as any }),
     refetchInterval: 10000,
   });
 
@@ -72,6 +83,25 @@ function WebhookSecretPage() {
       toast.error(e?.message ?? "Échec du resync");
     } finally {
       setResyncing(false);
+    }
+  };
+
+  const doReconcileAttempt = async (attempt: any) => {
+    if (!attempt.chariow_sale_id) {
+      toast.error("Aucun ID de vente Chariow sur cette tentative");
+      return;
+    }
+    setReconcilingId(attempt.id);
+    try {
+      const r = await reconcile({ data: { attempt_id: attempt.id } });
+      if (r.ok) toast.success("Tentative réconciliée");
+      else toast.error(r.message ?? `Statut: ${r.status}`);
+      attemptsQ.refetch();
+      eventsQ.refetch();
+    } catch (e: any) {
+      toast.error(e?.message ?? "Échec de la réconciliation");
+    } finally {
+      setReconcilingId(null);
     }
   };
 
@@ -135,6 +165,53 @@ function WebhookSecretPage() {
               Resync
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <span>Tentatives de paiement récentes</span>
+            <Button size="sm" variant="ghost" onClick={() => attemptsQ.refetch()}>
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {attemptsQ.isLoading ? (
+            <p className="text-sm text-muted-foreground">Chargement...</p>
+          ) : (attemptsQ.data?.attempts ?? []).length === 0 ? (
+            <p className="text-sm text-muted-foreground">Aucune tentative enregistrée.</p>
+          ) : (
+            <div className="space-y-2">
+              {attemptsQ.data!.attempts.map((a: any) => (
+                <div key={a.id} className="rounded border border-border p-3 text-xs space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant={a.status === "processed" ? "default" : "outline"}>{a.status}</Badge>
+                    <span className="font-medium">{a.cohortes?.name ?? "Cohorte inconnue"}</span>
+                    <span className="text-muted-foreground">{new Date(a.created_at).toLocaleString()}</span>
+                  </div>
+                  <div className="grid gap-1 text-muted-foreground">
+                    <span>Email : <span className="text-foreground">{a.email}</span></span>
+                    <span>Produit : <span className="font-mono text-foreground">{a.chariow_product_id ?? "—"}</span></span>
+                    <span>Vente : <span className="font-mono text-foreground break-all">{a.chariow_sale_id ?? "non reçue"}</span></span>
+                    {a.last_error && <span className="text-destructive break-all">Erreur : {a.last_error}</span>}
+                  </div>
+                  <div className="flex justify-end">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => doReconcileAttempt(a)}
+                      disabled={!a.chariow_sale_id || reconcilingId === a.id}
+                    >
+                      <RefreshCw className={`mr-2 h-4 w-4 ${reconcilingId === a.id ? "animate-spin" : ""}`} />
+                      Revérifier
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 

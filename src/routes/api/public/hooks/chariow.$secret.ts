@@ -4,6 +4,7 @@ import {
   timingSafeEqualStr,
   webhookUrlSecret,
   extractSaleId,
+  extractAttemptToken,
   extractEventType,
   processChariowSale,
 } from "@/lib/chariow.server";
@@ -74,14 +75,8 @@ export const Route = createFileRoute("/api/public/hooks/chariow/$secret")({
         }
 
         try {
-          // Also try to recover attempt_token from a redirect_url echoed back
-          const redirectUrl: string =
-            raw?.sale?.redirect_url ?? raw?.redirect_url ?? raw?.data?.redirect_url ?? "";
-          let attemptToken: string | undefined;
-          if (redirectUrl) {
-            const m = String(redirectUrl).match(/[?&]attempt=([a-z0-9]+)/i);
-            if (m) attemptToken = m[1];
-          }
+          // Also try to recover attempt_token from metadata or a redirect_url echoed back.
+          const attemptToken = extractAttemptToken(raw) || undefined;
           const result = await processChariowSale(saleId, raw, { attempt_token: attemptToken });
           if (eventRowId) {
             await supabaseAdmin
