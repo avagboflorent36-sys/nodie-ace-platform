@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState, type FormEvent } from "react";
 import { toast } from "sonner";
-import { CheckCircle2, Loader2 } from "lucide-react";
+import { CheckCircle2, Loader2, RefreshCw } from "lucide-react";
 
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
@@ -297,6 +297,7 @@ function PostPaymentStep({
   const [verifying, setVerifying] = useState(hasRemoteCheck);
   const [verified, setVerified] = useState(!hasRemoteCheck);
   const [paid, setPaid] = useState(false);
+  const [manualChecking, setManualChecking] = useState(false);
 
   useEffect(() => {
     if (!hasRemoteCheck) {
@@ -332,6 +333,36 @@ function PostPaymentStep({
     poll();
     return () => { cancelled = true; };
   }, [saleId, attemptToken, hasRemoteCheck, fetchStatus, checkAttempt]);
+
+  const manualRecheck = async () => {
+    setManualChecking(true);
+    try {
+      if (attemptToken) {
+        const r = await checkAttempt({ data: { token: attemptToken } });
+        if (r.found && r.paid) {
+          setPaid(true);
+          setVerified(true);
+          setVerifying(false);
+          toast.success("Paiement confirmé, vous pouvez compléter le formulaire.");
+          return;
+        }
+      } else if (saleId) {
+        const r = await fetchStatus({ data: { sale_id: saleId } });
+        if (r.paid) {
+          setPaid(true);
+          setVerified(true);
+          setVerifying(false);
+          toast.success("Paiement confirmé, vous pouvez compléter le formulaire.");
+          return;
+        }
+      }
+      toast.error("Paiement pas encore confirmé. Réessayez dans quelques instants.");
+    } catch (e: any) {
+      toast.error(e?.message ?? "Impossible de vérifier le paiement maintenant.");
+    } finally {
+      setManualChecking(false);
+    }
+  };
 
 
   const { data: customFields = [] } = useQuery({
@@ -562,6 +593,14 @@ function PostPaymentStep({
             persiste, contactez-nous.
           </p>
         </Card>
+        <Button
+          onClick={manualRecheck}
+          disabled={manualChecking}
+          className="w-full bg-gold text-primary hover:bg-gold/90"
+        >
+          <RefreshCw className={`mr-2 h-4 w-4 ${manualChecking ? "animate-spin" : ""}`} />
+          {manualChecking ? "Vérification..." : "J'ai payé, revérifier maintenant"}
+        </Button>
         <Button
           onClick={() => navigate({ to: "/inscription/$slug", params: { slug } })}
           variant="outline"
