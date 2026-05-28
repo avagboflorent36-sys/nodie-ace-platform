@@ -11,8 +11,74 @@ export type AutomationSummary = {
   errors: string[];
 };
 
+// Vérifie qu'on est dans la fenêtre [time_of_day, time_of_day + 1h] aujourd'hui (UTC).
+// Le cron tourne toutes les 15 min : une fenêtre d'1 h garantit qu'on déclenche une fois.
+function isWithinTimeWindow(timeOfDay: string | null | undefined): boolean {
+  if (!timeOfDay) return true;
+  const [hh, mm] = String(timeOfDay).split(":").map((n) => Number(n) || 0);
+  const now = new Date();
+  const start = new Date(now);
+  start.setUTCHours(hh, mm, 0, 0);
+  const end = new Date(start.getTime() + 60 * 60 * 1000);
+  return now >= start && now <= end;
+}
+
+async function sendReminderForInstallment(inst: any, rule: any, summary: AutomationSummary, today: string) {
+  // Dédup : 1 relance / installment / jour / règle
+  const { data: existing } = await supabaseAdmin
+    .from("payment_reminders")
+    .select("id")
+    .eq("installment_id", inst.id)
+    .gte("sent_at", `${today}T00:00:00Z`)
+    .limit(1);
+  if (existing && existing.length > 0) return;
+
+  const { data: prof } = await supabaseAdmin
+    .from("profiles")
+    .select("first_name, email")
+    .eq("id", (inst as any).payments.student_id)
+    .maybeSingle();
+  if (!prof?.email) return;
+
+  const cohortName = (inst as any).payments?.cohortes?.name ?? "votre cohorte";
+  const verb =
+    rule.template_key === "reminder_overdue"
+      ? "Paiement en retard"
+      : rule.template_key === "reminder_due"
+        ? "Échéance aujourd'hui"
+        : "Rappel paiement";
+  const amount = Number(inst.amount).toLocaleString();
+  const currency = (inst as any).payments?.currency ?? "XOF";
+  const html = wrapHtml(
+    `${verb} — ${cohortName}`,
+    `<p>Bonjour ${prof.first_name ?? ""},</p>
+     <p>${verb} pour <strong>${cohortName}</strong>.</p>
+     <p>Montant : <strong>${amount} ${currency}</strong><br/>Échéance : <strong>${inst.due_date}</strong></p>
+     <p><a href="${siteUrl("/etudiant/paiements")}" style="display:inline-block;background:#c9a84c;color:#0d0d0d;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600">Régler maintenant</a></p>`,
+  );
+
+  try {
+    await sendEmail(prof.email, `${verb} — ${cohortName}`, html);
+    await supabaseAdmin
+      .from("payment_reminders")
+      .insert({ installment_id: inst.id, channel: "email", status: "sent" });
+    summary.reminders++;
+  } catch (e: any) {
+    await supabaseAdmin
+      .from("payment_reminders")
+      .insert({
+        installment_id: inst.id,
+        channel: "email",
+        status: "failed",
+        error: String(e?.message ?? e).slice(0, 500),
+      });
+    summary.errors.push(`reminder ${inst.id}: ${String(e?.message ?? e).slice(0, 200)}`);
+  }
+}
+
 export async function runAutomationTick(): Promise<AutomationSummary> {
   const today = new Date().toISOString().slice(0, 10);
+  const nowIso = new Date().toISOString();
   const summary: AutomationSummary = {
     reminders: 0,
     restricted: 0,
@@ -25,13 +91,36 @@ export async function runAutomationTick(): Promise<AutomationSummary> {
   try {
     const { data: rules } = await supabaseAdmin
       .from("cohort_reminder_rules")
-      .select("id, cohort_id, offset_days, channel, template_key, enabled")
+      .select("*")
       .eq("enabled", true);
 
     for (const rule of rules ?? []) {
       if (rule.channel !== "email") continue;
-      // offset_days négatif = avant échéance, positif = après.
-      // Cible = today - offset_days → si offset=-7 → due = today+7.
+
+      // Mode absolu : run_at unique, last_run_at pour éviter répétition
+      if (rule.trigger_mode === "absolute") {
+        if (!rule.run_at || rule.last_run_at) continue;
+        if (new Date(rule.run_at).getTime() > Date.now()) continue;
+
+        const { data: insts } = await supabaseAdmin
+          .from("payment_installments")
+          .select("id, amount, due_date, payment_id, payments!inner(student_id, cohort_id, currency, cohortes(name))")
+          .neq("status", "validated")
+          .eq("payments.cohort_id", rule.cohort_id);
+
+        for (const inst of insts ?? []) {
+          await sendReminderForInstallment(inst, rule, summary, today);
+        }
+        await supabaseAdmin
+          .from("cohort_reminder_rules")
+          .update({ last_run_at: nowIso })
+          .eq("id", rule.id);
+        continue;
+      }
+
+      // Mode relatif : offset_days + time_of_day
+      if (!isWithinTimeWindow(rule.time_of_day)) continue;
+
       const target = new Date();
       target.setDate(target.getDate() - rule.offset_days);
       const targetStr = target.toISOString().slice(0, 10);
@@ -46,56 +135,7 @@ export async function runAutomationTick(): Promise<AutomationSummary> {
         .eq("payments.cohort_id", rule.cohort_id);
 
       for (const inst of insts ?? []) {
-        // Dédup : 1 relance / installment / jour
-        const { data: existing } = await supabaseAdmin
-          .from("payment_reminders")
-          .select("id")
-          .eq("installment_id", inst.id)
-          .gte("sent_at", `${today}T00:00:00Z`)
-          .limit(1);
-        if (existing && existing.length > 0) continue;
-
-        const { data: prof } = await supabaseAdmin
-          .from("profiles")
-          .select("first_name, email")
-          .eq("id", (inst as any).payments.student_id)
-          .maybeSingle();
-        if (!prof?.email) continue;
-
-        const cohortName = (inst as any).payments?.cohortes?.name ?? "votre cohorte";
-        const verb =
-          rule.template_key === "reminder_overdue"
-            ? "Paiement en retard"
-            : rule.template_key === "reminder_due"
-              ? "Échéance aujourd'hui"
-              : "Rappel paiement";
-        const amount = Number(inst.amount).toLocaleString();
-        const currency = (inst as any).payments?.currency ?? "XOF";
-        const html = wrapHtml(
-          `${verb} — ${cohortName}`,
-          `<p>Bonjour ${prof.first_name ?? ""},</p>
-           <p>${verb} pour <strong>${cohortName}</strong>.</p>
-           <p>Montant : <strong>${amount} ${currency}</strong><br/>Échéance : <strong>${inst.due_date}</strong></p>
-           <p><a href="${siteUrl("/etudiant/paiements")}" style="display:inline-block;background:#c9a84c;color:#0d0d0d;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600">Régler maintenant</a></p>`,
-        );
-
-        try {
-          await sendEmail(prof.email, `${verb} — ${cohortName}`, html);
-          await supabaseAdmin
-            .from("payment_reminders")
-            .insert({ installment_id: inst.id, channel: "email", status: "sent" });
-          summary.reminders++;
-        } catch (e: any) {
-          await supabaseAdmin
-            .from("payment_reminders")
-            .insert({
-              installment_id: inst.id,
-              channel: "email",
-              status: "failed",
-              error: String(e?.message ?? e).slice(0, 500),
-            });
-          summary.errors.push(`reminder ${inst.id}: ${String(e?.message ?? e).slice(0, 200)}`);
-        }
+        await sendReminderForInstallment(inst, rule, summary, today);
       }
     }
   } catch (e: any) {
@@ -111,6 +151,39 @@ export async function runAutomationTick(): Promise<AutomationSummary> {
       .eq("action", "restrict_access");
 
     for (const rule of rules ?? []) {
+      // Mode absolu : run_at unique
+      if (rule.trigger_mode === "absolute") {
+        if (!rule.run_at || rule.last_run_at) continue;
+        if (new Date(rule.run_at).getTime() > Date.now()) continue;
+
+        let q = supabaseAdmin
+          .from("payment_installments")
+          .select("id, position, payment_id, payments!inner(student_id, cohort_id)")
+          .eq("payments.cohort_id", rule.cohort_id)
+          .neq("status", "validated");
+        if (rule.installment_position) q = q.eq("position", rule.installment_position);
+
+        const { data: late } = await q;
+        for (const inst of late ?? []) {
+          const sid = (inst as any).payments.student_id;
+          const { error } = await supabaseAdmin
+            .from("cohort_enrollments")
+            .update({ status: "restricted" })
+            .eq("student_id", sid)
+            .eq("cohort_id", rule.cohort_id)
+            .eq("status", "active");
+          if (!error) summary.restricted++;
+        }
+        await supabaseAdmin
+          .from("cohort_access_rules")
+          .update({ last_run_at: nowIso })
+          .eq("id", rule.id);
+        continue;
+      }
+
+      // Mode relatif : offset_days + time_of_day
+      if (!isWithinTimeWindow(rule.time_of_day)) continue;
+
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - rule.offset_days);
       const cutoffStr = cutoff.toISOString().slice(0, 10);
@@ -138,6 +211,7 @@ export async function runAutomationTick(): Promise<AutomationSummary> {
   } catch (e: any) {
     summary.errors.push(`access: ${e.message}`);
   }
+
 
   // ---- 3. Campagnes email programmées (échues) ----
   try {

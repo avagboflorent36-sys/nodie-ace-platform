@@ -191,7 +191,11 @@ export type Database = {
           enabled: boolean
           id: string
           installment_position: number | null
+          last_run_at: string | null
           offset_days: number
+          run_at: string | null
+          time_of_day: string
+          trigger_mode: string
           trigger_type: string
         }
         Insert: {
@@ -201,7 +205,11 @@ export type Database = {
           enabled?: boolean
           id?: string
           installment_position?: number | null
+          last_run_at?: string | null
           offset_days?: number
+          run_at?: string | null
+          time_of_day?: string
+          trigger_mode?: string
           trigger_type?: string
         }
         Update: {
@@ -211,7 +219,11 @@ export type Database = {
           enabled?: boolean
           id?: string
           installment_position?: number | null
+          last_run_at?: string | null
           offset_days?: number
+          run_at?: string | null
+          time_of_day?: string
+          trigger_mode?: string
           trigger_type?: string
         }
         Relationships: [
@@ -354,8 +366,12 @@ export type Database = {
           created_at: string
           enabled: boolean
           id: string
+          last_run_at: string | null
           offset_days: number
+          run_at: string | null
           template_key: string
+          time_of_day: string
+          trigger_mode: string
         }
         Insert: {
           channel?: string
@@ -363,8 +379,12 @@ export type Database = {
           created_at?: string
           enabled?: boolean
           id?: string
+          last_run_at?: string | null
           offset_days?: number
+          run_at?: string | null
           template_key?: string
+          time_of_day?: string
+          trigger_mode?: string
         }
         Update: {
           channel?: string
@@ -372,8 +392,12 @@ export type Database = {
           created_at?: string
           enabled?: boolean
           id?: string
+          last_run_at?: string | null
           offset_days?: number
+          run_at?: string | null
           template_key?: string
+          time_of_day?: string
+          trigger_mode?: string
         }
         Relationships: [
           {

@@ -1,170 +1,52 @@
-## Diagnostic global
+# Plan — Onglet « Automatisations » : affichage + planification précise
 
-Le problème vient d’une confusion entre deux types de liens :
+## Problème 1 — Affichage cassé de l'onglet Automatisations
 
-1. **Lien principal d’inscription**
-   - URL actuelle : `/inscription/{slug}`
-   - Ce lien affiche le formulaire et démarre toujours le paiement initial : paiement 1x ou tranche 1.
-   - Il utilise `chariow_product_id_full` ou `chariow_product_id_installment_1`.
+**Cause**
+- `TabsList` en `grid-cols-9` : 9 onglets serrés sur une seule ligne → l'onglet « Automatisations » saute en largeur quand React remonte le contenu (effet « disparait/réapparait »).
+- À l'ouverture du tab, `useQuery(["automation-runs"])` part sans `placeholderData` → flash de l'état vide puis re-render.
+- Les éditeurs de règles utilisent une grille rigide `grid-cols-12 gap-2` avec beaucoup de `Select`/`Input` côte à côte → débordement horizontal dans le conteneur `max-w-7xl` sur 1185px (viewport actuel).
 
-2. **Lien tranche 2 réel**
-   - Le lien qui permet un paiement direct tranche 2 doit contenir un token étudiant : `/inscription/{slug}/tranche-2?t={tranche2_token}`.
-   - C’est ce token qui permet au serveur de retrouver le paiement partiel, l’étudiant, la cohorte, puis d’appeler Chariow avec `chariow_product_id_installment_2`.
+**Correctifs (UI uniquement)**
+1. `TabsList` : passer en `flex flex-wrap` + scroll horizontal sur mobile (au lieu de `grid-cols-9`), pour éviter le « saut » à chaque clic.
+2. `AutomationsTab` :
+   - `useQuery` → ajouter `placeholderData: (prev) => prev` et `staleTime: 30_000` pour supprimer le flash.
+   - Wrapper `<div className="overflow-x-auto">` autour des éditeurs.
+3. `ReminderRulesEditor` & `AccessRulesEditor` :
+   - Refondre chaque ligne en `flex flex-wrap gap-2` (labels visibles « Quand », « Canal », « Modèle », « Action »…) au lieu d'une grille à 12 colonnes invisibles.
+   - Largeurs minimales explicites sur chaque champ.
 
-Aujourd’hui, dans l’en-tête admin, le bouton “Copier le lien tranche 2” copie seulement :
+## Problème 2 — Planification précise (jour + heure exacts)
 
-```text
-/inscription/{slug}/tranche-2
-```
+Aujourd'hui les règles ne portent qu'un `offset_days` (relatif à `due_date`) ; le cron tourne toutes les 15 min mais compare des dates (jour entier).
+On ajoute **2 modes** par règle :
 
-Sans `?t=...`, cette URL ne peut pas identifier l’étudiant ni son paiement partiel. Elle ressemble donc à un lien générique et donne l’impression que la tranche 2 est “la même partout”.
+- **Mode `relative`** (existant, enrichi) : `offset_days` (J± par rapport à l'échéance) **+** `time_of_day` (`HH:MM`, par défaut 09:00) → la règle se déclenche le jour cible à l'heure indiquée.
+- **Mode `absolute`** (nouveau) : `run_at` (timestamp date+heure exact) → la règle se déclenche une seule fois à ce moment précis.
 
-Les données réelles de la cohorte consultée confirment pourtant que les Product IDs sont bien différents :
+### Migration DB
+Ajouter sur `cohort_reminder_rules` **et** `cohort_access_rules` :
+- `trigger_mode text not null default 'relative'` (check `'relative' | 'absolute'`)
+- `time_of_day time` (utilisé en mode relative, défaut `09:00`)
+- `run_at timestamptz` (utilisé en mode absolute)
+- `last_run_at timestamptz` (anti-doublon pour le mode absolute)
 
-```text
-Paiement 1x   : prd_hmels6
-Tranche 1     : prd_fied8f
-Tranche 2     : prd_wdheah
-```
+### Logique du tick (`src/lib/automation.server.ts`)
+- **Relances `relative`** : pour chaque règle, calculer `target_date = today - offset_days` ; ne déclencher que si l'heure courante UTC ≥ `time_of_day` (et ≤ `time_of_day + 1h` pour rester dans la fenêtre cron 15 min). La dédup actuelle par `payment_reminders` (1/jour/installment) suffit.
+- **Relances `absolute`** : déclencher quand `now() ≥ run_at` ET `last_run_at IS NULL`. Mettre `last_run_at = now()` après exécution. Audience = tous les `payment_installments` non validés de la cohorte.
+- **Règles d'accès** : même découpage. En mode `absolute`, à l'heure dite, bloquer les étudiants avec installment non validé. En mode `relative`, conserver le `offset_days` + `time_of_day`.
 
-La vraie faiblesse est donc l’UX + l’architecture des liens : on affiche encore un lien tranche 2 générique alors que la tranche 2 ne peut fonctionner correctement qu’avec un lien personnalisé par étudiant.
+### UI éditeurs
+Dans chaque ligne, un `Select` « Type de déclencheur » :
+- `Relatif à l'échéance` → champs `offset_days` (J±) + `time_of_day` (input `type="time"`).
+- `Date et heure exactes` → un seul input `type="datetime-local"` lié à `run_at` + badge « déjà exécuté le … » si `last_run_at` rempli, avec bouton « Réinitialiser ».
 
-## Objectif de correction
+## Fichiers touchés
+- `supabase/migrations/<new>.sql` — colonnes `trigger_mode`, `time_of_day`, `run_at`, `last_run_at` sur les 2 tables.
+- `src/routes/_authenticated/admin/cohortes.$id.tsx` — `TabsList`, `AutomationsTab`, `ReminderRulesEditor`, `AccessRulesEditor`.
+- `src/lib/automation.server.ts` — branchement `relative`/`absolute` pour relances et règles d'accès.
 
-Rendre impossible toute confusion :
-
-- le lien principal reste uniquement pour l’inscription initiale ;
-- le lien tranche 2 visible/admin devient toujours un lien personnalisé par étudiant avec token ;
-- le checkout tranche 2 utilise toujours le Product ID tranche 2 ;
-- après paiement tranche 2, l’étudiant est renvoyé vers la plateforme ;
-- si quelqu’un ouvre une URL tranche 2 sans token, l’app affiche une erreur claire et ne tente jamais d’utiliser le flux principal.
-
-## Plan d’implémentation
-
-### 1. Supprimer le faux lien tranche 2 générique dans l’en-tête admin
-
-Dans `src/routes/_authenticated/admin/cohortes.$id.tsx` :
-
-- Retirer le bouton qui copie `${inscriptionUrl}/tranche-2`.
-- Garder uniquement le bouton du lien principal `/inscription/{slug}`.
-- Ajouter un message court sous le bouton principal :
-  - “Les liens tranche 2 sont personnalisés par étudiant et disponibles dans l’onglet Étudiants.”
-
-Raison : un lien tranche 2 sans token ne peut pas être correct, car il ne sait pas quel paiement partiel finaliser.
-
-### 2. Renforcer l’onglet Étudiants comme source unique des liens tranche 2
-
-Dans `StudentsTab` de `src/routes/_authenticated/admin/cohortes.$id.tsx` :
-
-- Garder la colonne “Lien tranche 2”.
-- Générer exclusivement :
-
-```text
-/inscription/{slug}/tranche-2?t={payment.tranche2_token}
-```
-
-- Afficher ce bouton seulement si :
-  - paiement en mode `installments_2` ;
-  - paiement non payé entièrement ;
-  - token tranche 2 présent.
-- Ajouter éventuellement un libellé explicite : “Copier lien personnalisé”.
-
-### 3. Ajouter un bouton de diagnostic/admin pour voir le Product ID utilisé
-
-Dans l’interface admin, près de la configuration Chariow ou dans l’alerte de cohorte :
-
-- Afficher clairement les 3 Product IDs configurés :
-
-```text
-Paiement 1x   : prd_...
-Tranche 1     : prd_...
-Tranche 2     : prd_...
-```
-
-- Si deux IDs sont identiques, garder l’alerte de collision actuelle.
-- Si l’ID tranche 2 est absent, afficher que les liens tranche 2 ne seront pas disponibles.
-
-But : l’admin peut immédiatement confirmer que la tranche 2 utilise un produit différent.
-
-### 4. Corriger le bouton “Payer tranche 2” dans l’espace étudiant
-
-Dans `src/routes/_authenticated/etudiant/paiements.tsx` :
-
-- Le bouton “Payer tranche 2” ne doit plus appeler le flux générique `startChariowCheckout`.
-- Il doit rediriger vers le lien tokenisé déjà généré :
-
-```text
-/inscription/{slug}/tranche-2?t={tranche2_token}
-```
-
-Raison : cela force tous les chemins tranche 2 à passer par le même flux sécurisé `startChariowCheckoutForTranche2Token`, qui utilise explicitement `chariow_product_id_installment_2`.
-
-### 5. Factoriser la normalisation téléphone pour éviter l’erreur Chariow 400
-
-Dans `src/lib/chariow.functions.ts` :
-
-- Extraire la logique de formatage téléphone dans une fonction commune.
-- L’utiliser dans :
-  - `startChariowCheckout` ;
-  - `startChariowCheckoutForTranche2Token`.
-- Améliorer le mapping des pays détectés depuis l’indicatif international.
-- En cas de téléphone invalide, retourner une erreur claire sans planter la page.
-
-Cela corrige l’erreur récurrente :
-
-```text
-Invalid phone number. Check the number and country code.
-```
-
-### 6. Renforcer le serveur : la tranche 2 doit toujours vérifier le produit
-
-Dans `startChariowCheckoutForTranche2Token` :
-
-- Conserver la récupération du paiement via `tranche2_token`.
-- Vérifier que le paiement appartient bien à une cohorte ayant `chariow_product_id_installment_2`.
-- Créer la tentative Chariow avec :
-
-```text
-mode = installments_2
-installment_position = 2
-chariow_product_id = chariow_product_id_installment_2
-```
-
-- Retourner aussi `product_id` dans la réponse serveur, utile pour diagnostic.
-
-### 7. Vérifier les données existantes
-
-Faire une vérification base de données :
-
-- Tous les paiements `installments_2` partiels doivent avoir un `tranche2_token`.
-- La cohorte doit avoir un Product ID tranche 2 configuré.
-- Les tentatives tranche 2 créées après correction doivent enregistrer `chariow_product_id = prd_wdheah` pour la cohorte testée.
-
-Si nécessaire, ajouter une migration de rattrapage uniquement pour les tokens manquants.
-
-### 8. Validation finale
-
-Après implémentation :
-
-- Copier le lien principal depuis l’admin : il doit être `/inscription/{slug}` uniquement.
-- Copier le lien tranche 2 depuis l’onglet Étudiants : il doit contenir `?t=...`.
-- Ouvrir le lien tranche 2 personnalisé : il doit rediriger directement vers Chariow.
-- Vérifier la dernière tentative Chariow : `installment_position = 2` et `chariow_product_id = prd_wdheah`.
-- Après paiement, la redirection doit revenir vers `/etudiant/paiements`.
-
-## Fichiers à modifier
-
-- `src/routes/_authenticated/admin/cohortes.$id.tsx`
-  - supprimer le lien générique tranche 2 ;
-  - clarifier l’UI admin ;
-  - renforcer la colonne liens étudiants.
-
-- `src/routes/_authenticated/etudiant/paiements.tsx`
-  - faire passer le bouton tranche 2 par le lien tokenisé.
-
-- `src/lib/chariow.functions.ts`
-  - factoriser et fiabiliser le format téléphone ;
-  - renforcer la réponse/diagnostic du checkout tranche 2.
-
-- Base de données si nécessaire uniquement
-  - rattraper les tokens manquants pour les paiements en 2 tranches.
+## Validation
+- Onglet Automatisations : aucun « flash », contenu ne déborde plus à 1185px et reste lisible jusqu'à ~1024px.
+- Créer une règle « Tranche 2 – J+7 à 09:00 » → déclenchée lors du tick après 09:00 le jour J+7.
+- Créer une règle absolue « 2026-06-01 14:30 » → déclenchée une seule fois après cette heure ; `last_run_at` empêche la répétition.
