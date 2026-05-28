@@ -134,7 +134,10 @@ function AutomationsTab({ cohortId }: { cohortId: string }) {
   const { data: runs } = useQuery({
     queryKey: ["automation-runs"],
     queryFn: async () => (await fetchRuns({ data: undefined as any })).runs,
+    placeholderData: (prev) => prev,
+    staleTime: 30_000,
   });
+
 
   const execute = async () => {
     setRunning(true);
