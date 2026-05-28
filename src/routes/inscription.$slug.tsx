@@ -18,6 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   startChariowCheckout,
   fetchSaleStatus,
+  checkAttemptByToken,
   claimPendingEnrollment,
 } from "@/lib/chariow.functions";
 
