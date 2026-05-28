@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { initCheckout, verifySale } from "./chariow.server";
+import { initCheckout, verifySale, processChariowSale } from "./chariow.server";
 
 const SITE_URL =
   process.env.SITE_URL ||
@@ -271,7 +271,7 @@ export const claimPendingEnrollment = createServerFn({ method: "POST" })
 export const syncChariowSale = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
-    z.object({ sale_id: z.string().min(3).max(255) }).parse(input),
+    z.object({ sale_id: z.string().trim().min(3).max(255) }).parse(input),
   )
   .handler(async ({ data, context }) => {
     const { supabase } = context;
@@ -282,8 +282,50 @@ export const syncChariowSale = createServerFn({ method: "POST" })
     if (!roles?.some((r) => r.role === "admin" || r.role === "super_admin"))
       throw new Error("Admin only");
 
-    const sale: any = await verifySale(data.sale_id);
-    return { ok: true, sale };
+    try {
+      const result = await processChariowSale(data.sale_id);
+      // Log a synthetic webhook event so it appears in the admin list
+      await supabaseAdmin.from("chariow_webhook_events").insert({
+        event_type: "admin.resync",
+        sale_id: data.sale_id,
+        payload: { source: "admin_resync", result } as any,
+        processed_at: new Date().toISOString(),
+        error: result.ok ? null : result.message ?? result.status,
+      });
+      return result;
+    } catch (e: any) {
+      const msg = String(e?.message ?? e).slice(0, 500);
+      await supabaseAdmin.from("chariow_webhook_events").insert({
+        event_type: "admin.resync",
+        sale_id: data.sale_id,
+        payload: { source: "admin_resync", error: msg } as any,
+        processed_at: new Date().toISOString(),
+        error: msg,
+      });
+      throw new Error(msg);
+    }
+  });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6. Liste des derniers webhook events Chariow (admin)
+// ─────────────────────────────────────────────────────────────────────────────
+export const listChariowWebhookEvents = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase } = context;
+    const { data: roles } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", context.userId);
+    if (!roles?.some((r) => r.role === "admin" || r.role === "super_admin"))
+      throw new Error("Admin only");
+
+    const { data } = await supabaseAdmin
+      .from("chariow_webhook_events")
+      .select("id, event_type, sale_id, received_at, processed_at, error")
+      .order("received_at", { ascending: false })
+      .limit(30);
+    return { events: data ?? [] };
   });
 
 // ─────────────────────────────────────────────────────────────────────────────
