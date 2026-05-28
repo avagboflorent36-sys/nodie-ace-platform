@@ -243,7 +243,7 @@ function OverviewTab({ cohortId }: { cohortId: string }) {
   );
 }
 
-function StudentsTab({ cohortId }: { cohortId: string }) {
+function StudentsTab({ cohortId, cohortSlug }: { cohortId: string; cohortSlug: string }) {
   const qc = useQueryClient();
   const { data: rows = [] } = useQuery({
     queryKey: ["cohort-students", cohortId],
