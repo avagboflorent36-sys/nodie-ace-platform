@@ -173,7 +173,7 @@ export async function processChariowSale(
     {};
 
   const saleStatus = String(s.status ?? s.payment?.status ?? "").toLowerCase();
-  const paid = isPaidChariowStatus(saleStatus);
+  const paid = isPaidChariowStatus(s.status) || isPaidChariowStatus(s.payment?.status);
   if (!paid) {
     return { ok: false, status: "not_paid", message: `Sale status: ${saleStatus || "unknown"}` };
   }
@@ -409,26 +409,8 @@ export async function processChariowSale(
     claimToken = pe?.claim_token ?? claimToken;
   }
 
-  // Ghost payment (no student yet) — only if not already created for this sale
-  const { data: existingGhost } = await supabaseAdmin
-    .from("payments")
-    .select("id")
-    .eq("chariow_sale_id", saleId)
-    .maybeSingle();
-  if (!existingGhost) {
-    await supabaseAdmin.from("payments").insert({
-      student_id: null as any,
-      cohort_id: cohortId,
-      amount_total: total,
-      amount_paid: mode === "full" ? total : Math.round(total / 2),
-      currency,
-      mode,
-      status: mode === "full" ? "paid" : "partial",
-      source: "chariow",
-      chariow_sale_id: saleId,
-      chariow_customer_email: email,
-    } as any);
-  }
+  // No ghost payment here: payments.student_id is required. The payment is
+  // created safely once the student creates an account via claimAttemptByToken.
 
   if (email && claimToken) {
     const slugForLink = cohortSlug || (cohort as any).slug || "";
