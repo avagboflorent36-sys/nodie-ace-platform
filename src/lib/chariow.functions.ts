@@ -101,7 +101,12 @@ export const startChariowCheckout = createServerFn({ method: "POST" })
       throw new Error("Impossible d'enregistrer la tentative de paiement.");
     }
 
-    const redirect = `${origin}/inscription/${cohort.slug}?attempt=${attemptToken}&sale={sale_id}`;
+    // Tranche 2 : l'utilisateur est déjà inscrit → retour direct sur son espace paiements.
+    // Tranche 1 / paiement intégral : retour sur le formulaire d'inscription pour finaliser la création du compte.
+    const redirect =
+      data.mode === "installments_2" && data.installment_position === 2
+        ? `${origin}/etudiant/paiements?paid=2&sale={sale_id}`
+        : `${origin}/inscription/${cohort.slug}?attempt=${attemptToken}&sale={sale_id}`;
 
     // Chariow expects phone as { number, country_code } where country_code
     // is the ISO 3166-1 alpha-2 country code (e.g. "SN", "FR", "US"),
