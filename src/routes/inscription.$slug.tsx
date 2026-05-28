@@ -85,9 +85,7 @@ function InscriptionPage() {
           <div className="text-xs uppercase tracking-wide text-muted-foreground">
             {(cohort as any).formations?.title}
           </div>
-          <h1 className="mt-1 text-2xl font-bold">
-            Inscription — {cohort.name}
-          </h1>
+          <h1 className="mt-1 text-2xl font-bold">Inscription — {cohort.name}</h1>
           {(cohort as any).formations?.description && (
             <p className="mt-2 text-sm text-muted-foreground">
               {(cohort as any).formations.description}
@@ -160,6 +158,10 @@ function CheckoutStep({ cohort }: { cohort: any }) {
         window.location.href = r.checkout_url;
         return;
       }
+      if (r.redirect_url) {
+        window.location.href = r.redirect_url;
+        return;
+      }
       toast.error(r.message ?? "Impossible de créer le paiement Chariow");
       setLoading(false);
     } catch (e: any) {
@@ -228,11 +230,7 @@ function CheckoutStep({ cohort }: { cohort: any }) {
           <label
             className={`flex cursor-pointer items-center gap-2 rounded-lg border p-3 ${!canInst ? "opacity-50" : ""}`}
           >
-            <RadioGroupItem
-              value="installments_2"
-              id="install"
-              disabled={!canInst}
-            />
+            <RadioGroupItem value="installments_2" id="install" disabled={!canInst} />
             <div>
               <div className="text-sm font-medium">En 2 fois</div>
               <div className="text-xs text-muted-foreground">
@@ -244,8 +242,8 @@ function CheckoutStep({ cohort }: { cohort: any }) {
         </RadioGroup>
         {!canFull && !canInst && (
           <p className="mt-2 text-xs text-destructive">
-            Cette cohorte n'est pas encore configurée pour accepter des
-            paiements. Contactez l'équipe.
+            Cette cohorte n'est pas encore configurée pour accepter des paiements. Contactez
+            l'équipe.
           </p>
         )}
       </div>
@@ -257,8 +255,7 @@ function CheckoutStep({ cohort }: { cohort: any }) {
       >
         {loading ? (
           <>
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Redirection vers
-            le paiement...
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Redirection vers le paiement...
           </>
         ) : (
           "Payer via Chariow"
@@ -316,22 +313,33 @@ function PostPaymentStep({
             const r = await checkAttempt({ data: { token: attemptToken } });
             if (cancelled) return;
             if (r.found && r.paid) {
-              setPaid(true); setVerified(true); setVerifying(false); return;
+              setPaid(true);
+              setVerified(true);
+              setVerifying(false);
+              return;
             }
           } else if (saleId) {
             const r = await fetchStatus({ data: { sale_id: saleId } });
             if (cancelled) return;
             if (r.paid) {
-              setPaid(true); setVerified(true); setVerifying(false); return;
+              setPaid(true);
+              setVerified(true);
+              setVerifying(false);
+              return;
             }
           }
         } catch {}
         await new Promise((res) => setTimeout(res, 3000));
       }
-      if (!cancelled) { setVerified(true); setVerifying(false); }
+      if (!cancelled) {
+        setVerified(true);
+        setVerifying(false);
+      }
     };
     poll();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [saleId, attemptToken, hasRemoteCheck, fetchStatus, checkAttempt]);
 
   const manualRecheck = async () => {
@@ -364,18 +372,12 @@ function PostPaymentStep({
     }
   };
 
-
   const { data: customFields = [] } = useQuery({
     queryKey: ["cohort-form-fields", cohort?.id],
     enabled: !!cohort?.id,
     queryFn: async () =>
-      (
-        await supabase
-          .from("form_fields")
-          .select("*")
-          .eq("cohort_id", cohort.id)
-          .order("position")
-      ).data ?? [],
+      (await supabase.from("form_fields").select("*").eq("cohort_id", cohort.id).order("position"))
+        .data ?? [],
   });
 
   const [form, setForm] = useState({
@@ -391,13 +393,7 @@ function PostPaymentStep({
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (
-      !form.firstName ||
-      !form.lastName ||
-      !form.email ||
-      !form.whatsapp ||
-      !form.country
-    ) {
+    if (!form.firstName || !form.lastName || !form.email || !form.whatsapp || !form.country) {
       toast.error("Tous les champs sont requis");
       return;
     }
@@ -428,6 +424,12 @@ function PostPaymentStep({
     });
     if (suErr || !signed.user) {
       setLoading(false);
+      const alreadyExists = /already|registered|exists|inscrit|existe/i.test(suErr?.message ?? "");
+      if (alreadyExists && attemptToken) {
+        toast.error("Ce compte existe déjà. Connectez-vous pour lier votre paiement.");
+        navigate({ to: "/login", search: { attempt: attemptToken } as any });
+        return;
+      }
       toast.error(suErr?.message ?? "Erreur lors de la création du compte");
       return;
     }
@@ -467,7 +469,6 @@ function PostPaymentStep({
       });
     }
 
-
     setLoading(false);
     if (hasSession) {
       toast.success("Bienvenue ! Votre espace étudiant est prêt.");
@@ -476,11 +477,12 @@ function PostPaymentStep({
       toast.success(
         "Compte créé ! Vérifiez votre email puis connectez-vous pour accéder à votre espace.",
       );
-      navigate({ to: "/login" });
+      navigate({
+        to: "/login",
+        search: attemptToken ? ({ attempt: attemptToken } as any) : undefined,
+      });
     }
   };
-
-
 
   const renderField = (f: any) => {
     const val = answers[f.label];
@@ -488,11 +490,7 @@ function PostPaymentStep({
     switch (f.field_type) {
       case "long_text":
         return (
-          <Textarea
-            value={val ?? ""}
-            onChange={(e) => set(e.target.value)}
-            required={f.required}
-          />
+          <Textarea value={val ?? ""} onChange={(e) => set(e.target.value)} required={f.required} />
         );
       case "email":
         return (
@@ -532,11 +530,7 @@ function PostPaymentStep({
         );
       case "single_choice":
         return (
-          <RadioGroup
-            value={val ?? ""}
-            onValueChange={set}
-            className="space-y-1"
-          >
+          <RadioGroup value={val ?? ""} onValueChange={set} className="space-y-1">
             {(f.options ?? []).map((o: string) => (
               <label key={o} className="flex items-center gap-2 text-sm">
                 <RadioGroupItem value={o} />
@@ -566,11 +560,7 @@ function PostPaymentStep({
         );
       default:
         return (
-          <Input
-            value={val ?? ""}
-            onChange={(e) => set(e.target.value)}
-            required={f.required}
-          />
+          <Input value={val ?? ""} onChange={(e) => set(e.target.value)} required={f.required} />
         );
     }
   };
@@ -588,9 +578,8 @@ function PostPaymentStep({
       <div className="mt-6 space-y-3">
         <Card className="p-4 border-amber-500/40 bg-amber-500/5">
           <p className="text-sm">
-            Nous n'avons pas encore reçu la confirmation de votre paiement.
-            Recharger cette page dans quelques instants — si le problème
-            persiste, contactez-nous.
+            Nous n'avons pas encore reçu la confirmation de votre paiement. Recharger cette page
+            dans quelques instants — si le problème persiste, contactez-nous.
           </p>
         </Card>
         <Button
@@ -654,8 +643,7 @@ function PostPaymentStep({
           required
         />
         <p className="mt-1 text-xs text-muted-foreground">
-          Utilisez la même adresse que celle du paiement pour lier
-          automatiquement votre compte.
+          Utilisez la même adresse que celle du paiement pour lier automatiquement votre compte.
         </p>
       </div>
       <div className="grid grid-cols-2 gap-3">
