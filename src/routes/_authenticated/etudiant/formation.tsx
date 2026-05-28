@@ -226,16 +226,5 @@ function FormationPage() {
   );
 }
 
-function ResourceRow({ r }: { r: any }) {
-  const Icon = ICONS[r.type] ?? BookOpen;
-  return (
-    <a href={r.url ?? "#"} target="_blank" rel="noreferrer" className="flex items-center gap-3 p-3 transition hover:bg-accent/30">
-      <Icon className="h-4 w-4 text-gold" />
-      <div className="flex-1">
-        <div className="text-sm font-medium">{r.title}</div>
-        {r.description && <div className="text-xs text-muted-foreground">{r.description}</div>}
-      </div>
-      <span className="text-xs uppercase text-muted-foreground">{r.type}</span>
-    </a>
-  );
 }
+
