@@ -1,55 +1,72 @@
-## Diagnostic
+# Diagnostic — Pourquoi la plateforme est lente
 
-Le contenu est bien visible côté étudiant, mais il n’est pas réellement ouvrable de façon fiable :
+Après lecture de `src/router.tsx`, `src/routes/__root.tsx`, `src/hooks/useAuth.tsx`, `_authenticated.tsx`, `admin.tsx`, `etudiant.tsx`, j'ai identifié **3 causes racines** qui se cumulent et provoquent rechargements lents + sensation d'instabilité.
 
-- Les vidéos/PDF/liens sont rendus comme de simples liens externes.
-- Si l’URL est absente, invalide ou non cliquable, la ligne semble exister mais l’utilisateur ne peut rien ouvrir.
-- Les exercices n’ont actuellement aucun vrai comportement d’ouverture : s’il n’y a pas d’URL, ils ne mènent à rien.
-- Il n’y a pas de lecteur intégré, pas de modal de lecture, pas d’état d’erreur clair, et pas de validation forte côté admin au moment d’ajouter une ressource.
+## Cause 1 — Invalidation globale à chaque évènement d'auth (critique)
 
-## Plan de correction définitive
+Dans `__root.tsx`, le composant `AuthSync` fait :
 
-### 1. Créer une ouverture fiable des contenus côté étudiant
-Sur `/etudiant/formation`, remplacer les simples liens par une vraie action “Ouvrir” sur chaque ressource :
+```ts
+supabase.auth.onAuthStateChange(() => {
+  router.invalidate();              // re-run TOUS les loaders
+  queryClient.invalidateQueries();  // refetch TOUTES les queries
+});
+```
 
-- Vidéo : ouvrir dans un lecteur intégré si c’est YouTube/Vimeo ou afficher un bouton externe si le lien ne peut pas être intégré.
-- PDF/document : ouvrir dans une visionneuse intégrée quand possible, avec bouton “ouvrir dans un nouvel onglet”.
-- Lien/playlist : ouvrir proprement dans un nouvel onglet.
-- Exercice : ouvrir une modal dédiée avec la consigne/description et, si une URL existe, un bouton pour accéder au support externe.
+Supabase déclenche `onAuthStateChange` pour **chaque** évènement : `INITIAL_SESSION` au montage, `TOKEN_REFRESHED` toutes les ~heures, à chaque retour d'onglet, etc. Résultat : la plateforme refetch **tout** en permanence → écrans qui se rechargent, latence, "chargement…" qui réapparaît.
 
-### 2. Gérer les contenus sans URL
-Pour les ressources qui n’ont pas d’URL :
+## Cause 2 — QueryClient sans configuration de cache
 
-- Ne plus afficher une ligne qui pointe vers `#`.
-- Afficher clairement “Contenu non disponible” ou ouvrir une modal avec la description si c’est un exercice.
-- Désactiver l’action externe quand aucun lien n’existe.
+`new QueryClient()` est créé sans defaults. Donc :
+- `staleTime: 0` → chaque montage refetch
+- `refetchOnWindowFocus: true` → refetch à chaque retour d'onglet
+- `retry: 3` → 3 tentatives lentes sur erreur
 
-### 3. Ajouter une validation admin minimale
-Dans `/admin/formations` et `/admin/cohortes/:id` :
+Combiné avec la Cause 1, chaque navigation ou focus = volée de requêtes.
 
-- Vérifier les URLs avant enregistrement pour les types vidéo, document et lien.
-- Afficher un message clair si l’admin essaie d’ajouter une vidéo/PDF/lien sans URL valide.
-- Autoriser les exercices sans URL seulement si une description/consigne est fournie.
+## Cause 3 — Pas de préchargement au survol
 
-### 4. Factoriser le rendu des ressources
-Créer un composant réutilisable pour éviter que la logique soit différente entre :
+`defaultPreload` n'est pas défini → aucun préchargement quand l'utilisateur survole un lien, la navigation attend tout au clic.
 
-- ressources du programme de formation,
-- ressources globales,
-- contenu spécifique à la cohorte.
+---
 
-Ce composant gérera : icône, type, bouton ouvrir, modal lecteur, fallback sans URL, et comportement mobile/desktop.
+# Plan de correction
 
-### 5. Vérifier les accès et les données existantes
-Le backend est opérationnel et les règles d’accès permettent déjà aux étudiants actifs de lire les ressources. Je garderai ces règles, puis je vérifierai que les ressources existantes avec URL YouTube s’ouvrent correctement après correction.
+### 1. `src/routes/__root.tsx` — `AuthSync` ciblé
+Ne réagir qu'aux évènements qui changent réellement l'identité utilisateur (`SIGNED_IN`, `SIGNED_OUT`, `USER_UPDATED`). Ignorer `TOKEN_REFRESHED` et `INITIAL_SESSION`. Ne plus appeler `queryClient.invalidateQueries()` en masse — laisser les mutations invalider leurs propres clés.
 
-## Fichiers à modifier
+### 2. `src/router.tsx` — defaults QueryClient + preload
+```ts
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 60_000,           // 1 min sans refetch
+      gcTime: 5 * 60_000,
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
 
-- `src/routes/_authenticated/etudiant/formation.tsx`
-- `src/routes/_authenticated/admin/formations.tsx`
-- `src/routes/_authenticated/admin/cohortes.$id.tsx`
-- éventuellement un petit composant dédié dans `src/components/` si cela rend le code plus stable
+createRouter({
+  routeTree,
+  context: { queryClient },
+  scrollRestoration: true,
+  defaultPreload: "intent",        // précharge au survol
+  defaultPreloadStaleTime: 0,
+});
+```
 
-## Résultat attendu
+### 3. Vérification rapide
+- Confirmer qu'aucun composant ne dépend de `invalidateQueries()` global pour se mettre à jour (les mutations existantes invalident déjà leurs clés ciblées).
+- Pas de changement de comportement fonctionnel — uniquement performance et stabilité.
 
-Après implémentation, un étudiant pourra ouvrir les vidéos, PDF, liens et exercices depuis sa page Formation, avec un comportement clair même quand une ressource est mal renseignée côté admin.
+---
+
+# Résultat attendu
+- Navigation quasi instantanée (preload + cache 1 min)
+- Plus de "Chargement…" qui réapparaît tout seul
+- Plus de refetch global à chaque refresh de token Supabase
+- Comportement métier strictement identique
+
+Souhaitez-vous que j'applique ce plan ?
