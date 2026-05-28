@@ -276,57 +276,60 @@ function PostPaymentStep({
   cohort,
   saleId,
   claimToken,
+  attemptToken,
   slug,
 }: {
   cohort: any;
   saleId?: string;
   claimToken?: string;
+  attemptToken?: string;
   slug: string;
 }) {
   const navigate = useNavigate();
   const fetchStatus = useServerFn(fetchSaleStatus);
+  const checkAttempt = useServerFn(checkAttemptByToken);
   const claim = useServerFn(claimPendingEnrollment);
 
-  const [verifying, setVerifying] = useState(!!saleId);
-  const [verified, setVerified] = useState(!saleId); // claim flow doesn't need re-verify
+  const hasRemoteCheck = !!(saleId || attemptToken);
+  const [verifying, setVerifying] = useState(hasRemoteCheck);
+  const [verified, setVerified] = useState(!hasRemoteCheck);
   const [paid, setPaid] = useState(false);
 
   useEffect(() => {
-    if (!saleId) {
+    if (!hasRemoteCheck) {
       setVerified(true);
       setPaid(true);
       return;
     }
     let cancelled = false;
     let attempts = 0;
-    const MAX_ATTEMPTS = 12; // ~36s total
+    const MAX_ATTEMPTS = 12;
     const poll = async () => {
       while (!cancelled && attempts < MAX_ATTEMPTS) {
         attempts++;
         try {
-          const r = await fetchStatus({ data: { sale_id: saleId } });
-          if (cancelled) return;
-          if (r.paid) {
-            setPaid(true);
-            setVerified(true);
-            setVerifying(false);
-            return;
+          if (attemptToken) {
+            const r = await checkAttempt({ data: { token: attemptToken } });
+            if (cancelled) return;
+            if (r.found && r.paid) {
+              setPaid(true); setVerified(true); setVerifying(false); return;
+            }
+          } else if (saleId) {
+            const r = await fetchStatus({ data: { sale_id: saleId } });
+            if (cancelled) return;
+            if (r.paid) {
+              setPaid(true); setVerified(true); setVerifying(false); return;
+            }
           }
-        } catch {
-          // ignore, keep polling
-        }
+        } catch {}
         await new Promise((res) => setTimeout(res, 3000));
       }
-      if (!cancelled) {
-        setVerified(true);
-        setVerifying(false);
-      }
+      if (!cancelled) { setVerified(true); setVerifying(false); }
     };
     poll();
-    return () => {
-      cancelled = true;
-    };
-  }, [saleId, fetchStatus]);
+    return () => { cancelled = true; };
+  }, [saleId, attemptToken, hasRemoteCheck, fetchStatus, checkAttempt]);
+
 
   const { data: customFields = [] } = useQuery({
     queryKey: ["cohort-form-fields", cohort?.id],
