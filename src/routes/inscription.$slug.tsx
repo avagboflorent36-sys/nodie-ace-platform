@@ -552,7 +552,7 @@ function PostPaymentStep({
     );
   }
 
-  if (verified && !paid && saleId) {
+  if (verified && !paid && (saleId || attemptToken)) {
     return (
       <div className="mt-6 space-y-3">
         <Card className="p-4 border-amber-500/40 bg-amber-500/5">
