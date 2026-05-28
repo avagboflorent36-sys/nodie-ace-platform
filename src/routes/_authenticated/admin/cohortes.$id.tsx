@@ -94,6 +94,26 @@ function CohortDetail() {
   );
 }
 
+function AutomationsTab({ cohortId }: { cohortId: string }) {
+  return (
+    <Card className="p-6 space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold">Automatisations</h2>
+        <p className="text-sm text-muted-foreground">
+          Programmez les règles d'accès, blocages et relances automatiques pour cette cohorte.
+        </p>
+      </div>
+      <ReminderRulesEditor cohortId={cohortId} />
+      <div className="pt-6 border-t">
+        <AccessRulesEditor cohortId={cohortId} />
+      </div>
+      <div className="pt-6 border-t">
+        <EmailCampaignsEditor cohortId={cohortId} />
+      </div>
+    </Card>
+  );
+}
+
 function OverviewTab({ cohortId }: { cohortId: string }) {
   const { data } = useQuery({
     queryKey: ["cohort-overview", cohortId],
