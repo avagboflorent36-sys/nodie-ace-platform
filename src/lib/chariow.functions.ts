@@ -149,6 +149,9 @@ export const startChariowCheckout = createServerFn({ method: "POST" })
       }
     }
 
+    // Chariow refuse les zéros initiaux (format local) — toujours envoyer en E.164 sans le 0
+    numberOnly = numberOnly.replace(/^0+/, "");
+
     if (!numberOnly || numberOnly.length < 6) {
       throw new Error("Numéro de téléphone invalide.");
     }
