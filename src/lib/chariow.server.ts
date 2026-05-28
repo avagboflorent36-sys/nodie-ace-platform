@@ -156,9 +156,21 @@ export async function processChariowSale(
   attempt_id?: string;
 }> {
   const verified: any = await verifySale(saleId);
-  const s = verified?.sale ?? verified?.data ?? verified ?? {};
-  const c = verified?.customer ?? rawPayload?.customer ?? {};
-  const meta = s.custom_metadata ?? rawPayload?.sale?.custom_metadata ?? {};
+  const s =
+    verified?.sale ??
+    verified?.data?.sale ??
+    verified?.data?.purchase ??
+    verified?.purchase ??
+    verified?.data ??
+    verified ??
+    {};
+  const c = s.customer ?? verified?.customer ?? rawPayload?.customer ?? rawPayload?.data?.purchase?.customer ?? {};
+  const meta =
+    s.custom_metadata ??
+    rawPayload?.sale?.custom_metadata ??
+    rawPayload?.data?.sale?.custom_metadata ??
+    rawPayload?.data?.purchase?.custom_metadata ??
+    {};
 
   const saleStatus = String(s.status ?? s.payment?.status ?? "").toLowerCase();
   const paid = isPaidChariowStatus(saleStatus);
@@ -173,7 +185,7 @@ export async function processChariowSale(
   //  4. fallback: most recent attempt for same email + product (last 24h)
   const customerEmail = String(c.email ?? rawPayload?.customer?.email ?? "").toLowerCase();
   const productId: string | undefined =
-    s.product_id ?? s.product?.id ?? rawPayload?.sale?.product_id;
+    s.product_id ?? s.product?.id ?? rawPayload?.sale?.product_id ?? rawPayload?.data?.purchase?.product?.id;
   const tokenFromMeta: string | undefined = meta.attempt_token ?? hints?.attempt_token;
 
   let attempt: any = null;
@@ -231,8 +243,20 @@ export async function processChariowSale(
   const firstName = c.first_name ?? rawPayload?.customer?.first_name ?? attempt?.first_name ?? "";
   const lastName = c.last_name ?? rawPayload?.customer?.last_name ?? attempt?.last_name ?? "";
   const phone = c.phone ?? rawPayload?.customer?.phone ?? attempt?.phone ?? "";
-  const amount = Number(s.amount ?? rawPayload?.sale?.amount ?? 0);
-  const currency = s.currency ?? rawPayload?.sale?.currency ?? attempt?.currency ?? "XOF";
+  const amountValue =
+    s.amount?.value ??
+    s.original_amount?.value ??
+    rawPayload?.sale?.amount ??
+    rawPayload?.data?.purchase?.amount?.value ??
+    0;
+  const amount = Number(amountValue);
+  const currency =
+    s.currency ??
+    s.amount?.currency ??
+    s.original_amount?.currency ??
+    rawPayload?.sale?.currency ??
+    attempt?.currency ??
+    "XOF";
 
   const [{ data: cohort }, { data: profile }] = await Promise.all([
     supabaseAdmin
