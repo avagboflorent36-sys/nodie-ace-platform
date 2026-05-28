@@ -293,8 +293,8 @@ export const checkAttemptByToken = createServerFn({ method: "POST" })
       try {
         const sale: any = await verifySale(saleId);
         const s = sale?.sale ?? sale?.data?.sale ?? sale?.data?.purchase ?? sale?.purchase ?? sale?.data ?? sale ?? {};
-        saleStatus = s.status ?? null;
-        paid = isPaidChariowStatus(s.status ?? s.payment?.status);
+        saleStatus = s.status ?? s.payment?.status ?? null;
+        paid = isPaidChariowStatus(s.status) || isPaidChariowStatus(s.payment?.status);
         if (paid && attempt.status !== "processed") {
           const result = await processChariowSale(saleId, sale, {
             attempt_token: attempt.token,
