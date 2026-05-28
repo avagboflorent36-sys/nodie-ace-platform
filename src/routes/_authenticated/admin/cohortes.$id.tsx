@@ -46,6 +46,14 @@ function CohortDetail() {
   const inscriptionUrl = `${window.location.origin}/inscription/${cohort.slug}`;
   const tranche2Url = `${window.location.origin}/inscription/${cohort.slug}/tranche-2`;
 
+  const inst1 = cohort.chariow_product_id_installment_1;
+  const inst2 = cohort.chariow_product_id_installment_2;
+  const full = cohort.chariow_product_id_full;
+  const productCollision =
+    (inst1 && inst2 && inst1 === inst2) ||
+    (full && inst2 && full === inst2) ||
+    (full && inst1 && full === inst1);
+
   return (
     <div className="mx-auto max-w-7xl space-y-6 animate-fade-up">
       <div>
@@ -71,6 +79,19 @@ function CohortDetail() {
           </div>
         </div>
       </div>
+
+      {productCollision && (
+        <Card className="p-4 border-destructive/40 bg-destructive/5 flex items-start gap-3">
+          <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+          <div className="text-sm">
+            <p className="font-medium text-destructive">Configuration Chariow invalide</p>
+            <p className="text-muted-foreground mt-1">
+              Plusieurs modes de paiement utilisent le même Product ID Chariow. La page tranche 2 ouvrira le même produit que la tranche 1 / paiement intégral. Allez dans <strong>Paramètres → Intégration Chariow</strong> et assignez un Product ID distinct à chaque mode.
+            </p>
+          </div>
+        </Card>
+      )}
+
 
 
       <Tabs value={tab} onValueChange={setTab}>
