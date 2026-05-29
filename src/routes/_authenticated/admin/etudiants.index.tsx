@@ -87,7 +87,10 @@ function StudentsPage() {
             ) : filtered.length === 0 ? (
               <TableRow><TableCell colSpan={6} className="py-12 text-center text-muted-foreground">Aucun étudiant.</TableCell></TableRow>
             ) : (
-              filtered.map((s: any) => {
+              filtered.length === 0 ? (
+              <TableRow><TableCell colSpan={6} className="py-12 text-center text-muted-foreground">Aucun étudiant.</TableCell></TableRow>
+            ) : (
+              visible.map((s: any) => {
                 const waHref = buildWhatsAppHref(s.whatsapp, s.first_name);
                 const canWhatsApp = waHref !== null;
                 return (
@@ -131,6 +134,14 @@ function StudentsPage() {
             )}
           </TableBody>
         </Table>
+        {hasMore && (
+          <div className="flex items-center justify-between gap-3 border-t p-3 text-sm text-muted-foreground">
+            <span>{visible.length} sur {filtered.length}</span>
+            <Button variant="outline" size="sm" onClick={() => setVisibleCount((n) => n + PAGE_SIZE)}>
+              Charger plus
+            </Button>
+          </div>
+        )}
       </Card>
     </div>
   );
