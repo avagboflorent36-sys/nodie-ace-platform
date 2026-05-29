@@ -3,6 +3,8 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
+const SITE_URL = "https://project--66439da9-0337-4213-a275-40cffeef22c6.lovable.app";
+
 const sendOne = async (to: string, subject: string, html: string) => {
   const key = process.env.RESEND_API_KEY;
   if (!key) throw new Error("RESEND_API_KEY missing");
@@ -15,13 +17,22 @@ const sendOne = async (to: string, subject: string, html: string) => {
   return res.json();
 };
 
+const renderTemplate = (tpl: string, vars: Record<string, string>) =>
+  tpl.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, k) => vars[k] ?? "");
+
 export const sendPaymentReminders = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ installmentIds: z.array(z.string().uuid()).min(1).max(500) }).parse(d))
+  .inputValidator((d) =>
+    z.object({
+      installmentIds: z.array(z.string().uuid()).min(1).max(500),
+      subject: z.string().min(2).max(200),
+      bodyTemplate: z.string().min(5).max(10000),
+    }).parse(d),
+  )
   .handler(async ({ data }) => {
     const { data: rows, error } = await supabaseAdmin
       .from("payment_installments")
-      .select("id, amount, due_date, payments(student_id, cohort_id, currency, cohortes(name))")
+      .select("id, amount, due_date, payment_id, payments(student_id, cohort_id, currency, mode, cohortes(name))")
       .in("id", data.installmentIds);
     if (error) throw new Error(error.message);
 
@@ -37,9 +48,26 @@ export const sendPaymentReminders = createServerFn({ method: "POST" })
       const due = (r as any).due_date ?? "—";
       const amount = Number((r as any).amount).toLocaleString();
       const currency = (r as any).payments?.currency ?? "XOF";
-      const html = `<div style="font-family:sans-serif;max-width:560px"><h2>Bonjour ${p.first_name ?? ""},</h2><p>Un rappel concernant votre paiement pour <strong>${cohortName}</strong>.</p><p>Montant : <strong>${amount} ${currency}</strong><br/>Échéance : <strong>${due}</strong></p><p>Connectez-vous à votre espace pour régler : <a href="https://project--66439da9-0337-4213-a275-40cffeef22c6.lovable.app/etudiant/paiements">Accéder</a></p><p>L'équipe Nodie IA Academy</p></div>`;
+      const paymentId = (r as any).payment_id;
+      const mode = (r as any).payments?.mode;
+      const lien = mode === "installments_2" && paymentId
+        ? `${SITE_URL}/etudiant/tranche-2/${paymentId}`
+        : `${SITE_URL}/etudiant/paiements`;
+
+      const vars = {
+        prenom: p.first_name ?? "",
+        cohorte: cohortName,
+        montant: amount,
+        devise: currency,
+        echeance: due,
+        lien_paiement: lien,
+      };
+      const subject = renderTemplate(data.subject, vars);
+      const bodyText = renderTemplate(data.bodyTemplate, vars);
+      const html = `<div style="font-family:sans-serif;max-width:560px;white-space:pre-wrap">${bodyText.replace(/\{\{lien_paiement\}\}/g, lien)}</div>`;
+
       try {
-        await sendOne(p.email, `Rappel paiement — ${cohortName}`, html);
+        await sendOne(p.email, subject, html);
         await supabaseAdmin.from("payment_reminders").insert({ installment_id: r.id, channel: "email", status: "sent" });
         results.push({ id: r.id, ok: true });
       } catch (e: any) {
