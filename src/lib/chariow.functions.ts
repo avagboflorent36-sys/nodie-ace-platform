@@ -545,7 +545,17 @@ export const getMyTranche2CheckoutSummary = createServerFn({ method: "POST" })
       .select("id, name, price_installment, chariow_product_id_installment_2")
       .eq("id", payment.cohort_id)
       .maybeSingle();
-    const t2 = (payment.payment_installments ?? []).find((i: any) => i.position === 2);
+    let t2 = (payment.payment_installments ?? []).find((i: any) => i.position === 2);
+    // Auto-heal: if payment is in 2-tranches mode but the position=2 row is missing, create it.
+    if (!t2 && payment.mode === "installments_2" && payment.status !== "paid") {
+      const amt = Number(cohort?.price_installment ?? 0);
+      const { data: inserted } = await supabaseAdmin
+        .from("payment_installments")
+        .insert({ payment_id: payment.id, position: 2, status: "pending", amount: amt })
+        .select("id, position, status, amount, due_date")
+        .maybeSingle();
+      if (inserted) t2 = inserted as any;
+    }
     const productId = normalizeChariowProductId(cohort?.chariow_product_id_installment_2);
     const ready = payment.mode === "installments_2" && payment.status !== "paid" && !!t2 && t2.status !== "validated" && !!productId;
 
@@ -561,6 +571,7 @@ export const getMyTranche2CheckoutSummary = createServerFn({ method: "POST" })
       tranche2: t2 ? { id: t2.id, status: t2.status, amount: Number(t2.amount ?? cohort?.price_installment ?? 0), due_date: t2.due_date } : null,
     };
   });
+
 
 export const startMyTranche2Checkout = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
