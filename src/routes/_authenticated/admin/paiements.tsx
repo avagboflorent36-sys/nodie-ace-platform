@@ -98,24 +98,57 @@ function PaymentsAdmin() {
     qc.invalidateQueries({ queryKey: ["admin-installments-all"] });
   };
 
-  const sendSelected = async () => {
+  const [dialogState, setDialogState] = useState<{ open: boolean; ids: string[]; subject: string; body: string; sending: boolean }>({
+    open: false, ids: [], subject: "", body: "", sending: false,
+  });
+
+  const recipients = useMemo(() => {
+    if (!dialogState.open) return [] as Array<{ id: string; name: string; email: string }>;
+    const setIds = new Set(dialogState.ids);
+    const seen = new Set<string>();
+    const list: Array<{ id: string; name: string; email: string }> = [];
+    for (const r of rows as any[]) {
+      if (!setIds.has(r.id)) continue;
+      const sid = r._student?.id;
+      if (!sid || seen.has(sid)) continue;
+      seen.add(sid);
+      list.push({
+        id: sid,
+        name: `${r._student?.first_name ?? ""} ${r._student?.last_name ?? ""}`.trim() || "—",
+        email: r._student?.email ?? "—",
+      });
+    }
+    return list;
+  }, [dialogState.open, dialogState.ids, rows]);
+
+  const openSelectionDialog = () => {
     const ids = Array.from(selected);
     if (ids.length === 0) { toast.error("Sélectionnez au moins une ligne"); return; }
-    try {
-      const r = await sendRem({ data: { installmentIds: ids } });
-      toast.success(`Relances envoyées : ${r.sent} ok, ${r.failed} échec`);
-      setSelected(new Set());
-    } catch (e: any) { toast.error(e.message); }
+    setDialogState({ open: true, ids, subject: DEFAULT_SUBJECT_SELECTION, body: DEFAULT_BODY_SELECTION, sending: false });
   };
 
-  const sendAllLate = async () => {
+  const openLateDialog = () => {
     if (lateIds.length === 0) { toast.error("Aucun retard"); return; }
-    if (!confirm(`Envoyer une relance à ${lateIds.length} étudiant(s) en retard ?`)) return;
-    try {
-      const r = await sendRem({ data: { installmentIds: lateIds } });
-      toast.success(`Relances envoyées : ${r.sent} ok, ${r.failed} échec`);
-    } catch (e: any) { toast.error(e.message); }
+    setDialogState({ open: true, ids: lateIds, subject: DEFAULT_SUBJECT_LATE, body: DEFAULT_BODY_LATE, sending: false });
   };
+
+  const confirmSend = async () => {
+    if (dialogState.ids.length === 0) return;
+    if (dialogState.subject.trim().length < 2 || dialogState.body.trim().length < 5) {
+      toast.error("Objet et contenu requis"); return;
+    }
+    setDialogState((s) => ({ ...s, sending: true }));
+    try {
+      const r = await sendRem({ data: { installmentIds: dialogState.ids, subject: dialogState.subject, bodyTemplate: dialogState.body } });
+      toast.success(`Relances envoyées : ${r.sent} ok, ${r.failed} échec`);
+      setSelected(new Set());
+      setDialogState({ open: false, ids: [], subject: "", body: "", sending: false });
+    } catch (e: any) {
+      toast.error(e.message);
+      setDialogState((s) => ({ ...s, sending: false }));
+    }
+  };
+
 
   const toggleSel = (id: string) => { const s = new Set(selected); s.has(id) ? s.delete(id) : s.add(id); setSelected(s); };
 
