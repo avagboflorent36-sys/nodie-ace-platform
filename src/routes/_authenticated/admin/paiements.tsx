@@ -239,6 +239,39 @@ function PaymentsAdmin() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={dialogState.open} onOpenChange={(o) => !dialogState.sending && setDialogState((s) => ({ ...s, open: o }))}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Composer l'email de relance</DialogTitle>
+            <DialogDescription>
+              {recipients.length} destinataire(s). Variables disponibles : <code>{"{{prenom}}"}</code>, <code>{"{{cohorte}}"}</code>, <code>{"{{montant}}"}</code>, <code>{"{{devise}}"}</code>, <code>{"{{echeance}}"}</code>, <code>{"{{lien_paiement}}"}</code>.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label htmlFor="rem-subject">Objet</Label>
+              <Input id="rem-subject" value={dialogState.subject} onChange={(e) => setDialogState((s) => ({ ...s, subject: e.target.value }))} />
+            </div>
+            <div>
+              <Label htmlFor="rem-body">Contenu</Label>
+              <Textarea id="rem-body" rows={12} className="font-mono text-sm" value={dialogState.body} onChange={(e) => setDialogState((s) => ({ ...s, body: e.target.value }))} />
+            </div>
+            <div className="max-h-32 overflow-y-auto rounded border p-2 text-xs text-muted-foreground">
+              <div className="font-medium mb-1">Destinataires :</div>
+              {recipients.map((r) => (
+                <div key={r.id}>{r.name} — {r.email}</div>
+              ))}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogState((s) => ({ ...s, open: false }))} disabled={dialogState.sending}>Annuler</Button>
+            <Button onClick={confirmSend} disabled={dialogState.sending} className="bg-gold text-primary hover:bg-gold/90">
+              <Send className="mr-1 h-3 w-3" /> {dialogState.sending ? "Envoi…" : `Envoyer (${dialogState.ids.length})`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
