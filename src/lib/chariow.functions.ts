@@ -545,7 +545,17 @@ export const getMyTranche2CheckoutSummary = createServerFn({ method: "POST" })
       .select("id, name, price_installment, chariow_product_id_installment_2")
       .eq("id", payment.cohort_id)
       .maybeSingle();
-    const t2 = (payment.payment_installments ?? []).find((i: any) => i.position === 2);
+    let t2 = (payment.payment_installments ?? []).find((i: any) => i.position === 2);
+    // Auto-heal: if payment is in 2-tranches mode but the position=2 row is missing, create it.
+    if (!t2 && payment.mode === "installments_2" && payment.status !== "paid") {
+      const amt = Number(cohort?.price_installment ?? 0);
+      const { data: inserted } = await supabaseAdmin
+        .from("payment_installments")
+        .insert({ payment_id: payment.id, position: 2, status: "pending", amount: amt })
+        .select("id, position, status, amount, due_date")
+        .maybeSingle();
+      if (inserted) t2 = inserted as any;
+    }
     const productId = normalizeChariowProductId(cohort?.chariow_product_id_installment_2);
     const ready = payment.mode === "installments_2" && payment.status !== "paid" && !!t2 && t2.status !== "validated" && !!productId;
 
@@ -561,6 +571,7 @@ export const getMyTranche2CheckoutSummary = createServerFn({ method: "POST" })
       tranche2: t2 ? { id: t2.id, status: t2.status, amount: Number(t2.amount ?? cohort?.price_installment ?? 0), due_date: t2.due_date } : null,
     };
   });
+
 
 export const startMyTranche2Checkout = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -591,10 +602,9 @@ export const startMyTranche2Checkout = createServerFn({ method: "POST" })
     if (payment.mode !== "installments_2") {
       return { checkout_url: null, status: "wrong_mode", message: "Ce paiement n'est pas en 2 tranches." };
     }
-    const t2 = (payment.payment_installments ?? []).find((i: any) => i.position === 2);
-    if (!t2) {
-      return { checkout_url: null, status: "no_installment", message: "La ligne de tranche 2 est introuvable pour ce paiement." };
-    }
+    let t2 = (payment.payment_installments ?? []).find((i: any) => i.position === 2);
+    // Note: if missing, we try to create it below once we have the cohort price.
+
     if (payment.status === "paid" || t2?.status === "validated") {
       return { checkout_url: null, status: "already_paid", message: "La tranche 2 est déjà réglée." };
     }
@@ -615,6 +625,26 @@ export const startMyTranche2Checkout = createServerFn({ method: "POST" })
         message: "Le Product ID Chariow de la tranche 2 n'est pas configuré pour cette cohorte. Demandez à l'administrateur de l'ajouter.",
       };
     }
+
+    // Auto-heal: create the missing tranche 2 installment line if needed.
+    if (!t2) {
+      const amt = Number(cohort.price_installment ?? 0);
+      const { data: inserted } = await supabaseAdmin
+        .from("payment_installments")
+        .insert({ payment_id: payment.id, position: 2, status: "pending", amount: amt })
+        .select("id, position, status, amount")
+        .maybeSingle();
+      if (inserted) t2 = inserted as any;
+      if (!t2) {
+        return { checkout_url: null, status: "no_installment", message: "Impossible de créer la ligne de tranche 2." };
+      }
+    }
+    if (t2?.status === "validated") {
+      return { checkout_url: null, status: "already_paid", message: "La tranche 2 est déjà réglée." };
+    }
+
+
+
 
     const { data: prof } = await supabaseAdmin
       .from("profiles")
