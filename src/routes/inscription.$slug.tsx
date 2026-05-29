@@ -388,6 +388,20 @@ function PostPaymentStep({
         .data ?? [],
   });
 
+  const { data: prefill } = useQuery({
+    queryKey: ["inscription-prefill", attemptToken ?? null, claimToken ?? null, saleId ?? null],
+    enabled: !!(attemptToken || claimToken || saleId),
+    queryFn: () =>
+      fetchPrefill({
+        data: {
+          attemptToken: attemptToken || undefined,
+          claimToken: claimToken || undefined,
+          saleId: saleId || undefined,
+        },
+      }),
+    staleTime: Infinity,
+  });
+
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
@@ -396,8 +410,27 @@ function PostPaymentStep({
     country: "",
     password: "",
   });
+  const [prefilledFields, setPrefilledFields] = useState<{ email: boolean; whatsapp: boolean }>({
+    email: false,
+    whatsapp: false,
+  });
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!prefill) return;
+    setForm((prev) => ({
+      ...prev,
+      firstName: prev.firstName || prefill.first_name || "",
+      lastName: prev.lastName || prefill.last_name || "",
+      email: prev.email || prefill.email || "",
+      whatsapp: prev.whatsapp || prefill.phone || "",
+    }));
+    setPrefilledFields({
+      email: !!prefill.email,
+      whatsapp: !!prefill.phone,
+    });
+  }, [prefill]);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
