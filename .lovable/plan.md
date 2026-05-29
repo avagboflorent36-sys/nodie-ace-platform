@@ -1,49 +1,51 @@
-# Corrections page Étudiants + page Paiements
+## Problème
 
-## 1. Bouton WhatsApp (`/admin/etudiants`)
+Sur `/etudiant/paiements`, l'étudiant `akitobiante85@gmail.com` voit son paiement `test 1` :
+- Mode : 2 tranches, 100 / 200 XOF, statut `partial`, source `chariow`
+- Une seule ligne `Tranche #1 — Validé`
+- **Aucun bouton pour payer la tranche 2**
 
-**Problème** : `https://wa.me/${digits}` ouvre WhatsApp mais souvent sans rediriger correctement vers la conversation (digits parfois mal formatés : « 00225… », espaces, `+` retiré mais zéros internationaux conservés, etc.).
+Vérification base de données : `payment_installments` ne contient qu'une seule ligne (position 1). La ligne tranche #2 n'a jamais été créée pour ce paiement Chariow.
 
-**Correction dans `src/routes/_authenticated/admin/etudiants.index.tsx`** :
-- Normaliser le numéro avant l'URL : retirer tous les non-chiffres, puis enlever un éventuel préfixe `00` (format international alternatif) pour ne garder que le format E.164 sans `+`.
-- Utiliser `https://wa.me/<digits>?text=...` avec un message prérempli court (« Bonjour {prenom}, ») pour forcer l'ouverture de la conversation.
-- Garder `target="_blank"` + `rel="noopener noreferrer"`.
-- Si après nettoyage le numéro fait moins de 8 chiffres → afficher « — » (numéro invalide).
-
-Aucun changement DB. Aucun changement sur la page étudiant détail.
-
-## 2. Statut d'accès dans la colonne « Actions » (`/admin/paiements`)
-
-**Problème** : on voit les boutons 🔒 Restreindre / 🔓 Rétablir mais pas l'état courant de l'accès de l'étudiant à la cohorte.
-
-**Correction dans `src/routes/_authenticated/admin/paiements.tsx`** :
-
-1. **Charger les enrollments** : ajouter une 2e query (`admin-enrollments-all`) qui lit `cohort_enrollments(student_id, cohort_id, status)` et construit une `Map<"studentId:cohortId", status>`.
-2. **Afficher un badge d'état** dans la cellule Actions, avant les boutons :
-   - `status === "active"` → badge vert « Accès actif » (icône `Unlock`)
-   - `status === "restricted"` → badge rouge « Accès restreint » (icône `Lock`)
-   - autre / absent → badge neutre « — »
-3. **N'afficher que le bouton pertinent** :
-   - Si actif → bouton « Restreindre » uniquement
-   - Si restreint → bouton « Rétablir » uniquement
-4. **Après `toggleAccess`** : invalider aussi `admin-enrollments-all` pour rafraîchir le badge immédiatement.
-
-Aucun changement DB ni sur d'autres pages.
-
-## Détails techniques
-
-```text
-etudiants.index.tsx
-  digits = raw.replace(/\D/g,'').replace(/^00/, '')
-  href   = `https://wa.me/${digits}?text=${encodeURIComponent('Bonjour ' + s.first_name + ',')}`
-
-paiements.tsx
-  useQuery('admin-enrollments-all') → Map<`${student_id}:${cohort_id}`, 'active'|'restricted'|...>
-  cell: <AccessBadge status={enrollMap.get(key)} /> + bouton conditionnel
-  toggleAccess → qc.invalidateQueries(['admin-enrollments-all'])
+Le code actuel de `src/routes/_authenticated/etudiant/paiements.tsx` fait :
+```ts
+const t2 = insts.find((i) => i.position === 2);
+const needsTranche2 = p.mode === "installments_2" && p.status !== "paid" && t2 && t2.status !== "validated";
 ```
+Comme `t2` est `undefined`, le carton CTA et le bouton « Payer la tranche 2 » ne s'affichent jamais.
+
+## Correctif
+
+Dans `src/routes/_authenticated/etudiant/paiements.tsx` :
+
+1. **Rendre le CTA tranche 2 indépendant de l'existence de la ligne en base.**
+   Nouvelle condition :
+   ```ts
+   const needsTranche2 =
+     p.mode === "installments_2" &&
+     p.status !== "paid" &&
+     (!t2 || t2.status !== "validated");
+   const remaining = Number(p.amount_total) - Number(p.amount_paid);
+   const t2Amount = t2?.amount ?? remaining;
+   const t2Due = t2?.due_date ?? p.final_deadline ?? null;
+   ```
+   Afficher le carton avec ces valeurs et le lien existant `/etudiant/tranche-2/$paymentId`.
+
+2. **Garder la liste des échéances inchangée** (on n'invente pas une ligne tranche #2 visuelle s'il n'y en a pas en DB), mais le carton CTA en haut suffit pour permettre le paiement et donc le rétablissement de l'accès.
 
 ## Hors scope
-- Pas de changement aux relances email
-- Pas de changement DB
-- Pas de changement aux autres pages
+
+- Pas de migration pour backfiller la ligne `payment_installments` position 2 manquante (la route `/etudiant/tranche-2/$paymentId` la créera/mettra à jour au paiement).
+- Pas de modification de la page admin ni du flux Chariow.
+- Pas de changement de design.
+
+## Détail technique
+
+```text
+etudiant/paiements.tsx (carton CTA)
+  needsTranche2 = mode=installments_2 && status!=paid && (!t2 || t2.status!=validated)
+  remaining     = amount_total - amount_paid
+  t2Amount      = t2?.amount      ?? remaining
+  t2Due         = t2?.due_date    ?? final_deadline
+  → <Link to="/etudiant/tranche-2/$paymentId" params={{paymentId: p.id}}>
+```
