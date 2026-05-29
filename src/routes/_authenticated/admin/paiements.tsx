@@ -78,6 +78,26 @@ function PaymentsAdmin() {
     return m;
   }, [enrollments]);
 
+  // Pour chaque (student:cohort), trouver l'échéance la plus ancienne en retard non validée
+  // afin d'expliquer pourquoi l'accès est restreint.
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const restrictionInfoMap = useMemo(() => {
+    const m = new Map<string, { position: number; due_date: string }>();
+    for (const r of rows as any[]) {
+      const sid = r.payments?.student_id;
+      const cid = r.payments?.cohort_id;
+      if (!sid || !cid) continue;
+      if (r.status === "validated") continue;
+      if (!r.due_date || r.due_date >= todayStr) continue;
+      const key = `${sid}:${cid}`;
+      const cur = m.get(key);
+      if (!cur || r.due_date < cur.due_date) {
+        m.set(key, { position: r.position, due_date: r.due_date });
+      }
+    }
+    return m;
+  }, [rows, todayStr]);
+
 
   const today = new Date().toISOString().slice(0, 10);
 
