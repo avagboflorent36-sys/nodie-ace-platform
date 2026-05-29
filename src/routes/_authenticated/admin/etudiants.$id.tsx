@@ -36,7 +36,7 @@ function StudentDetail() {
       const [profile, roles, enrollments, payments, responses, progress, notifs, reminders] = await Promise.all([
         supabase.from("profiles").select("*").eq("id", id).maybeSingle(),
         supabase.from("user_roles").select("role").eq("user_id", id),
-        supabase.from("cohort_enrollments").select("id, status, enrolled_at, cohort_id, cohortes(id, name, formation_id, formations(title))").eq("student_id", id),
+        supabase.from("cohort_enrollments").select("id, status, enrolled_at, cohort_id, certificate_unlocked_at, cohortes(id, name, formation_id, formations(title))").eq("student_id", id),
         supabase.from("payments").select("id, mode, status, amount_total, amount_paid, currency, cohort_id, created_at, final_deadline, cohortes(name), payment_installments(id, position, amount, status, due_date, submitted_at, validated_at, proof_path, rejection_reason)").eq("student_id", id),
         supabase.from("form_responses").select("id, answers, created_at, cohort_id, cohortes(name)").eq("student_id", id).order("created_at", { ascending: false }),
         supabase.from("progress_tracking").select("id, completed_at, ressource_id, ressources(title, module_id, modules(title, cohort_id, cohortes(name)))").eq("student_id", id),
