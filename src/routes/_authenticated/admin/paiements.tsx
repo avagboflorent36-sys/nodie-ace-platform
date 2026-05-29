@@ -45,11 +45,14 @@ export const Route = createFileRoute("/_authenticated/admin/paiements")({
   component: PaymentsAdmin,
 });
 
+const PAGE_SIZE = 25;
+
 function PaymentsAdmin() {
   const qc = useQueryClient();
   const sendRem = useServerFn(sendPaymentReminders);
   const [tab, setTab] = useState("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const { data: rows = [], isLoading: rowsLoading, error: rowsError } = useQuery({
     queryKey: ["admin-installments-all"],
