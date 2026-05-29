@@ -135,8 +135,8 @@ function StudentPayments() {
                   <div className="min-w-0">
                     <p className="text-sm font-medium">Tranche 2 à régler</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Montant restant : <strong>{Number(t2.amount).toLocaleString()} {p.currency}</strong>
-                      {t2.due_date ? ` — échéance ${t2.due_date}` : ""}
+                      Montant restant : <strong>{Number(t2Amount).toLocaleString()} {p.currency}</strong>
+                      {t2Due ? ` — échéance ${t2Due}` : ""}
                     </p>
                   </div>
                   <Button
