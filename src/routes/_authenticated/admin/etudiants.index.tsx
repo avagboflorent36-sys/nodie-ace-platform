@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
+import { buildWhatsAppHref } from "@/lib/whatsapp";
 
 export const Route = createFileRoute("/_authenticated/admin/etudiants/")({
   component: StudentsPage,
@@ -71,11 +72,8 @@ function StudentsPage() {
               <TableRow><TableCell colSpan={6} className="py-12 text-center text-muted-foreground">Aucun étudiant.</TableCell></TableRow>
             ) : (
               filtered.map((s: any) => {
-                const digits = String(s.whatsapp ?? "").replace(/\D/g, "").replace(/^00/, "");
-                const canWhatsApp = digits.length >= 8;
-                const waHref = canWhatsApp
-                  ? `https://wa.me/${digits}?text=${encodeURIComponent(`Bonjour ${s.first_name ?? ""},`)}`
-                  : "#";
+                const waHref = buildWhatsAppHref(s.whatsapp, s.first_name);
+                const canWhatsApp = waHref !== null;
                 return (
                   <TableRow
                     key={s.id}
