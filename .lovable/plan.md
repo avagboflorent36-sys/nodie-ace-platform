@@ -1,80 +1,49 @@
-# Édition des emails de relance avant envoi
+# Corrections page Étudiants + page Paiements
 
-## Objectif
+## 1. Bouton WhatsApp (`/admin/etudiants`)
 
-Sur `/admin/paiements`, au lieu d'envoyer immédiatement les relances quand on clique sur **Relancer sélection** ou **Relancer tous les retards**, ouvrir un dialog qui permet à l'admin :
-- de voir/modifier **l'objet** et le **contenu** de l'email
-- de voir la liste des destinataires concernés
-- d'envoyer après validation
+**Problème** : `https://wa.me/${digits}` ouvre WhatsApp mais souvent sans rediriger correctement vers la conversation (digits parfois mal formatés : « 00225… », espaces, `+` retiré mais zéros internationaux conservés, etc.).
 
-Le contenu est pré-rempli automatiquement avec un modèle incluant le lien vers la **2e tranche** de chaque étudiant.
+**Correction dans `src/routes/_authenticated/admin/etudiants.index.tsx`** :
+- Normaliser le numéro avant l'URL : retirer tous les non-chiffres, puis enlever un éventuel préfixe `00` (format international alternatif) pour ne garder que le format E.164 sans `+`.
+- Utiliser `https://wa.me/<digits>?text=...` avec un message prérempli court (« Bonjour {prenom}, ») pour forcer l'ouverture de la conversation.
+- Garder `target="_blank"` + `rel="noopener noreferrer"`.
+- Si après nettoyage le numéro fait moins de 8 chiffres → afficher « — » (numéro invalide).
 
-## Comportement attendu
+Aucun changement DB. Aucun changement sur la page étudiant détail.
 
-### Bouton "Relancer sélection (N)"
-- Ouvre un dialog avec un **objet** et un **contenu** par défaut.
-- Le contenu utilise des variables remplacées par destinataire : `{{prenom}}`, `{{cohorte}}`, `{{montant}}`, `{{devise}}`, `{{echeance}}`, `{{lien_paiement}}`.
-- L'admin peut éditer librement objet + contenu (textarea markdown/HTML simple).
-- Liste les destinataires (nom + email) avec compteur.
-- Boutons : **Annuler** / **Envoyer maintenant**.
+## 2. Statut d'accès dans la colonne « Actions » (`/admin/paiements`)
 
-### Bouton "Relancer tous les retards"
-- Même dialog, pré-rempli avec un **modèle spécifique retard** (ton plus ferme, mention "en retard").
-- Liste tous les étudiants en retard.
-- Lien pointant vers la 2e tranche de chaque étudiant (`/etudiant/tranche-2/{paymentId}` côté étudiant, ou l'URL absolue équivalente).
+**Problème** : on voit les boutons 🔒 Restreindre / 🔓 Rétablir mais pas l'état courant de l'accès de l'étudiant à la cohorte.
 
-## Modèles par défaut
+**Correction dans `src/routes/_authenticated/admin/paiements.tsx`** :
 
-**Sélection (rappel standard)** :
-- Objet : `Rappel paiement — {{cohorte}}`
-- Corps :
-  ```
-  Bonjour {{prenom}},
+1. **Charger les enrollments** : ajouter une 2e query (`admin-enrollments-all`) qui lit `cohort_enrollments(student_id, cohort_id, status)` et construit une `Map<"studentId:cohortId", status>`.
+2. **Afficher un badge d'état** dans la cellule Actions, avant les boutons :
+   - `status === "active"` → badge vert « Accès actif » (icône `Unlock`)
+   - `status === "restricted"` → badge rouge « Accès restreint » (icône `Lock`)
+   - autre / absent → badge neutre « — »
+3. **N'afficher que le bouton pertinent** :
+   - Si actif → bouton « Restreindre » uniquement
+   - Si restreint → bouton « Rétablir » uniquement
+4. **Après `toggleAccess`** : invalider aussi `admin-enrollments-all` pour rafraîchir le badge immédiatement.
 
-  Petit rappel concernant votre paiement pour {{cohorte}}.
-  Montant : {{montant}} {{devise}} — Échéance : {{echeance}}.
-
-  Réglez votre 2e tranche ici : {{lien_paiement}}
-
-  L'équipe Nodie IA Academy
-  ```
-
-**Tous les retards** :
-- Objet : `Paiement en retard — {{cohorte}}`
-- Corps : variante avec "votre échéance est dépassée", même variables + `{{lien_paiement}}`.
+Aucun changement DB ni sur d'autres pages.
 
 ## Détails techniques
 
-### Server fn (modifier `src/lib/reminders.functions.ts`)
-Étendre `sendPaymentReminders` pour accepter un objet et un template custom :
-```ts
-.inputValidator(z.object({
-  installmentIds: z.array(z.string().uuid()).min(1).max(500),
-  subject: z.string().min(2).max(200),
-  bodyTemplate: z.string().min(10).max(10000), // contient les {{variables}}
-}))
+```text
+etudiants.index.tsx
+  digits = raw.replace(/\D/g,'').replace(/^00/, '')
+  href   = `https://wa.me/${digits}?text=${encodeURIComponent('Bonjour ' + s.first_name + ',')}`
+
+paiements.tsx
+  useQuery('admin-enrollments-all') → Map<`${student_id}:${cohort_id}`, 'active'|'restricted'|...>
+  cell: <AccessBadge status={enrollMap.get(key)} /> + bouton conditionnel
+  toggleAccess → qc.invalidateQueries(['admin-enrollments-all'])
 ```
-Le handler remplace les variables par destinataire avant l'envoi (idem flow actuel), en gardant la journalisation dans `payment_reminders`.
 
-`{{lien_paiement}}` = URL absolue vers `/etudiant/tranche-2/{payment_id}` (récupérer `payment_id` via la jointure déjà présente). Si non applicable (mode `full`), fallback `/etudiant/paiements`.
-
-### UI (`src/routes/_authenticated/admin/paiements.tsx`)
-- Nouveau composant local `ReminderDialog` (Dialog shadcn) avec :
-  - `Input` objet
-  - `Textarea` contenu (rows ~12, monospace)
-  - Liste des destinataires (scrollable, max-h)
-  - Aide visuelle listant les variables disponibles
-  - Bouton "Envoyer" → appelle `sendPaymentReminders` avec `subject`/`bodyTemplate`/`installmentIds`
-- État `reminderDialog: { open, mode: "selection"|"late", ids: string[] }`
-- `sendSelected` et `sendAllLate` n'envoient plus directement — ils ouvrent le dialog avec le bon modèle et les bons ids.
-- Toast succès/échec inchangé après envoi.
-
-### Hors-scope
-- Pas de modification du cron `payment-reminders` (qui garde ses propres templates).
-- Pas de stockage des templates en DB (édition à la volée par envoi).
-- Pas de prévisualisation par destinataire (les variables sont juste documentées).
-
-## Ordre d'exécution
-1. Modifier `reminders.functions.ts` (signature + remplacement variables + lien tranche-2).
-2. Modifier `paiements.tsx` (dialog + branchement des deux boutons).
-3. Vérifier le build.
+## Hors scope
+- Pas de changement aux relances email
+- Pas de changement DB
+- Pas de changement aux autres pages
