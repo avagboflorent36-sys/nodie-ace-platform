@@ -16,9 +16,12 @@ export const Route = createFileRoute("/_authenticated/admin/etudiants/")({
   component: StudentsPage,
 });
 
+const PAGE_SIZE = 25;
+
 function StudentsPage() {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const { data: students = [], isLoading, error } = useQuery({
     queryKey: ["admin-students"],
     queryFn: async () => {
@@ -41,6 +44,11 @@ function StudentsPage() {
     s.first_name?.toLowerCase().includes(search.toLowerCase()) ||
     s.last_name?.toLowerCase().includes(search.toLowerCase())
   );
+
+  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [search]);
+
+  const visible = filtered.slice(0, visibleCount);
+  const hasMore = visibleCount < filtered.length;
 
   const exportCsv = () => {
     const head = ["Prénom", "Nom", "Email", "WhatsApp", "Pays", "Inscrit le"];
@@ -79,7 +87,7 @@ function StudentsPage() {
             ) : filtered.length === 0 ? (
               <TableRow><TableCell colSpan={6} className="py-12 text-center text-muted-foreground">Aucun étudiant.</TableCell></TableRow>
             ) : (
-              filtered.map((s: any) => {
+              visible.map((s: any) => {
                 const waHref = buildWhatsAppHref(s.whatsapp, s.first_name);
                 const canWhatsApp = waHref !== null;
                 return (
@@ -123,6 +131,14 @@ function StudentsPage() {
             )}
           </TableBody>
         </Table>
+        {hasMore && (
+          <div className="flex items-center justify-between gap-3 border-t p-3 text-sm text-muted-foreground">
+            <span>{visible.length} sur {filtered.length}</span>
+            <Button variant="outline" size="sm" onClick={() => setVisibleCount((n) => n + PAGE_SIZE)}>
+              Charger plus
+            </Button>
+          </div>
+        )}
       </Card>
     </div>
   );

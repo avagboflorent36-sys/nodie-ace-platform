@@ -45,11 +45,14 @@ export const Route = createFileRoute("/_authenticated/admin/paiements")({
   component: PaymentsAdmin,
 });
 
+const PAGE_SIZE = 25;
+
 function PaymentsAdmin() {
   const qc = useQueryClient();
   const sendRem = useServerFn(sendPaymentReminders);
   const [tab, setTab] = useState("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const { data: rows = [], isLoading: rowsLoading, error: rowsError } = useQuery({
     queryKey: ["admin-installments-all"],
@@ -118,6 +121,11 @@ function PaymentsAdmin() {
       default: return rows;
     }
   }, [rows, tab, today]);
+
+  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [tab]);
+  const visible = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
+  const hasMore = visibleCount < filtered.length;
+
 
   const lateIds = useMemo(() => rows.filter((r: any) => r.status !== "validated" && r.due_date && r.due_date < today).map((r: any) => r.id), [rows, today]);
 
@@ -249,7 +257,7 @@ function PaymentsAdmin() {
                   <TableRow><TableCell colSpan={9} className="py-12 text-center text-muted-foreground">Chargement…</TableCell></TableRow>
                 ) : filtered.length === 0 ? (
                   <TableRow><TableCell colSpan={9} className="py-12 text-center text-muted-foreground">Aucune ligne.</TableCell></TableRow>
-                ) : filtered.map((i: any) => {
+                ) : visible.map((i: any) => {
                   const isLate = i.due_date && i.due_date < today && i.status !== "validated";
                   return (
                     <TableRow key={i.id} className={isLate ? "bg-destructive/5" : ""}>
@@ -309,6 +317,14 @@ function PaymentsAdmin() {
                 })}
               </TableBody>
             </Table>
+            {hasMore && (
+              <div className="flex items-center justify-between gap-3 border-t p-3 text-sm text-muted-foreground">
+                <span>{visible.length} sur {filtered.length}</span>
+                <Button variant="outline" size="sm" onClick={() => setVisibleCount((n) => n + PAGE_SIZE)}>
+                  Charger plus
+                </Button>
+              </div>
+            )}
           </Card>
         </TabsContent>
       </Tabs>
