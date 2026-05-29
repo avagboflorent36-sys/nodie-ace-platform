@@ -51,19 +51,27 @@ function PaymentsAdmin() {
   const [tab, setTab] = useState("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  const { data: rows = [] } = useQuery({
+  const { data: rows = [], isLoading: rowsLoading, error: rowsError } = useQuery({
     queryKey: ["admin-installments-all"],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("payment_installments")
         .select("id, amount, position, status, proof_path, submitted_at, due_date, payment_id, payments(student_id, currency, mode, status, amount_total, amount_paid, cohort_id, cohortes(name))")
         .order("due_date", { ascending: true, nullsFirst: false });
-      const studentIds = [...new Set((data ?? []).map((r: any) => r.payments?.student_id).filter(Boolean))];
-      const { data: profiles } = await supabase.from("profiles").select("id, first_name, last_name, email").in("id", studentIds);
+      if (error) throw error;
+      const clean = (data ?? []).filter((r: any) => r.payments); // drop orphans (jointure manquante)
+      const studentIds = [...new Set(clean.map((r: any) => r.payments?.student_id).filter(Boolean))];
+      const { data: profiles } = studentIds.length
+        ? await supabase.from("profiles").select("id, first_name, last_name, email").in("id", studentIds)
+        : { data: [] as any[] };
       const pmap = new Map((profiles ?? []).map((p) => [p.id, p]));
-      return (data ?? []).map((r: any) => ({ ...r, _student: pmap.get(r.payments?.student_id) }));
+      return clean.map((r: any) => ({ ...r, _student: pmap.get(r.payments?.student_id) }));
     },
   });
+
+  useEffect(() => {
+    if (rowsError) toast.error((rowsError as any).message ?? "Erreur de chargement des paiements");
+  }, [rowsError]);
 
   const { data: enrollments = [] } = useQuery({
     queryKey: ["admin-enrollments-all"],
