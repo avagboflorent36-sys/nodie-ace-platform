@@ -245,7 +245,9 @@ function PaymentsAdmin() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.length === 0 ? (
+                {rowsLoading ? (
+                  <TableRow><TableCell colSpan={9} className="py-12 text-center text-muted-foreground">Chargement…</TableCell></TableRow>
+                ) : filtered.length === 0 ? (
                   <TableRow><TableCell colSpan={9} className="py-12 text-center text-muted-foreground">Aucune ligne.</TableCell></TableRow>
                 ) : filtered.map((i: any) => {
                   const isLate = i.due_date && i.due_date < today && i.status !== "validated";
