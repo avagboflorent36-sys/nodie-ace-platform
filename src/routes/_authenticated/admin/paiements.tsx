@@ -122,6 +122,11 @@ function PaymentsAdmin() {
     }
   }, [rows, tab, today]);
 
+  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [tab]);
+  const visible = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
+  const hasMore = visibleCount < filtered.length;
+
+
   const lateIds = useMemo(() => rows.filter((r: any) => r.status !== "validated" && r.due_date && r.due_date < today).map((r: any) => r.id), [rows, today]);
 
   const validate = async (id: string, action: "validated" | "rejected") => {
