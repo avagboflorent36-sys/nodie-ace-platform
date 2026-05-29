@@ -172,8 +172,8 @@ function PaymentsAdmin() {
         <h1 className="text-3xl font-bold tracking-tight">Paiements</h1>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={exportCsv}><Download className="mr-1 h-3 w-3" /> CSV</Button>
-          <Button variant="outline" size="sm" onClick={sendSelected} disabled={selected.size === 0}><Send className="mr-1 h-3 w-3" /> Relancer sélection ({selected.size})</Button>
-          <Button size="sm" className="bg-gold text-primary hover:bg-gold/90" onClick={sendAllLate}><Send className="mr-1 h-3 w-3" /> Relancer tous les retards</Button>
+          <Button variant="outline" size="sm" onClick={openSelectionDialog} disabled={selected.size === 0}><Send className="mr-1 h-3 w-3" /> Relancer sélection ({selected.size})</Button>
+          <Button size="sm" className="bg-gold text-primary hover:bg-gold/90" onClick={openLateDialog}><Send className="mr-1 h-3 w-3" /> Relancer tous les retards</Button>
         </div>
       </div>
 
