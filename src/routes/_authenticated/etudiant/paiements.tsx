@@ -97,11 +97,24 @@ function StudentPayments() {
         payments.map((p: any) => {
           const ratio = p.amount_total > 0 ? Math.min(100, (p.amount_paid / p.amount_total) * 100) : 0;
           const insts = (p.payment_installments ?? []).slice().sort((a: any, b: any) => a.position - b.position);
+          const t1 = insts.find((i: any) => i.position === 1);
           const t2 = insts.find((i: any) => i.position === 2);
           const needsTranche2 = p.mode === "installments_2" && p.status !== "paid" && (!t2 || t2.status !== "validated");
           const remaining = Math.max(0, Number(p.amount_total) - Number(p.amount_paid));
           const t2Amount = t2?.amount ?? remaining;
-          const t2Due = t2?.due_date ?? p.final_deadline ?? null;
+          const t2Due = resolveT2DueDate({
+            t2Due: t2?.due_date,
+            finalDeadline: p.final_deadline,
+            t1ValidatedAt: t1?.validated_at,
+            t1DueDate: t1?.due_date,
+          });
+          const t2DueLabel = t2Due ? formatDueDate(t2Due) : null;
+          const t2DueSource = resolveT2DueSource({
+            t2Due: t2?.due_date,
+            finalDeadline: p.final_deadline,
+            t1ValidatedAt: t1?.validated_at,
+            t1DueDate: t1?.due_date,
+          });
           return (
             <Card key={p.id} className="p-6 space-y-4">
               <div className="flex flex-wrap items-start justify-between gap-3 min-w-0">
