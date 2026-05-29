@@ -1,61 +1,80 @@
+# Édition des emails de relance avant envoi
 
-## 1. Pré-remplir le formulaire après paiement (fin des doublons)
+## Objectif
 
-**Problème** : à l'étape 1 (`CheckoutStep`), l'étudiant saisit déjà `firstName`, `lastName`, `email`, `phone`. Au retour de Chariow (`PostPaymentStep`), tous ces champs sont vides et il doit les ressaisir.
+Sur `/admin/paiements`, au lieu d'envoyer immédiatement les relances quand on clique sur **Relancer sélection** ou **Relancer tous les retards**, ouvrir un dialog qui permet à l'admin :
+- de voir/modifier **l'objet** et le **contenu** de l'email
+- de voir la liste des destinataires concernés
+- d'envoyer après validation
 
-**Solution** : récupérer les infos déjà saisies via le token et pré-remplir.
+Le contenu est pré-rempli automatiquement avec un modèle incluant le lien vers la **2e tranche** de chaque étudiant.
 
-- Nouveau server fn `getPrefillFromToken` dans `src/lib/chariow.functions.ts` :
-  - input : `{ attemptToken?, claimToken?, saleId? }`
-  - lit `chariow_payment_attempts` (par token) → `first_name, last_name, email, phone` ; fallback `pending_enrollments` (par claim_token) ; fallback `chariow_payment_attempts` (par sale_id).
-  - public, pas de `requireSupabaseAuth` (l'utilisateur n'a pas encore de compte).
-- Dans `PostPaymentStep` (`src/routes/inscription.$slug.tsx`) :
-  - `useQuery` qui appelle `getPrefillFromToken` dès qu'un token est présent.
-  - `useEffect` initialise `form.firstName/lastName/email/whatsapp` depuis le résultat (sans écraser une saisie déjà en cours).
-  - Les champs `email` et `whatsapp` deviennent `readOnly` quand pré-remplis (avec petit texte « issu de votre paiement »), `firstName/lastName` restent éditables.
-  - Le champ `country` et `password` restent à remplir → fin de la répétition pour les 4 champs déjà fournis.
+## Comportement attendu
 
-## 2. Bouton WhatsApp sur la page Étudiants + format unifié
+### Bouton "Relancer sélection (N)"
+- Ouvre un dialog avec un **objet** et un **contenu** par défaut.
+- Le contenu utilise des variables remplacées par destinataire : `{{prenom}}`, `{{cohorte}}`, `{{montant}}`, `{{devise}}`, `{{echeance}}`, `{{lien_paiement}}`.
+- L'admin peut éditer librement objet + contenu (textarea markdown/HTML simple).
+- Liste les destinataires (nom + email) avec compteur.
+- Boutons : **Annuler** / **Envoyer maintenant**.
 
-- **Validation à l'inscription** (`src/lib/validators.ts` + `CheckoutStep` + post-payment) : `whatsapp` normalisé au format international `+225XXXXXXXX` (regex `^\+?[1-9]\d{6,14}$`, on retire espaces/tirets/parenthèses avant insert). Petit texte d'aide sous le champ : « Format international avec indicatif, ex : +22507XXXXXXXX ».
-- **`etudiants.index.tsx`** : nouvelle colonne « WhatsApp » avec bouton icône (lucide `MessageCircle`/logo WA) :
+### Bouton "Relancer tous les retards"
+- Même dialog, pré-rempli avec un **modèle spécifique retard** (ton plus ferme, mention "en retard").
+- Liste tous les étudiants en retard.
+- Lien pointant vers la 2e tranche de chaque étudiant (`/etudiant/tranche-2/{paymentId}` côté étudiant, ou l'URL absolue équivalente).
+
+## Modèles par défaut
+
+**Sélection (rappel standard)** :
+- Objet : `Rappel paiement — {{cohorte}}`
+- Corps :
   ```
-  href = `https://wa.me/${whatsapp.replace(/\D/g,"")}`
-  target="_blank" rel="noopener noreferrer"
+  Bonjour {{prenom}},
+
+  Petit rappel concernant votre paiement pour {{cohorte}}.
+  Montant : {{montant}} {{devise}} — Échéance : {{echeance}}.
+
+  Réglez votre 2e tranche ici : {{lien_paiement}}
+
+  L'équipe Nodie IA Academy
   ```
-  `e.stopPropagation()` pour ne pas déclencher la navigation vers la fiche étudiant.
-- Idem dans la fiche étudiant (`etudiants.$id.tsx`) le lien existe déjà, on garde.
-- Pour les profils existants au mauvais format : aucun backfill destructif, le bouton fonctionne dès lors qu'il y a au moins 7 chiffres ; sinon le bouton est désactivé avec tooltip.
 
-## 3. Déblocage du certificat par étudiant (admin → étudiant)
+**Tous les retards** :
+- Objet : `Paiement en retard — {{cohorte}}`
+- Corps : variante avec "votre échéance est dépassée", même variables + `{{lien_paiement}}`.
 
-**Migration** (à approuver) :
-- Ajouter colonnes sur `cohort_enrollments` :
-  - `certificate_unlocked_at timestamptz null`
-  - `certificate_unlocked_by uuid null`
-- Politique RLS : déjà couverte (étudiant lit son enrollment, admin gère).
+## Détails techniques
 
-**Admin** (`etudiants.$id.tsx`, onglet Cohortes) :
-- Nouvelle colonne « Certificat » avec bouton `Débloquer` / `Verrouiller`.
-- Mutation `supabase.from("cohort_enrollments").update({ certificate_unlocked_at: ... , certificate_unlocked_by: admin.id })`.
+### Server fn (modifier `src/lib/reminders.functions.ts`)
+Étendre `sendPaymentReminders` pour accepter un objet et un template custom :
+```ts
+.inputValidator(z.object({
+  installmentIds: z.array(z.string().uuid()).min(1).max(500),
+  subject: z.string().min(2).max(200),
+  bodyTemplate: z.string().min(10).max(10000), // contient les {{variables}}
+}))
+```
+Le handler remplace les variables par destinataire avant l'envoi (idem flow actuel), en gardant la journalisation dans `payment_reminders`.
 
-**Étudiant** (`src/routes/_authenticated/etudiant/certificat.tsx`) :
-- La query récupère aussi `certificate_unlocked_at` par cohorte.
-- `eligible` devient : `certificate_unlocked_at != null` (le déblocage admin remplace les conditions paiement+progression — l'admin a la responsabilité finale). Les conditions actuelles deviennent informatives seulement (badge « progression 80% » etc.).
-- Quand non débloqué : message « Votre certificat sera disponible une fois validé par l'équipe ».
-- Quand débloqué : bouton « Télécharger » (PDF déjà existant).
+`{{lien_paiement}}` = URL absolue vers `/etudiant/tranche-2/{payment_id}` (récupérer `payment_id` via la jointure déjà présente). Si non applicable (mode `full`), fallback `/etudiant/paiements`.
 
-## 4. Suppression complète de l'onglet « Automatisations »
+### UI (`src/routes/_authenticated/admin/paiements.tsx`)
+- Nouveau composant local `ReminderDialog` (Dialog shadcn) avec :
+  - `Input` objet
+  - `Textarea` contenu (rows ~12, monospace)
+  - Liste des destinataires (scrollable, max-h)
+  - Aide visuelle listant les variables disponibles
+  - Bouton "Envoyer" → appelle `sendPaymentReminders` avec `subject`/`bodyTemplate`/`installmentIds`
+- État `reminderDialog: { open, mode: "selection"|"late", ids: string[] }`
+- `sendSelected` et `sendAllLate` n'envoient plus directement — ils ouvrent le dialog avec le bon modèle et les bons ids.
+- Toast succès/échec inchangé après envoi.
 
-Dans `src/routes/_authenticated/admin/cohortes.$id.tsx` :
-- Retirer le `<TabsTrigger value="automations">` et son `<TabsContent>`.
-- Supprimer les fonctions `AutomationsTab`, `ReminderRulesEditor`, `AccessRulesEditor`, `EmailCampaignsEditor` et toute UI associée.
-- Retirer l'import `from "@/lib/automation.functions"`.
-
-Conservé (non détruit) : tables `cohort_reminder_rules`, `cohort_access_rules`, `cohort_email_campaigns`, `automation_run_log`, le cron `automation-tick` et `automation.server.ts`. Raison : éviter de casser les données / cron déjà programmés ; juste retirer l'accès UI comme demandé. Si tu veux aussi supprimer les tables, dis-le et j'ajouterai une migration `DROP TABLE`.
+### Hors-scope
+- Pas de modification du cron `payment-reminders` (qui garde ses propres templates).
+- Pas de stockage des templates en DB (édition à la volée par envoi).
+- Pas de prévisualisation par destinataire (les variables sont juste documentées).
 
 ## Ordre d'exécution
-
-1. Migration SQL (ajout colonnes certificat) → approbation.
-2. Edits frontend en parallèle (inscription prefill, étudiants WhatsApp + certificat, suppression onglet automatisations).
-3. Vérif build.
+1. Modifier `reminders.functions.ts` (signature + remplacement variables + lien tranche-2).
+2. Modifier `paiements.tsx` (dialog + branchement des deux boutons).
+3. Vérifier le build.

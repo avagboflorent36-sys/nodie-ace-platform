@@ -11,8 +11,35 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { sendPaymentReminders } from "@/lib/reminders.functions";
+
+const DEFAULT_SUBJECT_SELECTION = "Rappel paiement — {{cohorte}}";
+const DEFAULT_BODY_SELECTION = `Bonjour {{prenom}},
+
+Petit rappel concernant votre paiement pour {{cohorte}}.
+Montant : {{montant}} {{devise}} — Échéance : {{echeance}}.
+
+Réglez votre 2e tranche ici : {{lien_paiement}}
+
+L'équipe Nodie IA Academy`;
+
+const DEFAULT_SUBJECT_LATE = "Paiement en retard — {{cohorte}}";
+const DEFAULT_BODY_LATE = `Bonjour {{prenom}},
+
+Votre échéance pour {{cohorte}} est dépassée (échéance prévue le {{echeance}}).
+Montant restant : {{montant}} {{devise}}.
+
+Merci de régler votre 2e tranche au plus vite via ce lien :
+{{lien_paiement}}
+
+Sans régularisation rapide, votre accès à la cohorte peut être restreint.
+
+L'équipe Nodie IA Academy`;
 
 export const Route = createFileRoute("/_authenticated/admin/paiements")({
   component: PaymentsAdmin,
@@ -71,24 +98,57 @@ function PaymentsAdmin() {
     qc.invalidateQueries({ queryKey: ["admin-installments-all"] });
   };
 
-  const sendSelected = async () => {
+  const [dialogState, setDialogState] = useState<{ open: boolean; ids: string[]; subject: string; body: string; sending: boolean }>({
+    open: false, ids: [], subject: "", body: "", sending: false,
+  });
+
+  const recipients = useMemo(() => {
+    if (!dialogState.open) return [] as Array<{ id: string; name: string; email: string }>;
+    const setIds = new Set(dialogState.ids);
+    const seen = new Set<string>();
+    const list: Array<{ id: string; name: string; email: string }> = [];
+    for (const r of rows as any[]) {
+      if (!setIds.has(r.id)) continue;
+      const sid = r._student?.id;
+      if (!sid || seen.has(sid)) continue;
+      seen.add(sid);
+      list.push({
+        id: sid,
+        name: `${r._student?.first_name ?? ""} ${r._student?.last_name ?? ""}`.trim() || "—",
+        email: r._student?.email ?? "—",
+      });
+    }
+    return list;
+  }, [dialogState.open, dialogState.ids, rows]);
+
+  const openSelectionDialog = () => {
     const ids = Array.from(selected);
     if (ids.length === 0) { toast.error("Sélectionnez au moins une ligne"); return; }
-    try {
-      const r = await sendRem({ data: { installmentIds: ids } });
-      toast.success(`Relances envoyées : ${r.sent} ok, ${r.failed} échec`);
-      setSelected(new Set());
-    } catch (e: any) { toast.error(e.message); }
+    setDialogState({ open: true, ids, subject: DEFAULT_SUBJECT_SELECTION, body: DEFAULT_BODY_SELECTION, sending: false });
   };
 
-  const sendAllLate = async () => {
+  const openLateDialog = () => {
     if (lateIds.length === 0) { toast.error("Aucun retard"); return; }
-    if (!confirm(`Envoyer une relance à ${lateIds.length} étudiant(s) en retard ?`)) return;
-    try {
-      const r = await sendRem({ data: { installmentIds: lateIds } });
-      toast.success(`Relances envoyées : ${r.sent} ok, ${r.failed} échec`);
-    } catch (e: any) { toast.error(e.message); }
+    setDialogState({ open: true, ids: lateIds, subject: DEFAULT_SUBJECT_LATE, body: DEFAULT_BODY_LATE, sending: false });
   };
+
+  const confirmSend = async () => {
+    if (dialogState.ids.length === 0) return;
+    if (dialogState.subject.trim().length < 2 || dialogState.body.trim().length < 5) {
+      toast.error("Objet et contenu requis"); return;
+    }
+    setDialogState((s) => ({ ...s, sending: true }));
+    try {
+      const r = await sendRem({ data: { installmentIds: dialogState.ids, subject: dialogState.subject, bodyTemplate: dialogState.body } });
+      toast.success(`Relances envoyées : ${r.sent} ok, ${r.failed} échec`);
+      setSelected(new Set());
+      setDialogState({ open: false, ids: [], subject: "", body: "", sending: false });
+    } catch (e: any) {
+      toast.error(e.message);
+      setDialogState((s) => ({ ...s, sending: false }));
+    }
+  };
+
 
   const toggleSel = (id: string) => { const s = new Set(selected); s.has(id) ? s.delete(id) : s.add(id); setSelected(s); };
 
@@ -112,8 +172,8 @@ function PaymentsAdmin() {
         <h1 className="text-3xl font-bold tracking-tight">Paiements</h1>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={exportCsv}><Download className="mr-1 h-3 w-3" /> CSV</Button>
-          <Button variant="outline" size="sm" onClick={sendSelected} disabled={selected.size === 0}><Send className="mr-1 h-3 w-3" /> Relancer sélection ({selected.size})</Button>
-          <Button size="sm" className="bg-gold text-primary hover:bg-gold/90" onClick={sendAllLate}><Send className="mr-1 h-3 w-3" /> Relancer tous les retards</Button>
+          <Button variant="outline" size="sm" onClick={openSelectionDialog} disabled={selected.size === 0}><Send className="mr-1 h-3 w-3" /> Relancer sélection ({selected.size})</Button>
+          <Button size="sm" className="bg-gold text-primary hover:bg-gold/90" onClick={openLateDialog}><Send className="mr-1 h-3 w-3" /> Relancer tous les retards</Button>
         </div>
       </div>
 
@@ -179,6 +239,39 @@ function PaymentsAdmin() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={dialogState.open} onOpenChange={(o) => !dialogState.sending && setDialogState((s) => ({ ...s, open: o }))}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Composer l'email de relance</DialogTitle>
+            <DialogDescription>
+              {recipients.length} destinataire(s). Variables disponibles : <code>{"{{prenom}}"}</code>, <code>{"{{cohorte}}"}</code>, <code>{"{{montant}}"}</code>, <code>{"{{devise}}"}</code>, <code>{"{{echeance}}"}</code>, <code>{"{{lien_paiement}}"}</code>.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label htmlFor="rem-subject">Objet</Label>
+              <Input id="rem-subject" value={dialogState.subject} onChange={(e) => setDialogState((s) => ({ ...s, subject: e.target.value }))} />
+            </div>
+            <div>
+              <Label htmlFor="rem-body">Contenu</Label>
+              <Textarea id="rem-body" rows={12} className="font-mono text-sm" value={dialogState.body} onChange={(e) => setDialogState((s) => ({ ...s, body: e.target.value }))} />
+            </div>
+            <div className="max-h-32 overflow-y-auto rounded border p-2 text-xs text-muted-foreground">
+              <div className="font-medium mb-1">Destinataires :</div>
+              {recipients.map((r) => (
+                <div key={r.id}>{r.name} — {r.email}</div>
+              ))}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogState((s) => ({ ...s, open: false }))} disabled={dialogState.sending}>Annuler</Button>
+            <Button onClick={confirmSend} disabled={dialogState.sending} className="bg-gold text-primary hover:bg-gold/90">
+              <Send className="mr-1 h-3 w-3" /> {dialogState.sending ? "Envoi…" : `Envoyer (${dialogState.ids.length})`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
