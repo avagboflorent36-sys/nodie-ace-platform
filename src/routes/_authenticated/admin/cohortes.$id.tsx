@@ -18,7 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { setCohortChariowProducts } from "@/lib/chariow.functions";
-import { sendCampaignNow, previewCampaignAudience, runAutomationsNow, listAutomationRuns } from "@/lib/automation.functions";
+// Automations UI removed per request — cron + tables conservés en backend.
 
 export const Route = createFileRoute("/_authenticated/admin/cohortes/$id")({
   component: CohortDetail,
