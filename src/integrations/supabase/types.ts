@@ -294,6 +294,8 @@ export type Database = {
       }
       cohort_enrollments: {
         Row: {
+          certificate_unlocked_at: string | null
+          certificate_unlocked_by: string | null
           cohort_id: string
           enrolled_at: string
           id: string
@@ -301,6 +303,8 @@ export type Database = {
           student_id: string
         }
         Insert: {
+          certificate_unlocked_at?: string | null
+          certificate_unlocked_by?: string | null
           cohort_id: string
           enrolled_at?: string
           id?: string
@@ -308,6 +312,8 @@ export type Database = {
           student_id: string
         }
         Update: {
+          certificate_unlocked_at?: string | null
+          certificate_unlocked_by?: string | null
           cohort_id?: string
           enrolled_at?: string
           id?: string

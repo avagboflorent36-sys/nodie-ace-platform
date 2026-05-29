@@ -23,7 +23,7 @@ function CertificatPage() {
       const [{ data: profile }, { data: enrollments }] = await Promise.all([
         supabase.from("profiles").select("first_name,last_name").eq("id", user!.id).maybeSingle(),
         supabase.from("cohort_enrollments")
-          .select("cohort_id, cohortes(id, name, end_date, formations(title))")
+          .select("cohort_id, certificate_unlocked_at, cohortes(id, name, end_date, formations(title))")
           .eq("student_id", user!.id),
       ]);
       const cohortIds = (enrollments ?? []).map((e: any) => e.cohort_id);
@@ -43,6 +43,7 @@ function CertificatPage() {
         const total = allRes.length;
         const done = allRes.filter((r: any) => doneSet.has(r.id)).length;
         const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+        const unlocked = !!e.certificate_unlocked_at;
         return {
           cohortId: e.cohort_id,
           cohortName: e.cohortes?.name,
@@ -50,7 +51,8 @@ function CertificatPage() {
           endDate: e.cohortes?.end_date,
           paid: paid.has(e.cohort_id),
           total, done, pct,
-          eligible: paid.has(e.cohort_id) && total > 0 && done === total,
+          unlocked,
+          eligible: unlocked,
         };
       });
       return { profile, items };
@@ -156,7 +158,7 @@ function CertificatPage() {
             )}
             {!it.eligible && (
               <p className="mt-4 text-xs text-muted-foreground">
-                Pour obtenir votre certificat : terminer toutes les ressources et avoir un paiement intégralement validé.
+                Votre certificat sera disponible une fois validé et débloqué par l'équipe Nodie IA Academy.
               </p>
             )}
           </Card>

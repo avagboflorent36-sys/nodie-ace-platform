@@ -21,6 +21,7 @@ import {
   checkAttemptByToken,
   claimPendingEnrollment,
   claimAttemptByToken,
+  getPrefillFromToken,
 } from "@/lib/chariow.functions";
 
 type SearchParams = { sale?: string; claim?: string; attempt?: string };
@@ -210,7 +211,9 @@ function CheckoutStep({ cohort }: { cohort: any }) {
           value={form.phone}
           onChange={(e) => setForm({ ...form, phone: e.target.value })}
           required
+          placeholder="+22507XXXXXXXX"
         />
+        <p className="mt-1 text-xs text-muted-foreground">Format international avec indicatif, ex : +22507XXXXXXXX</p>
       </div>
 
       <div>
@@ -294,6 +297,7 @@ function PostPaymentStep({
   const checkAttempt = useServerFn(checkAttemptByToken);
   const claim = useServerFn(claimPendingEnrollment);
   const claimAttempt = useServerFn(claimAttemptByToken);
+  const fetchPrefill = useServerFn(getPrefillFromToken);
 
   const hasRemoteCheck = !!(saleId || attemptToken);
   const [verifying, setVerifying] = useState(hasRemoteCheck);
@@ -386,6 +390,20 @@ function PostPaymentStep({
         .data ?? [],
   });
 
+  const { data: prefill } = useQuery({
+    queryKey: ["inscription-prefill", attemptToken ?? null, claimToken ?? null, saleId ?? null],
+    enabled: !!(attemptToken || claimToken || saleId),
+    queryFn: () =>
+      fetchPrefill({
+        data: {
+          attemptToken: attemptToken || undefined,
+          claimToken: claimToken || undefined,
+          saleId: saleId || undefined,
+        },
+      }),
+    staleTime: Infinity,
+  });
+
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
@@ -394,8 +412,27 @@ function PostPaymentStep({
     country: "",
     password: "",
   });
+  const [prefilledFields, setPrefilledFields] = useState<{ email: boolean; whatsapp: boolean }>({
+    email: false,
+    whatsapp: false,
+  });
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!prefill) return;
+    setForm((prev) => ({
+      ...prev,
+      firstName: prev.firstName || prefill.first_name || "",
+      lastName: prev.lastName || prefill.last_name || "",
+      email: prev.email || prefill.email || "",
+      whatsapp: prev.whatsapp || prefill.phone || "",
+    }));
+    setPrefilledFields({
+      email: !!prefill.email,
+      whatsapp: !!prefill.phone,
+    });
+  }, [prefill]);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -646,10 +683,14 @@ function PostPaymentStep({
           type="email"
           value={form.email}
           onChange={(e) => setForm({ ...form, email: e.target.value })}
+          readOnly={prefilledFields.email}
           required
+          className={prefilledFields.email ? "bg-muted/40 cursor-not-allowed" : undefined}
         />
         <p className="mt-1 text-xs text-muted-foreground">
-          Utilisez la même adresse que celle du paiement pour lier automatiquement votre compte.
+          {prefilledFields.email
+            ? "Adresse utilisée lors de votre paiement (non modifiable)."
+            : "Utilisez la même adresse que celle du paiement pour lier automatiquement votre compte."}
         </p>
       </div>
       <div className="grid grid-cols-2 gap-3">
@@ -658,8 +699,16 @@ function PostPaymentStep({
           <Input
             value={form.whatsapp}
             onChange={(e) => setForm({ ...form, whatsapp: e.target.value })}
+            readOnly={prefilledFields.whatsapp}
             required
+            className={prefilledFields.whatsapp ? "bg-muted/40 cursor-not-allowed" : undefined}
+            placeholder="+22507XXXXXXXX"
           />
+          {prefilledFields.whatsapp ? (
+            <p className="mt-1 text-xs text-muted-foreground">Numéro utilisé lors de votre paiement.</p>
+          ) : (
+            <p className="mt-1 text-xs text-muted-foreground">Format international, ex : +22507XXXXXXXX</p>
+          )}
         </div>
         <div>
           <Label>Pays *</Label>

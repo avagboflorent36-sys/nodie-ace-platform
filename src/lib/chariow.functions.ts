@@ -1237,3 +1237,50 @@ export const reconcileAttempt = createServerFn({ method: "POST" })
 
     return result;
   });
+
+// Pré-remplissage du formulaire post-paiement : récupère prénom / nom / email / téléphone
+// déjà saisis lors du checkout, sans authentification (l'étudiant n'a pas encore de compte).
+export const getPrefillFromToken = createServerFn({ method: "POST" })
+  .inputValidator((d) =>
+    z
+      .object({
+        attemptToken: z.string().min(8).max(200).optional(),
+        claimToken: z.string().min(8).max(200).optional(),
+        saleId: z.string().min(1).max(200).optional(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data }) => {
+    const empty = { first_name: "", last_name: "", email: "", phone: "" };
+
+    if (data.attemptToken) {
+      const { data: a } = await supabaseAdmin
+        .from("chariow_payment_attempts")
+        .select("first_name, last_name, email, phone")
+        .eq("token", data.attemptToken)
+        .maybeSingle();
+      if (a) return { first_name: a.first_name ?? "", last_name: a.last_name ?? "", email: a.email ?? "", phone: a.phone ?? "" };
+    }
+
+    if (data.claimToken) {
+      const { data: p } = await supabaseAdmin
+        .from("pending_enrollments")
+        .select("first_name, last_name, email, phone")
+        .eq("claim_token", data.claimToken)
+        .maybeSingle();
+      if (p) return { first_name: p.first_name ?? "", last_name: p.last_name ?? "", email: p.email ?? "", phone: p.phone ?? "" };
+    }
+
+    if (data.saleId) {
+      const { data: a } = await supabaseAdmin
+        .from("chariow_payment_attempts")
+        .select("first_name, last_name, email, phone")
+        .eq("chariow_sale_id", data.saleId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (a) return { first_name: a.first_name ?? "", last_name: a.last_name ?? "", email: a.email ?? "", phone: a.phone ?? "" };
+    }
+
+    return empty;
+  });

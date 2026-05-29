@@ -1,7 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Download } from "lucide-react";
+import { Download, MessageCircle } from "lucide-react";
+
 
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -62,27 +63,54 @@ function StudentsPage() {
               <TableHead>WhatsApp</TableHead>
               <TableHead>Pays</TableHead>
               <TableHead>Inscrit le</TableHead>
+              <TableHead className="text-right">Contact</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filtered.length === 0 ? (
-              <TableRow><TableCell colSpan={5} className="py-12 text-center text-muted-foreground">Aucun étudiant.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={6} className="py-12 text-center text-muted-foreground">Aucun étudiant.</TableCell></TableRow>
             ) : (
-              filtered.map((s: any) => (
-                <TableRow
-                  key={s.id}
-                  className="cursor-pointer hover:bg-accent/40"
-                  onClick={() => navigate({ to: "/admin/etudiants/$id", params: { id: s.id } })}
-                >
-                  <TableCell className="font-medium text-gold">
-                    {s.first_name} {s.last_name}
-                  </TableCell>
-                  <TableCell>{s.email}</TableCell>
-                  <TableCell>{s.whatsapp ?? "—"}</TableCell>
-                  <TableCell>{s.country ?? "—"}</TableCell>
-                  <TableCell>{new Date(s.created_at).toLocaleDateString("fr-FR")}</TableCell>
-                </TableRow>
-              ))
+              filtered.map((s: any) => {
+                const digits = String(s.whatsapp ?? "").replace(/\D/g, "");
+                const canWhatsApp = digits.length >= 7;
+                return (
+                  <TableRow
+                    key={s.id}
+                    className="cursor-pointer hover:bg-accent/40"
+                    onClick={() => navigate({ to: "/admin/etudiants/$id", params: { id: s.id } })}
+                  >
+                    <TableCell className="font-medium text-gold">
+                      {s.first_name} {s.last_name}
+                    </TableCell>
+                    <TableCell>{s.email}</TableCell>
+                    <TableCell>{s.whatsapp ?? "—"}</TableCell>
+                    <TableCell>{s.country ?? "—"}</TableCell>
+                    <TableCell>{new Date(s.created_at).toLocaleDateString("fr-FR")}</TableCell>
+                    <TableCell className="text-right">
+                      {canWhatsApp ? (
+                        <Button
+                          asChild
+                          size="sm"
+                          variant="outline"
+                          className="border-emerald-500/40 text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-400"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <a
+                            href={`https://wa.me/${digits}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            aria-label={`Ouvrir WhatsApp avec ${s.first_name} ${s.last_name}`}
+                          >
+                            <MessageCircle className="mr-1 h-3 w-3" /> WhatsApp
+                          </a>
+                        </Button>
+                      ) : (
+                        <span className="text-xs text-muted-foreground" title="Numéro WhatsApp non disponible">—</span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>
