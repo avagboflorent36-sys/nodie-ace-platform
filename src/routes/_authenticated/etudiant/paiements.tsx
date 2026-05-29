@@ -233,3 +233,38 @@ function StatusBadge({ status }: { status: string }) {
   const Icon = m.icon;
   return <span className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full border ${m.cls}`}><Icon className="h-3 w-3" />{m.label}</span>;
 }
+
+type DueInputs = {
+  t2Due?: string | null;
+  finalDeadline?: string | null;
+  t1ValidatedAt?: string | null;
+  t1DueDate?: string | null;
+};
+
+const TRANCHE2_FALLBACK_DAYS = 30;
+
+function addDaysISO(iso: string, days: number): string | null {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+export function resolveT2DueDate(input: DueInputs): string | null {
+  if (input.t2Due) return input.t2Due;
+  if (input.finalDeadline) return input.finalDeadline;
+  if (input.t1ValidatedAt) return addDaysISO(input.t1ValidatedAt, TRANCHE2_FALLBACK_DAYS);
+  if (input.t1DueDate) return addDaysISO(input.t1DueDate, TRANCHE2_FALLBACK_DAYS);
+  return addDaysISO(new Date().toISOString(), TRANCHE2_FALLBACK_DAYS);
+}
+
+export function resolveT2DueSource(input: DueInputs): "exact" | "estimated" {
+  if (input.t2Due || input.finalDeadline) return "exact";
+  return "estimated";
+}
+
+export function formatDueDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
+}
