@@ -158,7 +158,7 @@ function CertificatPage() {
             )}
             {!it.eligible && (
               <p className="mt-4 text-xs text-muted-foreground">
-                Pour obtenir votre certificat : terminer toutes les ressources et avoir un paiement intégralement validé.
+                Votre certificat sera disponible une fois validé et débloqué par l'équipe Nodie IA Academy.
               </p>
             )}
           </Card>
