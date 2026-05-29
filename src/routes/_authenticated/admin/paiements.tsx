@@ -65,6 +65,20 @@ function PaymentsAdmin() {
     },
   });
 
+  const { data: enrollments = [] } = useQuery({
+    queryKey: ["admin-enrollments-all"],
+    queryFn: async () => {
+      const { data } = await supabase.from("cohort_enrollments").select("student_id, cohort_id, status");
+      return data ?? [];
+    },
+  });
+  const enrollMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const e of enrollments as any[]) m.set(`${e.student_id}:${e.cohort_id}`, e.status);
+    return m;
+  }, [enrollments]);
+
+
   const today = new Date().toISOString().slice(0, 10);
 
   const filtered = useMemo(() => {
