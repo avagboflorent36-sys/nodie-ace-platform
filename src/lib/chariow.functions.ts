@@ -602,10 +602,9 @@ export const startMyTranche2Checkout = createServerFn({ method: "POST" })
     if (payment.mode !== "installments_2") {
       return { checkout_url: null, status: "wrong_mode", message: "Ce paiement n'est pas en 2 tranches." };
     }
-    const t2 = (payment.payment_installments ?? []).find((i: any) => i.position === 2);
-    if (!t2) {
-      return { checkout_url: null, status: "no_installment", message: "La ligne de tranche 2 est introuvable pour ce paiement." };
-    }
+    let t2 = (payment.payment_installments ?? []).find((i: any) => i.position === 2);
+    // Note: if missing, we try to create it below once we have the cohort price.
+
     if (payment.status === "paid" || t2?.status === "validated") {
       return { checkout_url: null, status: "already_paid", message: "La tranche 2 est déjà réglée." };
     }
