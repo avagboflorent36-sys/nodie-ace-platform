@@ -71,8 +71,11 @@ function StudentsPage() {
               <TableRow><TableCell colSpan={6} className="py-12 text-center text-muted-foreground">Aucun étudiant.</TableCell></TableRow>
             ) : (
               filtered.map((s: any) => {
-                const digits = String(s.whatsapp ?? "").replace(/\D/g, "");
-                const canWhatsApp = digits.length >= 7;
+                const digits = String(s.whatsapp ?? "").replace(/\D/g, "").replace(/^00/, "");
+                const canWhatsApp = digits.length >= 8;
+                const waHref = canWhatsApp
+                  ? `https://wa.me/${digits}?text=${encodeURIComponent(`Bonjour ${s.first_name ?? ""},`)}`
+                  : "#";
                 return (
                   <TableRow
                     key={s.id}
@@ -96,7 +99,7 @@ function StudentsPage() {
                           onClick={(e) => e.stopPropagation()}
                         >
                           <a
-                            href={`https://wa.me/${digits}`}
+                            href={waHref}
                             target="_blank"
                             rel="noopener noreferrer"
                             aria-label={`Ouvrir WhatsApp avec ${s.first_name} ${s.last_name}`}

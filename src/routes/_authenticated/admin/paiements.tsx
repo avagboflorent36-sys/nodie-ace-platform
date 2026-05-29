@@ -65,6 +65,20 @@ function PaymentsAdmin() {
     },
   });
 
+  const { data: enrollments = [] } = useQuery({
+    queryKey: ["admin-enrollments-all"],
+    queryFn: async () => {
+      const { data } = await supabase.from("cohort_enrollments").select("student_id, cohort_id, status");
+      return data ?? [];
+    },
+  });
+  const enrollMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const e of enrollments as any[]) m.set(`${e.student_id}:${e.cohort_id}`, e.status);
+    return m;
+  }, [enrollments]);
+
+
   const today = new Date().toISOString().slice(0, 10);
 
   const filtered = useMemo(() => {
@@ -96,6 +110,7 @@ function PaymentsAdmin() {
     if (error) { toast.error(error.message); return; }
     toast.success(restrict ? "Accès restreint" : "Accès rétabli");
     qc.invalidateQueries({ queryKey: ["admin-installments-all"] });
+    qc.invalidateQueries({ queryKey: ["admin-enrollments-all"] });
   };
 
   const [dialogState, setDialogState] = useState<{ open: boolean; ids: string[]; subject: string; body: string; sending: boolean }>({
@@ -224,12 +239,31 @@ function PaymentsAdmin() {
                             <Button size="sm" variant="destructive" onClick={() => validate(i.id, "rejected")}><X className="h-4 w-4" /></Button>
                           </>
                         )}
-                        {i.payments?.student_id && i.payments?.cohort_id && (
-                          <Button size="sm" variant="ghost" onClick={() => toggleAccess(i.payments.student_id, i.payments.cohort_id, true)} title="Restreindre"><Lock className="h-3 w-3" /></Button>
-                        )}
-                        {i.payments?.student_id && i.payments?.cohort_id && (
-                          <Button size="sm" variant="ghost" onClick={() => toggleAccess(i.payments.student_id, i.payments.cohort_id, false)} title="Rétablir"><Unlock className="h-3 w-3" /></Button>
-                        )}
+                        {i.payments?.student_id && i.payments?.cohort_id && (() => {
+                          const st = enrollMap.get(`${i.payments.student_id}:${i.payments.cohort_id}`);
+                          const isRestricted = st === "restricted";
+                          return (
+                            <>
+                              <Badge
+                                variant="outline"
+                                className={isRestricted
+                                  ? "border-destructive/40 text-destructive"
+                                  : "border-emerald-500/40 text-emerald-700 dark:text-emerald-400"}
+                              >
+                                {isRestricted ? (<><Lock className="mr-1 h-3 w-3" /> Accès restreint</>) : (<><Unlock className="mr-1 h-3 w-3" /> Accès actif</>)}
+                              </Badge>
+                              {isRestricted ? (
+                                <Button size="sm" variant="ghost" onClick={() => toggleAccess(i.payments.student_id, i.payments.cohort_id, false)} title="Rétablir l'accès">
+                                  <Unlock className="h-3 w-3" />
+                                </Button>
+                              ) : (
+                                <Button size="sm" variant="ghost" onClick={() => toggleAccess(i.payments.student_id, i.payments.cohort_id, true)} title="Restreindre l'accès">
+                                  <Lock className="h-3 w-3" />
+                                </Button>
+                              )}
+                            </>
+                          );
+                        })()}
                       </TableCell>
                     </TableRow>
                   );
