@@ -78,6 +78,26 @@ function PaymentsAdmin() {
     return m;
   }, [enrollments]);
 
+  // Pour chaque (student:cohort), trouver l'échéance la plus ancienne en retard non validée
+  // afin d'expliquer pourquoi l'accès est restreint.
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const restrictionInfoMap = useMemo(() => {
+    const m = new Map<string, { position: number; due_date: string }>();
+    for (const r of rows as any[]) {
+      const sid = r.payments?.student_id;
+      const cid = r.payments?.cohort_id;
+      if (!sid || !cid) continue;
+      if (r.status === "validated") continue;
+      if (!r.due_date || r.due_date >= todayStr) continue;
+      const key = `${sid}:${cid}`;
+      const cur = m.get(key);
+      if (!cur || r.due_date < cur.due_date) {
+        m.set(key, { position: r.position, due_date: r.due_date });
+      }
+    }
+    return m;
+  }, [rows, todayStr]);
+
 
   const today = new Date().toISOString().slice(0, 10);
 
@@ -240,28 +260,37 @@ function PaymentsAdmin() {
                           </>
                         )}
                         {i.payments?.student_id && i.payments?.cohort_id && (() => {
-                          const st = enrollMap.get(`${i.payments.student_id}:${i.payments.cohort_id}`);
+                          const key = `${i.payments.student_id}:${i.payments.cohort_id}`;
+                          const st = enrollMap.get(key);
                           const isRestricted = st === "restricted";
+                          const info = restrictionInfoMap.get(key);
                           return (
-                            <>
-                              <Badge
-                                variant="outline"
-                                className={isRestricted
-                                  ? "border-destructive/40 text-destructive"
-                                  : "border-emerald-500/40 text-emerald-700 dark:text-emerald-400"}
-                              >
-                                {isRestricted ? (<><Lock className="mr-1 h-3 w-3" /> Accès restreint</>) : (<><Unlock className="mr-1 h-3 w-3" /> Accès actif</>)}
-                              </Badge>
-                              {isRestricted ? (
-                                <Button size="sm" variant="ghost" onClick={() => toggleAccess(i.payments.student_id, i.payments.cohort_id, false)} title="Rétablir l'accès">
-                                  <Unlock className="h-3 w-3" />
-                                </Button>
-                              ) : (
-                                <Button size="sm" variant="ghost" onClick={() => toggleAccess(i.payments.student_id, i.payments.cohort_id, true)} title="Restreindre l'accès">
-                                  <Lock className="h-3 w-3" />
-                                </Button>
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center gap-1">
+                                <Badge
+                                  variant="outline"
+                                  className={isRestricted
+                                    ? "border-destructive/40 text-destructive"
+                                    : "border-emerald-500/40 text-emerald-700 dark:text-emerald-400"}
+                                >
+                                  {isRestricted ? (<><Lock className="mr-1 h-3 w-3" /> Accès restreint</>) : (<><Unlock className="mr-1 h-3 w-3" /> Accès actif</>)}
+                                </Badge>
+                                {isRestricted ? (
+                                  <Button size="sm" variant="ghost" onClick={() => toggleAccess(i.payments.student_id, i.payments.cohort_id, false)} title="Rétablir l'accès">
+                                    <Unlock className="h-3 w-3" />
+                                  </Button>
+                                ) : (
+                                  <Button size="sm" variant="ghost" onClick={() => toggleAccess(i.payments.student_id, i.payments.cohort_id, true)} title="Restreindre l'accès">
+                                    <Lock className="h-3 w-3" />
+                                  </Button>
+                                )}
+                              </div>
+                              {isRestricted && info && (
+                                <span className="text-[10px] leading-tight text-destructive/80">
+                                  Impayé tranche #{info.position} — échéance {info.due_date}
+                                </span>
                               )}
-                            </>
+                            </div>
                           );
                         })()}
                       </TableCell>
