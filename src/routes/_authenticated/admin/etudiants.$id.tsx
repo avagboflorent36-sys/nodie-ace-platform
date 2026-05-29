@@ -5,7 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import {
   ArrowLeft, Mail, Phone, MapPin, Calendar, Send, Lock, Unlock,
-  Bell, FileText, Download, CheckCircle2, XCircle, Shield, Wallet, AlertTriangle, Activity,
+  Bell, FileText, Download, CheckCircle2, XCircle, Shield, Wallet, AlertTriangle, Activity, Award,
 } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
