@@ -626,6 +626,24 @@ export const startMyTranche2Checkout = createServerFn({ method: "POST" })
       };
     }
 
+    // Auto-heal: create the missing tranche 2 installment line if needed.
+    if (!t2) {
+      const amt = Number(cohort.price_installment ?? 0);
+      const { data: inserted } = await supabaseAdmin
+        .from("payment_installments")
+        .insert({ payment_id: payment.id, position: 2, status: "pending", amount: amt })
+        .select("id, position, status, amount")
+        .maybeSingle();
+      if (inserted) t2 = inserted as any;
+      if (!t2) {
+        return { checkout_url: null, status: "no_installment", message: "Impossible de créer la ligne de tranche 2." };
+      }
+    }
+    if (payment.status === "paid" || t2?.status === "validated") {
+      return { checkout_url: null, status: "already_paid", message: "La tranche 2 est déjà réglée." };
+    }
+
+
     const { data: prof } = await supabaseAdmin
       .from("profiles")
       .select("email, first_name, last_name, whatsapp")
