@@ -1,51 +1,69 @@
-## Problème
+## Diagnostic
 
-Sur `/etudiant/paiements`, l'étudiant `akitobiante85@gmail.com` voit son paiement `test 1` :
-- Mode : 2 tranches, 100 / 200 XOF, statut `partial`, source `chariow`
-- Une seule ligne `Tranche #1 — Validé`
-- **Aucun bouton pour payer la tranche 2**
+Avant de proposer des correctifs, voici ce que j'ai mesuré :
 
-Vérification base de données : `payment_installments` ne contient qu'une seule ligne (position 1). La ligne tranche #2 n'a jamais été créée pour ce paiement Chariow.
+- **`tsc --noEmit`** : passe sans erreur. Aucun bug TypeScript bloquant.
+- **`eslint`** : uniquement des warnings cosmétiques (`any`, formatage Prettier). Pas de bug runtime.
+- **Erreur récurrente `SyntaxError: Unexpected token (204:10)`** : trace héritée du cache Vite SSR (module compilé avant un fix précédent). Le fichier actuel `etudiant/paiements.tsx` parse correctement. → fix = vider le cache + redémarrer le dev server.
+- **Boundaries d'erreur** : `__root.tsx` a `errorComponent` + `notFoundComponent` ✓. Le router n'a PAS de `defaultErrorComponent` (fallback ultime manquant).
+- **Pas de `useEffect`/state suspects** dans les pages admin lues. Pas de boucle infinie évidente.
 
-Le code actuel de `src/routes/_authenticated/etudiant/paiements.tsx` fait :
-```ts
-const t2 = insts.find((i) => i.position === 2);
-const needsTranche2 = p.mode === "installments_2" && p.status !== "paid" && t2 && t2.status !== "validated";
-```
-Comme `t2` est `undefined`, le carton CTA et le bouton « Payer la tranche 2 » ne s'affichent jamais.
+## Cause probable de "l'instabilité globale"
 
-## Correctif
+1. **Cache SSR Vite figé** sur une ancienne version d'un fichier → écran blanc + erreur `204:10` réapparaît à chaque navigation tant que le serveur n'est pas relancé proprement.
+2. **Pas de `defaultErrorComponent` router** : si un loader/composant throw hors d'un boundary, l'utilisateur voit la page blanche h3 (`{"unhandled":true}`) au lieu d'un fallback.
+3. **Queries sans état `isLoading` visible** sur plusieurs pages admin (`paiements`, `etudiants`) : pendant le chargement, l'écran reste vide → ressenti "ne marche pas".
+4. **Boutons inertes** : sur la ligne admin paiements, certaines lignes n'ont pas d'action visible quand `payments` est null (jointure échouée à cause RLS ou ligne orpheline) → la cellule Actions est vide.
 
-Dans `src/routes/_authenticated/etudiant/paiements.tsx` :
+## Plan de correction (1 passe, sans toucher au business)
 
-1. **Rendre le CTA tranche 2 indépendant de l'existence de la ligne en base.**
-   Nouvelle condition :
-   ```ts
-   const needsTranche2 =
-     p.mode === "installments_2" &&
-     p.status !== "paid" &&
-     (!t2 || t2.status !== "validated");
-   const remaining = Number(p.amount_total) - Number(p.amount_paid);
-   const t2Amount = t2?.amount ?? remaining;
-   const t2Due = t2?.due_date ?? p.final_deadline ?? null;
-   ```
-   Afficher le carton avec ces valeurs et le lien existant `/etudiant/tranche-2/$paymentId`.
+### 1. Stabilité runtime
+- Ajouter `defaultErrorComponent` dans `src/router.tsx` (même UI que celui du root) pour couvrir les throws hors-tree.
+- Restart du dev server pour vider le cache SSR (Lovable le fait auto après edit).
 
-2. **Garder la liste des échéances inchangée** (on n'invente pas une ligne tranche #2 visuelle s'il n'y en a pas en DB), mais le carton CTA en haut suffit pour permettre le paiement et donc le rétablissement de l'accès.
+### 2. États de chargement visibles
+- Ajouter un skeleton/spinner sur :
+  - `admin/paiements.tsx` (rows query)
+  - `admin/etudiants.index.tsx` (students query)
+  - `admin/etudiants.$id.tsx` (déjà `isLoading` mais pas branché — l'utiliser)
+- Afficher un message "Aucune donnée liée" quand `r.payments == null` au lieu d'une cellule vide.
 
-## Hors scope
+### 3. Boutons inertes & garde-fous
+- `admin/paiements.tsx` : filtrer dès la query les rows orphelines (`payments != null`) pour éviter les lignes "fantômes" sans action possible.
+- `admin/etudiants.index.tsx` : ajouter un `title` quand WhatsApp manque (déjà fait) — vérifier l'`onClick stopPropagation` sur le bouton (déjà OK).
+- `etudiant/paiements.tsx` : déjà corrigé tranche 2 (lot précédent).
 
-- Pas de migration pour backfiller la ligne `payment_installments` position 2 manquante (la route `/etudiant/tranche-2/$paymentId` la créera/mettra à jour au paiement).
-- Pas de modification de la page admin ni du flux Chariow.
-- Pas de changement de design.
+### 4. Resilience requêtes Supabase
+- Ajouter `throwOnError: false` explicite et un `toast.error` sur les `error` ignorées dans les pages admin (actuellement on log silencieux → données vides sans signal).
+
+## Hors scope (à demander explicitement)
+
+- Refactor des `any` (cosmétique, risque de régression vs gain nul).
+- Réécriture du flux Chariow / webhook.
+- Migration RLS / schéma DB.
+- Changement de design.
 
 ## Détail technique
 
 ```text
-etudiant/paiements.tsx (carton CTA)
-  needsTranche2 = mode=installments_2 && status!=paid && (!t2 || t2.status!=validated)
-  remaining     = amount_total - amount_paid
-  t2Amount      = t2?.amount      ?? remaining
-  t2Due         = t2?.due_date    ?? final_deadline
-  → <Link to="/etudiant/tranche-2/$paymentId" params={{paymentId: p.id}}>
+src/router.tsx                              + defaultErrorComponent
+src/routes/_authenticated/admin/paiements.tsx
+  + isLoading skeleton table
+  + filter rows where payments == null
+  + toast.error si query error
+src/routes/_authenticated/admin/etudiants.index.tsx
+  + isLoading skeleton
+src/routes/_authenticated/admin/etudiants.$id.tsx
+  + brancher isLoading existant
 ```
+
+Aucune migration DB, aucun changement de logique métier. Tous les correctifs sont défensifs (gardes, fallbacks, états de chargement).
+
+## Validation
+
+Après les changements, je relance `tsc` et j'ouvre `/admin/paiements`, `/admin/etudiants`, `/etudiant/paiements` dans le navigateur pour confirmer que :
+- Aucune page ne reste blanche.
+- Les spinners apparaissent puis cèdent la place aux données.
+- Les boutons critiques (WhatsApp, validation paiement, tranche 2) sont fonctionnels.
+
+Si vous voyez des symptômes plus précis (un bouton précis qui ne fait rien, une page nommée qui crashe), dites-le-moi — je préfère cibler que ratisser large.
