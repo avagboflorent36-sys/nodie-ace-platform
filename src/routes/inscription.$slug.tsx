@@ -681,10 +681,14 @@ function PostPaymentStep({
           type="email"
           value={form.email}
           onChange={(e) => setForm({ ...form, email: e.target.value })}
+          readOnly={prefilledFields.email}
           required
+          className={prefilledFields.email ? "bg-muted/40 cursor-not-allowed" : undefined}
         />
         <p className="mt-1 text-xs text-muted-foreground">
-          Utilisez la même adresse que celle du paiement pour lier automatiquement votre compte.
+          {prefilledFields.email
+            ? "Adresse utilisée lors de votre paiement (non modifiable)."
+            : "Utilisez la même adresse que celle du paiement pour lier automatiquement votre compte."}
         </p>
       </div>
       <div className="grid grid-cols-2 gap-3">
@@ -693,8 +697,16 @@ function PostPaymentStep({
           <Input
             value={form.whatsapp}
             onChange={(e) => setForm({ ...form, whatsapp: e.target.value })}
+            readOnly={prefilledFields.whatsapp}
             required
+            className={prefilledFields.whatsapp ? "bg-muted/40 cursor-not-allowed" : undefined}
+            placeholder="+22507XXXXXXXX"
           />
+          {prefilledFields.whatsapp ? (
+            <p className="mt-1 text-xs text-muted-foreground">Numéro utilisé lors de votre paiement.</p>
+          ) : (
+            <p className="mt-1 text-xs text-muted-foreground">Format international, ex : +22507XXXXXXXX</p>
+          )}
         </div>
         <div>
           <Label>Pays *</Label>
