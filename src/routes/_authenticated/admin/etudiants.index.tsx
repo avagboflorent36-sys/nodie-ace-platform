@@ -16,9 +16,12 @@ export const Route = createFileRoute("/_authenticated/admin/etudiants/")({
   component: StudentsPage,
 });
 
+const PAGE_SIZE = 25;
+
 function StudentsPage() {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const { data: students = [], isLoading, error } = useQuery({
     queryKey: ["admin-students"],
     queryFn: async () => {
@@ -41,6 +44,11 @@ function StudentsPage() {
     s.first_name?.toLowerCase().includes(search.toLowerCase()) ||
     s.last_name?.toLowerCase().includes(search.toLowerCase())
   );
+
+  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [search]);
+
+  const visible = filtered.slice(0, visibleCount);
+  const hasMore = visibleCount < filtered.length;
 
   const exportCsv = () => {
     const head = ["Prénom", "Nom", "Email", "WhatsApp", "Pays", "Inscrit le"];
