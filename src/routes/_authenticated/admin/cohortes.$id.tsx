@@ -101,7 +101,7 @@ function CohortDetail() {
             <TabsTrigger value="annonces">Annonces</TabsTrigger>
             <TabsTrigger value="live">Live</TabsTrigger>
             <TabsTrigger value="form">Formulaire</TabsTrigger>
-            <TabsTrigger value="automations">Automatisations</TabsTrigger>
+            
             <TabsTrigger value="responses">Réponses</TabsTrigger>
             <TabsTrigger value="settings">Paramètres</TabsTrigger>
           </TabsList>
