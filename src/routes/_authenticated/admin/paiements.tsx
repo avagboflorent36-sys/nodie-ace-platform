@@ -239,12 +239,31 @@ function PaymentsAdmin() {
                             <Button size="sm" variant="destructive" onClick={() => validate(i.id, "rejected")}><X className="h-4 w-4" /></Button>
                           </>
                         )}
-                        {i.payments?.student_id && i.payments?.cohort_id && (
-                          <Button size="sm" variant="ghost" onClick={() => toggleAccess(i.payments.student_id, i.payments.cohort_id, true)} title="Restreindre"><Lock className="h-3 w-3" /></Button>
-                        )}
-                        {i.payments?.student_id && i.payments?.cohort_id && (
-                          <Button size="sm" variant="ghost" onClick={() => toggleAccess(i.payments.student_id, i.payments.cohort_id, false)} title="Rétablir"><Unlock className="h-3 w-3" /></Button>
-                        )}
+                        {i.payments?.student_id && i.payments?.cohort_id && (() => {
+                          const st = enrollMap.get(`${i.payments.student_id}:${i.payments.cohort_id}`);
+                          const isRestricted = st === "restricted";
+                          return (
+                            <>
+                              <Badge
+                                variant="outline"
+                                className={isRestricted
+                                  ? "border-destructive/40 text-destructive"
+                                  : "border-emerald-500/40 text-emerald-700 dark:text-emerald-400"}
+                              >
+                                {isRestricted ? (<><Lock className="mr-1 h-3 w-3" /> Accès restreint</>) : (<><Unlock className="mr-1 h-3 w-3" /> Accès actif</>)}
+                              </Badge>
+                              {isRestricted ? (
+                                <Button size="sm" variant="ghost" onClick={() => toggleAccess(i.payments.student_id, i.payments.cohort_id, false)} title="Rétablir l'accès">
+                                  <Unlock className="h-3 w-3" />
+                                </Button>
+                              ) : (
+                                <Button size="sm" variant="ghost" onClick={() => toggleAccess(i.payments.student_id, i.payments.cohort_id, true)} title="Restreindre l'accès">
+                                  <Lock className="h-3 w-3" />
+                                </Button>
+                              )}
+                            </>
+                          );
+                        })()}
                       </TableCell>
                     </TableRow>
                   );
