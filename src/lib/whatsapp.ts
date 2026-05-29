@@ -23,6 +23,7 @@ export function buildWhatsAppHref(
 ): string | null {
   const digits = normalizeWhatsAppNumber(raw);
   if (digits.length < 8) return null;
-  const greeting = `Bonjour ${firstName ?? ""},`.trim();
+  const name = (firstName ?? "").trim();
+  const greeting = name ? `Bonjour ${name},` : "Bonjour,";
   return `https://wa.me/${digits}?text=${encodeURIComponent(greeting)}`;
 }
