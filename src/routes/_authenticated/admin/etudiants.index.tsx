@@ -19,16 +19,21 @@ export const Route = createFileRoute("/_authenticated/admin/etudiants/")({
 function StudentsPage() {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
-  const { data: students = [] } = useQuery({
+  const { data: students = [], isLoading, error } = useQuery({
     queryKey: ["admin-students"],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("profiles")
         .select("id, first_name, last_name, email, whatsapp, country, created_at")
         .order("created_at", { ascending: false });
+      if (error) throw error;
       return data ?? [];
     },
   });
+
+  useEffect(() => {
+    if (error) toast.error((error as any).message ?? "Erreur de chargement des étudiants");
+  }, [error]);
 
   const filtered = students.filter((s: any) =>
     !search ||
