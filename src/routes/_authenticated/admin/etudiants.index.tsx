@@ -71,8 +71,11 @@ function StudentsPage() {
               <TableRow><TableCell colSpan={6} className="py-12 text-center text-muted-foreground">Aucun étudiant.</TableCell></TableRow>
             ) : (
               filtered.map((s: any) => {
-                const digits = String(s.whatsapp ?? "").replace(/\D/g, "");
-                const canWhatsApp = digits.length >= 7;
+                const digits = String(s.whatsapp ?? "").replace(/\D/g, "").replace(/^00/, "");
+                const canWhatsApp = digits.length >= 8;
+                const waHref = canWhatsApp
+                  ? `https://wa.me/${digits}?text=${encodeURIComponent(`Bonjour ${s.first_name ?? ""},`)}`
+                  : "#";
                 return (
                   <TableRow
                     key={s.id}
