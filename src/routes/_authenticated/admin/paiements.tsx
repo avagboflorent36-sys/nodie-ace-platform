@@ -11,8 +11,35 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { sendPaymentReminders } from "@/lib/reminders.functions";
+
+const DEFAULT_SUBJECT_SELECTION = "Rappel paiement — {{cohorte}}";
+const DEFAULT_BODY_SELECTION = `Bonjour {{prenom}},
+
+Petit rappel concernant votre paiement pour {{cohorte}}.
+Montant : {{montant}} {{devise}} — Échéance : {{echeance}}.
+
+Réglez votre 2e tranche ici : {{lien_paiement}}
+
+L'équipe Nodie IA Academy`;
+
+const DEFAULT_SUBJECT_LATE = "Paiement en retard — {{cohorte}}";
+const DEFAULT_BODY_LATE = `Bonjour {{prenom}},
+
+Votre échéance pour {{cohorte}} est dépassée (échéance prévue le {{echeance}}).
+Montant restant : {{montant}} {{devise}}.
+
+Merci de régler votre 2e tranche au plus vite via ce lien :
+{{lien_paiement}}
+
+Sans régularisation rapide, votre accès à la cohorte peut être restreint.
+
+L'équipe Nodie IA Academy`;
 
 export const Route = createFileRoute("/_authenticated/admin/paiements")({
   component: PaymentsAdmin,
