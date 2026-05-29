@@ -21,6 +21,7 @@ import {
   checkAttemptByToken,
   claimPendingEnrollment,
   claimAttemptByToken,
+  getPrefillFromToken,
 } from "@/lib/chariow.functions";
 
 type SearchParams = { sale?: string; claim?: string; attempt?: string };
