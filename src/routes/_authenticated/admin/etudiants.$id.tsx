@@ -185,25 +185,40 @@ function StudentDetail() {
             <Table>
               <TableHeader><TableRow>
                 <TableHead>Cohorte</TableHead><TableHead>Formation</TableHead>
-                <TableHead>Statut</TableHead><TableHead>Inscrit le</TableHead><TableHead className="text-right">Actions</TableHead>
+                <TableHead>Statut</TableHead><TableHead>Certificat</TableHead><TableHead>Inscrit le</TableHead><TableHead className="text-right">Actions</TableHead>
               </TableRow></TableHeader>
               <TableBody>
-                {data.enrollments.length === 0 ? <TableRow><TableCell colSpan={5} className="py-8 text-center text-muted-foreground">Aucune inscription.</TableCell></TableRow> :
-                  data.enrollments.map((e: any) => (
-                    <TableRow key={e.id}>
-                      <TableCell><Link to="/admin/cohortes/$id" params={{ id: e.cohort_id }} className="font-medium text-gold hover:underline">{e.cohortes?.name ?? "—"}</Link></TableCell>
-                      <TableCell>{e.cohortes?.formations?.title ?? "—"}</TableCell>
-                      <TableCell><Badge variant={e.status === "restricted" ? "destructive" : "default"}>{e.status}</Badge></TableCell>
-                      <TableCell>{new Date(e.enrolled_at).toLocaleDateString("fr-FR")}</TableCell>
-                      <TableCell className="text-right">
-                        <Button size="sm" variant={e.status === "restricted" ? "default" : "outline"}
-                          onClick={() => toggleEnrollment.mutate({ enrollmentId: e.id, current: e.status })}
-                          disabled={toggleEnrollment.isPending}>
-                          {e.status === "restricted" ? <><Unlock className="mr-1 h-3 w-3" />Rétablir</> : <><Lock className="mr-1 h-3 w-3" />Restreindre</>}
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                {data.enrollments.length === 0 ? <TableRow><TableCell colSpan={6} className="py-8 text-center text-muted-foreground">Aucune inscription.</TableCell></TableRow> :
+                  data.enrollments.map((e: any) => {
+                    const certUnlocked = !!e.certificate_unlocked_at;
+                    return (
+                      <TableRow key={e.id}>
+                        <TableCell><Link to="/admin/cohortes/$id" params={{ id: e.cohort_id }} className="font-medium text-gold hover:underline">{e.cohortes?.name ?? "—"}</Link></TableCell>
+                        <TableCell>{e.cohortes?.formations?.title ?? "—"}</TableCell>
+                        <TableCell><Badge variant={e.status === "restricted" ? "destructive" : "default"}>{e.status}</Badge></TableCell>
+                        <TableCell>
+                          {certUnlocked
+                            ? <Badge className="bg-emerald-600 hover:bg-emerald-700 gap-1"><Award className="h-3 w-3" /> Débloqué</Badge>
+                            : <Badge variant="outline" className="gap-1"><Lock className="h-3 w-3" /> Verrouillé</Badge>}
+                        </TableCell>
+                        <TableCell>{new Date(e.enrolled_at).toLocaleDateString("fr-FR")}</TableCell>
+                        <TableCell className="text-right space-x-1">
+                          <Button size="sm" variant={certUnlocked ? "ghost" : "default"}
+                            className={certUnlocked ? "" : "bg-gold text-primary hover:bg-gold/90"}
+                            onClick={() => toggleCertificate.mutate({ enrollmentId: e.id, currentlyUnlocked: certUnlocked })}
+                            disabled={toggleCertificate.isPending}>
+                            <Award className="mr-1 h-3 w-3" />
+                            {certUnlocked ? "Verrouiller" : "Débloquer certificat"}
+                          </Button>
+                          <Button size="sm" variant={e.status === "restricted" ? "default" : "outline"}
+                            onClick={() => toggleEnrollment.mutate({ enrollmentId: e.id, current: e.status })}
+                            disabled={toggleEnrollment.isPending}>
+                            {e.status === "restricted" ? <><Unlock className="mr-1 h-3 w-3" />Rétablir</> : <><Lock className="mr-1 h-3 w-3" />Restreindre</>}
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
               </TableBody>
             </Table>
           </Card>
