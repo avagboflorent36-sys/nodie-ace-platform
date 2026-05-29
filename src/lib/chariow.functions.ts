@@ -639,9 +639,11 @@ export const startMyTranche2Checkout = createServerFn({ method: "POST" })
         return { checkout_url: null, status: "no_installment", message: "Impossible de créer la ligne de tranche 2." };
       }
     }
-    if (payment.status === "paid" || t2?.status === "validated") {
+    if (t2?.status === "validated") {
       return { checkout_url: null, status: "already_paid", message: "La tranche 2 est déjà réglée." };
     }
+
+
 
 
     const { data: prof } = await supabaseAdmin
