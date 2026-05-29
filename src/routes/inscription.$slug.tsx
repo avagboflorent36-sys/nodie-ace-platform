@@ -211,7 +211,9 @@ function CheckoutStep({ cohort }: { cohort: any }) {
           value={form.phone}
           onChange={(e) => setForm({ ...form, phone: e.target.value })}
           required
+          placeholder="+22507XXXXXXXX"
         />
+        <p className="mt-1 text-xs text-muted-foreground">Format international avec indicatif, ex : +22507XXXXXXXX</p>
       </div>
 
       <div>
