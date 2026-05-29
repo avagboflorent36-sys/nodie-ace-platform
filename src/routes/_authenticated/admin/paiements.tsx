@@ -110,6 +110,7 @@ function PaymentsAdmin() {
     if (error) { toast.error(error.message); return; }
     toast.success(restrict ? "Accès restreint" : "Accès rétabli");
     qc.invalidateQueries({ queryKey: ["admin-installments-all"] });
+    qc.invalidateQueries({ queryKey: ["admin-enrollments-all"] });
   };
 
   const [dialogState, setDialogState] = useState<{ open: boolean; ids: string[]; subject: string; body: string; sending: boolean }>({
