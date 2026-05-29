@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { Download, MessageCircle } from "lucide-react";
 
 
@@ -18,16 +19,21 @@ export const Route = createFileRoute("/_authenticated/admin/etudiants/")({
 function StudentsPage() {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
-  const { data: students = [] } = useQuery({
+  const { data: students = [], isLoading, error } = useQuery({
     queryKey: ["admin-students"],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("profiles")
         .select("id, first_name, last_name, email, whatsapp, country, created_at")
         .order("created_at", { ascending: false });
+      if (error) throw error;
       return data ?? [];
     },
   });
+
+  useEffect(() => {
+    if (error) toast.error((error as any).message ?? "Erreur de chargement des étudiants");
+  }, [error]);
 
   const filtered = students.filter((s: any) =>
     !search ||
@@ -68,7 +74,9 @@ function StudentsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.length === 0 ? (
+            {isLoading ? (
+              <TableRow><TableCell colSpan={6} className="py-12 text-center text-muted-foreground">Chargement…</TableCell></TableRow>
+            ) : filtered.length === 0 ? (
               <TableRow><TableCell colSpan={6} className="py-12 text-center text-muted-foreground">Aucun étudiant.</TableCell></TableRow>
             ) : (
               filtered.map((s: any) => {
