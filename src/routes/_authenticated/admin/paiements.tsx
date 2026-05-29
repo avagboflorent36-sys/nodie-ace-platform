@@ -317,6 +317,14 @@ function PaymentsAdmin() {
                 })}
               </TableBody>
             </Table>
+            {hasMore && (
+              <div className="flex items-center justify-between gap-3 border-t p-3 text-sm text-muted-foreground">
+                <span>{visible.length} sur {filtered.length}</span>
+                <Button variant="outline" size="sm" onClick={() => setVisibleCount((n) => n + PAGE_SIZE)}>
+                  Charger plus
+                </Button>
+              </div>
+            )}
           </Card>
         </TabsContent>
       </Tabs>
