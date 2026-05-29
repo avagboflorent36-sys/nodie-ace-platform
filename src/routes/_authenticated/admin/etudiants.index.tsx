@@ -99,7 +99,7 @@ function StudentsPage() {
                           onClick={(e) => e.stopPropagation()}
                         >
                           <a
-                            href={`https://wa.me/${digits}`}
+                            href={waHref}
                             target="_blank"
                             rel="noopener noreferrer"
                             aria-label={`Ouvrir WhatsApp avec ${s.first_name} ${s.last_name}`}
