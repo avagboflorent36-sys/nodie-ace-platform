@@ -67,6 +67,23 @@ function StudentDetail() {
     onError: (e: any) => toast.error(e.message),
   });
 
+  const toggleCertificate = useMutation({
+    mutationFn: async ({ enrollmentId, currentlyUnlocked }: { enrollmentId: string; currentlyUnlocked: boolean }) => {
+      const { data: auth } = await supabase.auth.getUser();
+      const patch: any = currentlyUnlocked
+        ? { certificate_unlocked_at: null, certificate_unlocked_by: null }
+        : { certificate_unlocked_at: new Date().toISOString(), certificate_unlocked_by: auth.user?.id ?? null };
+      const { error } = await (supabase as any).from("cohort_enrollments").update(patch).eq("id", enrollmentId);
+      if (error) throw error;
+      return !currentlyUnlocked;
+    },
+    onSuccess: (unlocked) => {
+      toast.success(unlocked ? "Certificat débloqué pour l'étudiant" : "Certificat verrouillé");
+      qc.invalidateQueries({ queryKey: ["admin-student", id] });
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
   const validateInstallment = useMutation({
     mutationFn: async ({ installmentId, action }: { installmentId: string; action: "validate" | "reject" }) => {
       const patch: any = action === "validate"
