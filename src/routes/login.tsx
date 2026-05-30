@@ -19,7 +19,19 @@ export const Route = createFileRoute("/login")({
   validateSearch: (s: Record<string, unknown>): SearchParams => ({
     attempt: typeof s.attempt === "string" ? s.attempt : undefined,
   }),
-  head: () => ({ meta: [{ title: "Connexion — Nodie IA Academy" }] }),
+  head: () => ({
+    meta: [
+      { title: "Connexion — Nodie IA Academy" },
+      { name: "description", content: "Connectez-vous à votre espace Nodie IA Academy pour accéder à vos cohortes et ressources." },
+      { property: "og:title", content: "Connexion — Nodie IA Academy" },
+      { property: "og:description", content: "Connectez-vous à votre espace Nodie IA Academy." },
+      { property: "og:url", content: "https://futuretalents.me/login" },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/9d187329-8ddd-4291-9300-db04ed5dd355/id-preview-d90b8195--66439da9-0337-4213-a275-40cffeef22c6.lovable.app-1779880981125.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/9d187329-8ddd-4291-9300-db04ed5dd355/id-preview-d90b8195--66439da9-0337-4213-a275-40cffeef22c6.lovable.app-1779880981125.png" },
+    ],
+    links: [{ rel: "canonical", href: "https://futuretalents.me/login" }],
+  }),
+
   component: LoginPage,
 });
 

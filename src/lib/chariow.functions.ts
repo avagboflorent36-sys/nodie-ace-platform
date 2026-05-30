@@ -11,7 +11,8 @@ import {
 } from "./chariow.server";
 
 const SITE_URL =
-  process.env.SITE_URL || "https://project--66439da9-0337-4213-a275-40cffeef22c6.lovable.app";
+  process.env.SITE_URL || "https://futuretalents.me";
+
 
 function normalizeChariowProductId(value?: string | null) {
   const raw = (value ?? "").trim();

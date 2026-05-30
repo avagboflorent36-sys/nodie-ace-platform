@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
-const SITE_URL = "https://project--66439da9-0337-4213-a275-40cffeef22c6.lovable.app";
+const SITE_URL = process.env.SITE_URL || "https://futuretalents.me";
 
 const sendOne = async (to: string, subject: string, html: string) => {
   const key = process.env.RESEND_API_KEY;

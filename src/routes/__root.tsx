@@ -72,14 +72,26 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:title", content: "Nodie IA Academy — Plateforme d'apprentissage en IA" },
       { property: "og:description", content: "Académie en ligne premium dédiée à l'intelligence artificielle. Cohortes, ressources pédagogiques, mentorat et certificats." },
       { property: "og:type", content: "website" },
+      { property: "og:site_name", content: "Nodie IA Academy" },
+      { property: "og:url", content: "https://futuretalents.me" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:title", content: "Nodie IA Academy — Plateforme d'apprentissage en IA" },
       { name: "twitter:description", content: "Académie en ligne premium dédiée à l'intelligence artificielle. Cohortes, ressources pédagogiques, mentorat et certificats." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/9d187329-8ddd-4291-9300-db04ed5dd355/id-preview-d90b8195--66439da9-0337-4213-a275-40cffeef22c6.lovable.app-1779880981125.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/9d187329-8ddd-4291-9300-db04ed5dd355/id-preview-d90b8195--66439da9-0337-4213-a275-40cffeef22c6.lovable.app-1779880981125.png" },
     ],
     links: [{ rel: "stylesheet", href: appCss }],
+    scripts: [
+      {
+        type: "application/ld+json",
+        children: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "Organization",
+          name: "Nodie IA Academy",
+          url: "https://futuretalents.me",
+        }),
+      },
+    ],
   }),
+
   shellComponent: RootShell,
   component: RootComponent,
   notFoundComponent: NotFoundComponent,

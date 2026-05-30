@@ -28,6 +28,7 @@ export const getChariowWebhookUrls = createServerFn({ method: "POST" })
     const path = `/api/public/hooks/chariow/${secret}`;
     return {
       previewUrl: `https://project--${PROJECT_ID}-dev.lovable.app${path}`,
-      productionUrl: `https://project--${PROJECT_ID}.lovable.app${path}`,
+      productionUrl: `https://futuretalents.me${path}`,
     };
   });
+

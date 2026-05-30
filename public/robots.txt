@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /etudiant
+Disallow: /api/
+
+Sitemap: https://futuretalents.me/sitemap.xml
