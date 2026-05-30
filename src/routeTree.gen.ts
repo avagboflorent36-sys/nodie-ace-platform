@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as LoginRouteImport } from './routes/login'
@@ -40,6 +41,11 @@ import { Route as AuthenticatedAdminEtudiantsIdRouteImport } from './routes/_aut
 import { Route as AuthenticatedAdminCohortesIdRouteImport } from './routes/_authenticated/admin/cohortes.$id'
 import { Route as ApiPublicHooksChariowSecretRouteImport } from './routes/api/public/hooks/chariow.$secret'
 
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
   path: '/signup',
@@ -215,6 +221,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/etudiant': typeof AuthenticatedEtudiantRouteWithChildren
   '/inscription/$slug': typeof InscriptionSlugRouteWithChildren
@@ -246,6 +253,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/inscription/$slug': typeof InscriptionSlugRouteWithChildren
   '/admin/formations': typeof AuthenticatedAdminFormationsRoute
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
@@ -277,6 +285,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/etudiant': typeof AuthenticatedEtudiantRouteWithChildren
   '/inscription/$slug': typeof InscriptionSlugRouteWithChildren
@@ -310,6 +319,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/reset-password'
     | '/signup'
+    | '/sitemap.xml'
     | '/admin'
     | '/etudiant'
     | '/inscription/$slug'
@@ -341,6 +351,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/reset-password'
     | '/signup'
+    | '/sitemap.xml'
     | '/inscription/$slug'
     | '/admin/formations'
     | '/admin/notifications'
@@ -371,6 +382,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/reset-password'
     | '/signup'
+    | '/sitemap.xml'
     | '/_authenticated/admin'
     | '/_authenticated/etudiant'
     | '/inscription/$slug'
@@ -404,6 +416,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   SignupRoute: typeof SignupRoute
+  SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   InscriptionSlugRoute: typeof InscriptionSlugRouteWithChildren
   ApiPublicHooksAutomationTickRoute: typeof ApiPublicHooksAutomationTickRoute
   ApiPublicHooksPaymentRemindersRoute: typeof ApiPublicHooksPaymentRemindersRoute
@@ -412,6 +425,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/signup': {
       id: '/signup'
       path: '/signup'
@@ -713,6 +733,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   SignupRoute: SignupRoute,
+  SitemapDotxmlRoute: SitemapDotxmlRoute,
   InscriptionSlugRoute: InscriptionSlugRouteWithChildren,
   ApiPublicHooksAutomationTickRoute: ApiPublicHooksAutomationTickRoute,
   ApiPublicHooksPaymentRemindersRoute: ApiPublicHooksPaymentRemindersRoute,
@@ -721,3 +742,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
