@@ -1,6 +1,6 @@
 // Server-only email helper (Resend). Never import from client code.
 const EMAIL_FROM = process.env.EMAIL_FROM || "Nodie IA Academy <onboarding@resend.dev>";
-const SITE_URL = process.env.SITE_URL || "https://project--66439da9-0337-4213-a275-40cffeef22c6.lovable.app";
+const SITE_URL = process.env.SITE_URL || "https://futuretalents.me";
 
 export function siteUrl(path = "/") {
   return `${SITE_URL}${path.startsWith("/") ? path : `/${path}`}`;
